@@ -15,14 +15,22 @@ data:
   # Path to clifpy configuration file
   clif_config_path: "clif_config.json"
 
-  # Path to tokenETL cohort file (defines the shared ICU cohort)
-  cohort_path: "OutputTokens/tokentables/cohort.parquet"
+  # Path to cohort file (optional - use 'flair build-cohort' to generate)
+  # cohort_path: "flair_output/cohort.parquet"
 
   # Path to narratives directory (for label extraction)
   narratives_dir: "OutputTokens/narratives"
 
   # File type for CLIF data
   filetype: "parquet"
+
+# Cohort building configuration
+# Run 'flair build-cohort' to generate the cohort from CLIF data
+cohort:
+  output_path: "flair_output/cohort.parquet"
+  min_age: 18                       # Minimum patient age filter
+  min_los_days: 0                   # Minimum length of stay (days)
+  skip_time_filter: true            # Skip time filter (for MIMIC compatibility)
 
 output:
   base_dir: "flair_output"

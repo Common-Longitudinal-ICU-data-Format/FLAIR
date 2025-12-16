@@ -78,6 +78,76 @@ def build_datasets(ctx, task):
         sys.exit(1)
 
 
+@cli.command("build-cohort")
+@click.option("--output", "-o", default=None, help="Output path (default: from config)")
+@click.pass_context
+def build_cohort(ctx, output):
+    """Build the ICU cohort from CLIF data.
+
+    Uses clifpy to build the shared ICU cohort with:
+    - Adults (age >= 18)
+    - At least one ICU ADT record
+    - Length of stay > 0
+    - imv_at_24hr flag for Task 3 & 4
+    """
+    from flair.config.loader import load_config
+    from flair.cohort.builder import FLAIRCohortBuilder
+
+    config_path = ctx.obj["config_path"]
+
+    try:
+        config = load_config(config_path)
+        cohort_config = config.cohort
+
+        # Determine output path
+        output_path = output or cohort_config.output_path
+
+        click.echo("Building FLAIR cohort from CLIF data...")
+        click.echo(f"  CLIF config: {config.data.clif_config_path}")
+        click.echo(f"  Min age: {cohort_config.min_age}")
+        click.echo(f"  Min LOS: {cohort_config.min_los_days} days")
+        click.echo(f"  Output: {output_path}")
+        click.echo("")
+
+        builder = FLAIRCohortBuilder(config.data.clif_config_path)
+        cohort, stats = builder.build_cohort(
+            output_path=output_path,
+            min_age=cohort_config.min_age,
+            min_los_days=cohort_config.min_los_days,
+            skip_time_filter=cohort_config.skip_time_filter,
+        )
+
+        click.echo("")
+        click.echo(click.style("Cohort built successfully!", fg="green", bold=True))
+        click.echo(f"  Total hospitalizations: {cohort.height:,}")
+        click.echo(f"  Output saved to: {output_path}")
+
+        # Show exclusion statistics
+        click.echo("")
+        click.echo("Exclusion statistics:")
+        click.echo(f"  Initial: {stats.get('initial', 0):,}")
+        click.echo(f"  After null date filter: {stats.get('after_null_filter', 0):,}")
+        click.echo(f"  After age filter: {stats.get('after_age_filter', 0):,}")
+        click.echo(f"  After LOS filter: {stats.get('after_los_filter', 0):,}")
+        click.echo(f"  After ICU filter: {stats.get('after_icu_filter', 0):,}")
+        click.echo(f"  Final: {stats.get('final', 0):,}")
+
+    except ImportError as e:
+        click.echo(f"Error: clifpy is required for cohort building", err=True)
+        click.echo(f"Install with: pip install clifpy", err=True)
+        sys.exit(1)
+    except FileNotFoundError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        if ctx.obj["verbose"]:
+            import traceback
+
+            traceback.print_exc()
+        sys.exit(1)
+
+
 @cli.command("validate")
 @click.argument("submission_dir")
 @click.pass_context

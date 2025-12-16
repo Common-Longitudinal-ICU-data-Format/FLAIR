@@ -21,11 +21,30 @@ class DataConfig(BaseModel):
     """Data paths configuration."""
 
     clif_config_path: str = Field(..., description="Path to clifpy configuration file")
-    cohort_path: str = Field(..., description="Path to tokenETL cohort parquet file")
+    cohort_path: Optional[str] = Field(
+        default=None,
+        description="Path to cohort parquet file (use 'flair build-cohort' to generate)"
+    )
     narratives_dir: str = Field(
         default="OutputTokens/narratives", description="Path to narratives directory"
     )
     filetype: str = Field(default="parquet", description="File type for CLIF data")
+
+
+class CohortConfig(BaseModel):
+    """Cohort building configuration."""
+
+    output_path: str = Field(
+        default="flair_output/cohort.parquet",
+        description="Path to save built cohort"
+    )
+    min_age: int = Field(default=18, ge=0, le=120, description="Minimum patient age")
+    min_los_days: float = Field(
+        default=0, ge=0, description="Minimum length of stay in days"
+    )
+    skip_time_filter: bool = Field(
+        default=True, description="Skip time period filter (for MIMIC compatibility)"
+    )
 
 
 class OutputConfig(BaseModel):
@@ -213,6 +232,7 @@ class FLAIRConfig(BaseModel):
     site: SiteConfig
     data: DataConfig
     output: OutputConfig = Field(default_factory=OutputConfig)
+    cohort: CohortConfig = Field(default_factory=CohortConfig)
     tasks: TasksConfig = Field(default_factory=TasksConfig)
     wide_dataset: WideDatasetConfig = Field(default_factory=WideDatasetConfig)
     privacy: PrivacyConfig = Field(default_factory=PrivacyConfig)
@@ -224,6 +244,12 @@ class FLAIRConfig(BaseModel):
             raise ValueError(f"Unknown task: {task_name}")
         return getattr(self.tasks, task_name)
 
+    def get_cohort_path(self) -> str:
+        """Get cohort path (from data config or cohort config)."""
+        if self.data.cohort_path:
+            return self.data.cohort_path
+        return self.cohort.output_path
+
     def validate_paths(self) -> List[str]:
         """Validate that required paths exist."""
         errors = []
@@ -231,8 +257,13 @@ class FLAIRConfig(BaseModel):
         if not Path(self.data.clif_config_path).exists():
             errors.append(f"CLIF config not found: {self.data.clif_config_path}")
 
-        if not Path(self.data.cohort_path).exists():
-            errors.append(f"Cohort file not found: {self.data.cohort_path}")
+        # Cohort path is optional - can be built with 'flair build-cohort'
+        cohort_path = self.get_cohort_path()
+        if cohort_path and not Path(cohort_path).exists():
+            errors.append(
+                f"Cohort file not found: {cohort_path}. "
+                "Run 'flair build-cohort' to generate it."
+            )
 
         return errors
 

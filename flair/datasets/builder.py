@@ -2,7 +2,7 @@
 Dataset builder for FLAIR benchmark.
 
 Uses clifpy's create_wide_dataset() for feature generation.
-All tasks share the same cohort from tokenETL.
+All tasks share the same ICU cohort (built with 'flair build-cohort').
 """
 
 import polars as pl
@@ -79,10 +79,29 @@ class FLAIRDatasetBuilder:
             raise
 
     def _load_cohort(self) -> None:
-        """Load cohort from tokenETL output."""
-        cohort_path = self.config["data"]["cohort_path"]
+        """Load cohort from FLAIR or external source.
+
+        Checks for cohort at:
+        1. data.cohort_path (if specified in config)
+        2. cohort.output_path (FLAIR's built cohort)
+        """
+        # Try data.cohort_path first (external cohort)
+        cohort_path = self.config.get("data", {}).get("cohort_path")
+
+        # Fall back to cohort.output_path (FLAIR-built cohort)
+        if not cohort_path:
+            cohort_path = self.config.get("cohort", {}).get(
+                "output_path", "flair_output/cohort.parquet"
+            )
+
+        if not Path(cohort_path).exists():
+            raise FileNotFoundError(
+                f"Cohort file not found: {cohort_path}\n"
+                "Run 'flair build-cohort' to generate the cohort from CLIF data."
+            )
+
         self._cohort = pl.read_parquet(cohort_path)
-        logger.info(f"Loaded cohort: {self._cohort.height} hospitalizations")
+        logger.info(f"Loaded cohort: {self._cohort.height} hospitalizations from {cohort_path}")
 
     def build_all_tasks(self) -> Dict[str, Path]:
         """
