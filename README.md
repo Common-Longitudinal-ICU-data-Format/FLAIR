@@ -65,7 +65,7 @@ FLAIR is built on the **Common Longitudinal ICU Format (CLIF)** data standard, m
 | Participating Sites | 17+             |
 | Geographic Coverage | Nationwide (US) |
 | Combined ICU Beds   | 2,000+          |
-| Data Standard       | CLIF v1.0       |
+| Data Standard       | CLIF v2.1       |
 
 The consortium includes major academic medical centers, community hospitals, and health systems—providing diverse patient populations, clinical workflows, and documentation practices for robust model validation.
 
@@ -385,7 +385,7 @@ If you use FLAIR in your research, please cite:
 
 ## 📜 License
 
-This source code is released under the MIT license. See [LICENSE](LICENSE) for details.
+This source code is released under the APACHE 2.0 license. See [LICENSE](LICENSE) for details.
 
 We do not own any of the clinical datasets used with this benchmark. Access to CLIF consortium data requires approval from each participating institution.
 
