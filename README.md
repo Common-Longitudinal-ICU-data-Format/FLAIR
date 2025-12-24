@@ -24,33 +24,7 @@ Multi-site validation is essential, but patient data is protected by strict priv
 
 FLAIR enables researchers to validate their methods on **private ICU datasets from 17+ US hospitals** without the data ever leaving each site:
 
-```         
-┌─────────────────────────────────────────────────────────────────┐
-│                     FLAIR WORKFLOW                              │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  1. DEVELOP        2. SUBMIT         3. EVALUATE                │
-│  ─────────         ──────────        ────────────               │
-│  Train on          Code reviewed     PIs run your               │
-│  MIMIC-CLIF        for safety        code locally               │
-│  (public)          (no network)      (private data)             │
-│                                                                 │
-│       │                 │                  │                    │
-│       ▼                 ▼                  ▼                    │
-│  ┌─────────┐       ┌─────────┐       ┌─────────────┐            │
-│  │ Your    │  ──►  │ FLAIR   │  ──►  │ 17+ Sites   │            │
-│  │ Method  │       │ Review  │       │ Run Locally │            │
-│  └─────────┘       └─────────┘       └─────────────┘            │
-│                                            │                    │
-│                                            ▼                    │
-│                                   ┌────────────────┐            │
-│                                   │ Aggregated     │            │
-│                                   │ Results Only   │            │
-│                                   │ (no raw data)  │            │
-│                                   └────────────────┘            │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+![FLAIR Workflow](assets/FlairWorkflow.gif)
 
 **Result**: Your model gets evaluated on real-world private clinical data from diverse institutions, enabling robust generalization assessment.
 

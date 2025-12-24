@@ -1,0 +1,30 @@
+{
+  "data_sources": {
+    "format": "parquet",
+    "base_path": "./data/clif",
+    "tables": {
+      "hospitalization": "hospitalization.parquet",
+      "patient": "patient.parquet",
+      "adt": "adt.parquet",
+      "respiratory_support": "respiratory_support.parquet"
+    }
+  },
+  "benchmark_outcomes": {
+    "task1_discharged_home": {
+      "generate_labels": true,
+      "description": "Binary classification - predicts discharge to home"
+    },
+    "task2_discharged_ltach": {
+      "generate_labels": true,
+      "description": "Binary classification - predicts discharge to LTACH"
+    },
+    "task3_outcome_72hr": {
+      "generate_labels": true,
+      "description": "Multi-class - 72-hour respiratory outcome (imv_on/imv_off/expired)"
+    },
+    "task4_hypoxic_proportion": {
+      "generate_labels": true,
+      "description": "Regression - proportion of hours with hypoxic failure"
+    }
+  }
+}
