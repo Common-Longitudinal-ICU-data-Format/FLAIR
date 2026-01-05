@@ -2,3 +2,4 @@
 clif_config.json
 *.parquet
 *.log
+presentation/

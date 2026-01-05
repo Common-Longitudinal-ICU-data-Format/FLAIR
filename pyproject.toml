@@ -38,10 +38,10 @@ dependencies = [
     "pandas>=2.0.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
-    "click>=8.0.0",
     "numpy>=1.24.0",
     "scikit-learn>=1.3.0",
     "clifpy>=0.3.4",
+    "reportlab>=4.4.7",
 ]
 
 [project.optional-dependencies]
@@ -50,9 +50,6 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
 ]
-
-[project.scripts]
-flair = "flair.cli:cli"
 
 [project.urls]
 Homepage = "https://clif-icu.com"

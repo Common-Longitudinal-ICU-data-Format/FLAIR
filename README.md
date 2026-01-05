@@ -4,6 +4,12 @@
 
 A privacy-first benchmark framework for evaluating ML/AI methods on ICU prediction tasks across 17+ hospital sites using the CLIF (Common Longitudinal ICU Format) data standard.
 
+In the ICU, clinical decisions happen in real-time and directly impact patient survival. Rich data—diagnoses, laboratory values, vital signs, and outcomes—can drive better care, and AI offers new ways to support clinical reasoning in these high-stakes environments. Yet building trustworthy, generalizable AI requires diverse datasets that reflect varied patient populations and clinical practices.
+
+Public ICU datasets like MIMIC and eICU have enabled significant research progress, but they represent only a handful of institutions. Meanwhile, the vast majority of ICU data remains locked in private hospital silos—inaccessible for multi-site validation due to privacy regulations. This fragmentation limits our ability to develop AI that generalizes beyond the institutions where it was trained.
+
+**CLIF and FLAIR bridge this gap.** The Common Longitudinal ICU Format (CLIF) provides a shared data standard that harmonizes ICU data across institutions. FLAIR builds on this foundation, enabling federated model evaluation on real-world private data from 17+ hospitals—without patient information ever leaving each site.
+
 ------------------------------------------------------------------------
 
 ## 🎯 Why FLAIR?
@@ -65,70 +71,84 @@ This approach ensures your code will work on consortium data without modificatio
 
 ## 📊 Benchmark Tasks
 
-FLAIR provides four clinically relevant prediction tasks, all using the first 24 hours of ICU data:
+FLAIR provides **7 clinically relevant prediction tasks**, all using the first 24 hours of ICU data as input:
 
-All tasks share the same underlying ICU cohort, making cross-task comparison straightforward.
+### Binary Classification Tasks
+
+| Task | Name | Description | Cohort Filter |
+|---------------|---------------|--------------------|-----------------------|
+| 1 | Discharged Home | Predict if patient will be discharged directly home | All ICU patients |
+| 2 | Discharged to LTACH | Predict if patient will go to long-term acute care | All ICU patients |
+| 6 | Hospital Mortality | Predict in-hospital death | ICU stay ≥ 24hr |
+| 7 | ICU Readmission | Predict return to ICU within same hospitalization | ICU stay ≥ 24hr |
+
+### Multiclass Classification Tasks
+
+| Task | Name | Description | Cohort Filter |
+|---------------|---------------|--------------------|-----------------------|
+| 3 | 72-Hour Respiratory Outcome | Predict ventilator status at 72hr (on/off/expired) | IMV at 24hr only |
+
+### Regression Tasks
+
+| Task | Name | Description | Cohort Filter |
+|---------------|---------------|--------------------|-----------------------|
+| 4 | Hypoxic Proportion | Predict fraction of hypoxic hours (24-72hr window) | IMV at 24hr only |
+| 5 | ICU Length of Stay | Predict total ICU duration in hours | ICU stay ≥ 24hr |
+
+**Note**: Each task has its own cohort size (N) based on task-specific filters. All tasks share the same base criteria: hospitalizations with at least 1 ICU stay.
 
 ------------------------------------------------------------------------
 
 ## 🎁 What FLAIR Provides
 
-FLAIR handles the hard, error-prone parts of clinical ML benchmarking so you can focus on your method:
+FLAIR is a Python library that generates task-specific datasets for ICU prediction benchmarks:
 
-| FLAIR Provides                         | You Provide                 |
-|----------------------------------------|-----------------------------|
-| ✅ Standardized ICU cohort definitions | 🔧 Your feature engineering |
-| ✅ Consistent label extraction         | 🔧 Your model architecture  |
-| ✅ Wide-format datasets (ready to use) | 🔧 Your training pipeline   |
-| ✅ Train/val/test splits               | 🔧 Your hyperparameters     |
-| ✅ Evaluation metrics                  |                             |
-| ✅ TRIPOD-AI reporting                 |                             |
+| FLAIR Provides                    | You Provide                 |
+|-----------------------------------|-----------------------------|
+| ✅ Task-specific cohort filtering | 🔧 Your feature engineering |
+| ✅ Consistent label extraction    | 🔧 Your model architecture  |
+| ✅ Temporal train/test splits     | 🔧 Your training pipeline   |
+| ✅ Demographics & time windows    | 🔧 Your evaluation          |
 
-### Why This Matters
+### Output Format
 
-**Without standardization**, comparing methods is impossible: - Different cohort inclusion criteria → different patient populations - Different label definitions → different prediction targets - Different time windows → different features available
+Each task outputs a **single parquet file** with all required columns:
 
-**With FLAIR**, every submission uses: - 📋 **Same cohort**: Identical patient inclusion/exclusion criteria - 🏷️ **Same labels**: Identical outcome definitions and extraction logic - ⏱️ **Same time windows**: First 24 hours of ICU data for all tasks - 📊 **Same evaluation**: Identical metrics computed the same way
-
-This makes results **directly comparable** across methods and sites.
-
-### Your Freedom
-
-FLAIR provides the `wide_dataset.parquet` with aggregated clinical features, but **you decide how to use it**:
-
--   Extract your own features from the wide format
--   Apply your own preprocessing and normalization
--   Use any model architecture (XGBoost, LSTM, Transformer, etc.)
--   Implement your own training strategy
-
-The standardized inputs and outputs ensure fair comparison while giving you complete freedom in methodology.
+| Column               | Type      | Description                            |
+|----------------------|-----------|----------------------------------------|
+| `hospitalization_id` | str       | Unique identifier                      |
+| `admission_dttm`     | datetime  | Hospital admission time                |
+| `discharge_dttm`     | datetime  | Hospital discharge time                |
+| `window_start`       | datetime  | ICU start time (input window start)    |
+| `window_end`         | datetime  | Prediction time (+24hr from ICU start) |
+| `{task_label}`       | int/float | Task-specific label                    |
+| `split`              | str       | "train" or "test"                      |
+| `age_at_admission`   | int       | Patient age                            |
+| `sex_category`       | str       | Patient sex                            |
+| `race_category`      | str       | Patient race                           |
+| `ethnicity_category` | str       | Patient ethnicity                      |
 
 ------------------------------------------------------------------------
 
 ## 💿 Installation
 
 ``` bash
-# Clone the repository
+# Install with pip
+pip install flair-benchmark
+
+# Or from source
 git clone https://github.com/clif-consortium/FLAIR.git
 cd FLAIR
-
-# Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies with uv (recommended)
-uv pip install -e .
-
-# Or with pip
 pip install -e .
 ```
 
-**Requirements**: Python 3.10+, [uv](https://docs.astral.sh/uv/) (recommended), clifpy
+**Requirements**: Python 3.10+, clifpy
 
 ------------------------------------------------------------------------
 
 ## 🚀 Quick Start
 
-### 0. Configure CLIF Data Source
+### 1. Configure CLIF Data Source
 
 ``` bash
 cp clif_config_template.json clif_config.json
@@ -136,98 +156,52 @@ cp clif_config_template.json clif_config.json
 
 Edit `clif_config.json` to set your data path and timezone.
 
-### 1. Initialize Configuration
-
-``` bash
-flair init --site my_hospital --output flair_config.yaml
-```
-
-Edit `flair_config.yaml` to point to your CLIF data.
-
-### 2. Build Cohort
-
-``` bash
-uv run build_cohort.py
-```
-
-Creates the shared ICU cohort from your CLIF data with:
-- Adults (age >= 18)
-- At least one ICU ADT record
-- Hospitalization LOS > 0
-- First ICU stay LOS > 0
-
-### 3. Build Task Datasets
-
-``` bash
-# Build all tasks
-flair build-datasets
-
-# Or specific task
-flair build-datasets --task task1_discharged_home
-```
-
-### 4. Generate Table 1
-
-``` bash
-flair table1 task1_discharged_home --format markdown
-```
-
-### 5. Validate Your Submission
-
-``` bash
-flair validate /path/to/my_method
-```
-
-------------------------------------------------------------------------
-
-## 📝 Method Submission
-
-### Required Files
-
-```         
-my_method/
-├── README.md           # Describe your method
-├── requirements.txt    # Dependencies (see banned packages)
-├── train.py           # Training script
-└── predict.py         # Prediction script
-```
-
-### train.py Interface
+### 2. Generate Task Dataset
 
 ``` python
-def train(
-    wide_dataset_path: str,      # Path to wide_dataset.parquet
-    labels_path: str,            # Path to labels.parquet
-    output_dir: str,             # Directory to save trained model
-    **kwargs
-) -> None:
-    """Train your model and save to output_dir."""
-    pass
+from flair import generate_task_dataset, TASK_REGISTRY
+
+# View available tasks
+print(TASK_REGISTRY.keys())
+# ['task1_discharged_home', 'task2_discharged_ltach', 'task3_outcome_72hr',
+#  'task4_hypoxic_proportion', 'task5_icu_los', 'task6_hospital_mortality',
+#  'task7_icu_readmission']
+
+# Generate dataset for ICU LOS task with temporal split
+df = generate_task_dataset(
+    config_path="clif_config.json",
+    task_name="task5_icu_los",
+    train_start="2020-01-01",
+    train_end="2022-12-31",
+    test_start="2023-01-01",
+    test_end="2023-12-31",
+    output_path="task5_icu_los.parquet"  # optional
+)
+
+print(f"Total N: {len(df)}")
+print(f"Train: {len(df.filter(df['split'] == 'train'))}")
+print(f"Test: {len(df.filter(df['split'] == 'test'))}")
 ```
 
-### predict.py Interface
+### 3. Use the Dataset
 
 ``` python
-def predict(
-    wide_dataset_path: str,      # Path to test wide_dataset.parquet
-    model_path: str,             # Path to trained model
-    output_path: str,            # Path to save predictions
-    **kwargs
-) -> None:
-    """Load model and generate predictions."""
-    pass
+import polars as pl
+
+# Load dataset
+df = pl.read_parquet("task5_icu_los.parquet")
+
+# Split into train/test
+train = df.filter(pl.col("split") == "train")
+test = df.filter(pl.col("split") == "test")
+
+# Access labels
+y_train = train["icu_los_hours"]
+y_test = test["icu_los_hours"]
+
+# Access demographics for subgroup analysis
+demographics = train.select(["age_at_admission", "sex_category", "race_category"])
 ```
-
-### Banned Packages ⛔
-
-The following packages will cause **immediate rejection**:
-
-| Category     | Banned Packages                           |
-|--------------|-------------------------------------------|
-| HTTP Clients | `requests`, `urllib3`, `httpx`, `aiohttp` |
-| Network      | `socket`, `websocket`, `paramiko`         |
-| Protocols    | `ftplib`, `smtplib`, `telnetlib`          |
-| Cloud SDKs   | `boto3`, `google.cloud`, `azure`          |
 
 ------------------------------------------------------------------------
 
@@ -266,82 +240,27 @@ The following packages will cause **immediate rejection**:
 
 ------------------------------------------------------------------------
 
-## 📁 Dataset Output Format
-
-Each task produces three parquet files:
-
-| File                   | Description                               |
-|------------------------|-------------------------------------------|
-| `wide_dataset.parquet` | Features from first 24 hours (via clifpy) |
-| `labels.parquet`       | Task-specific labels                      |
-| `demographics.parquet` | Age, sex, race, ethnicity                 |
-
-------------------------------------------------------------------------
-
-## 🖥️ CLI Commands
-
-``` bash
-flair --help                          # Show all commands
-flair build-cohort                    # Build ICU cohort from CLIF data
-flair build-datasets                  # Build all task datasets
-flair validate /path/to/submission    # Validate method submission
-flair table1 task_name                # Generate Table 1 statistics
-flair package-results                 # Package results for submission
-flair privacy-warning                 # Display privacy policy
-flair version                         # Show version
-```
-
-------------------------------------------------------------------------
-
-## ⚙️ Configuration
-
-See `flair_config.yaml.template` for all options:
-
-``` yaml
-site:
-  name: "your_site_name"
-  timezone: "US/Central"
-
-data:
-  clif_config_path: "clif_config.json"
-
-cohort:
-  output_path: "flair_output/cohort.parquet"
-  min_age: 18
-  min_los_days: 0
-
-tasks:
-  enabled:
-    - task1_discharged_home
-    - task2_discharged_ltach
-    - task3_outcome_72hr
-    - task4_hypoxic_proportion
-
-privacy:
-  enable_network_blocking: true
-  enable_phi_detection: true
-  min_cell_count: 10
-
-# NOTE: No wandb_api_key - all tracking must be offline only
-```
-
-------------------------------------------------------------------------
-
 ## 🏗️ Architecture
 
 ```         
 FLAIR/
 ├── flair/                      # Main package
+│   ├── __init__.py             # Main API: generate_task_dataset()
 │   ├── cohort/                 # Cohort builder (clifpy integration)
 │   ├── config/                 # Configuration management
-│   ├── privacy/                # Network blocking, PHI detection
-│   ├── tasks/                  # Task definitions (4 tasks)
-│   ├── datasets/               # Dataset builder (clifpy wide format)
-│   ├── helpers/                # table1, tripod_ai, metrics
-│   ├── submission/             # Validation, packaging
-│   └── cli.py                  # Command-line interface
-├── configs/tasks/              # Task configuration YAMLs
-├── templates/method_submission/ # Submission template
+│   ├── datasets/               # Dataset builder
+│   ├── helpers/                # table1, metrics, tripod_ai
+│   └── tasks/                  # Task definitions (7 tasks)
+│       ├── base.py             # BaseTask with build_task_dataset()
+│       ├── task1_discharged_home.py
+│       ├── task2_discharged_ltach.py
+│       ├── task3_outcome_72hr.py
+│       ├── task4_hypoxic_proportion.py
+│       ├── task5_icu_los.py
+│       ├── task6_hospital_mortality.py
+│       └── task7_icu_readmission.py
+├── clif_config_template.json   # CLIF data configuration template
+├── pyproject.toml              # Package configuration
 └── tests/                      # Test suite
 ```
 

@@ -1,12 +1,13 @@
 """
 Base task class for FLAIR benchmark.
 
-All 4 tasks inherit from this base class and share the same cohort
-from tokenETL (ICU hospitalizations).
+All 7 tasks inherit from this base class. Each task has its own cohort
+based on task-specific filters (all from base ICU hospitalizations).
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Dict, Any, List, Optional, Tuple
 import polars as pl
@@ -167,6 +168,106 @@ class BaseTask(ABC):
                 available_cols.append(col)
 
         return cohort_df.select(available_cols)
+
+    def build_task_dataset(
+        self,
+        cohort_df: pl.DataFrame,
+        train_start: str,
+        train_end: str,
+        test_start: str,
+        test_end: str,
+    ) -> pl.DataFrame:
+        """
+        Build complete task-specific dataset with temporal split.
+
+        Each task outputs a single consolidated parquet with all required columns.
+        Different tasks have different N based on task-specific cohort filters.
+
+        Args:
+            cohort_df: Base cohort DataFrame (all ICU hospitalizations)
+            train_start: Train period start date (YYYY-MM-DD)
+            train_end: Train period end date (YYYY-MM-DD)
+            test_start: Test period start date (YYYY-MM-DD)
+            test_end: Test period end date (YYYY-MM-DD)
+
+        Returns:
+            DataFrame with columns:
+            - hospitalization_id, admission_dttm, discharge_dttm
+            - window_start, window_end (prediction time)
+            - task label column
+            - split (train/test based on admission_dttm)
+            - demographics (age, sex, race, ethnicity)
+        """
+        # Parse date strings
+        train_start_dt = datetime.strptime(train_start, "%Y-%m-%d")
+        train_end_dt = datetime.strptime(train_end, "%Y-%m-%d")
+        test_start_dt = datetime.strptime(test_start, "%Y-%m-%d")
+        test_end_dt = datetime.strptime(test_end, "%Y-%m-%d")
+
+        # 1. Filter cohort for this task (each task has different N)
+        task_cohort = self.filter_cohort(cohort_df)
+        logger.info(f"Task {self.name}: {task_cohort.height} patients after filter")
+
+        # 2. Build labels
+        labels = self.build_labels(task_cohort)
+
+        # 3. Build time windows (window_start = first_icu_start_time, window_end = +24hr)
+        time_col = "first_icu_start_time" if "first_icu_start_time" in task_cohort.columns else "admission_dttm"
+        windows = task_cohort.select(
+            [
+                pl.col("hospitalization_id"),
+                pl.col("admission_dttm"),
+                pl.col("discharge_dttm"),
+                pl.col(time_col).alias("window_start"),
+                (pl.col(time_col) + pl.duration(hours=self._task_config.input_window_hours)).alias("window_end"),
+            ]
+        )
+
+        # 4. Build demographics
+        demographic_cols = ["hospitalization_id"]
+        for col in ["age_at_admission", "sex_category", "race_category", "ethnicity_category"]:
+            if col in task_cohort.columns:
+                demographic_cols.append(col)
+        demographics = task_cohort.select(demographic_cols)
+
+        # 5. Assign temporal split based on admission_dttm
+        split_df = task_cohort.select(
+            [
+                pl.col("hospitalization_id"),
+                pl.when(
+                    (pl.col("admission_dttm") >= train_start_dt)
+                    & (pl.col("admission_dttm") <= train_end_dt)
+                )
+                .then(pl.lit("train"))
+                .when(
+                    (pl.col("admission_dttm") >= test_start_dt)
+                    & (pl.col("admission_dttm") <= test_end_dt)
+                )
+                .then(pl.lit("test"))
+                .otherwise(pl.lit(None))
+                .alias("split"),
+            ]
+        )
+
+        # 6. Join all components
+        result = (
+            windows.join(labels, on="hospitalization_id")
+            .join(demographics, on="hospitalization_id")
+            .join(split_df, on="hospitalization_id")
+        )
+
+        # 7. Filter to only train/test (exclude rows outside date ranges)
+        result = result.filter(pl.col("split").is_not_null())
+
+        # Log split statistics
+        train_count = result.filter(pl.col("split") == "train").height
+        test_count = result.filter(pl.col("split") == "test").height
+        logger.info(
+            f"Task {self.name}: {result.height} total, "
+            f"{train_count} train, {test_count} test"
+        )
+
+        return result
 
     def create_time_windowed_cohort(
         self,
