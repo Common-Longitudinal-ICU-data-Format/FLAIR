@@ -112,18 +112,29 @@ The standardized inputs and outputs ensure fair comparison while giving you comp
 git clone https://github.com/clif-consortium/FLAIR.git
 cd FLAIR
 
-# Install from source
-pip install -e .
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Or with uv
+# Install dependencies with uv (recommended)
 uv pip install -e .
+
+# Or with pip
+pip install -e .
 ```
 
-**Requirements**: Python 3.10+, clifpy
+**Requirements**: Python 3.10+, [uv](https://docs.astral.sh/uv/) (recommended), clifpy
 
 ------------------------------------------------------------------------
 
 ## 🚀 Quick Start
+
+### 0. Configure CLIF Data Source
+
+``` bash
+cp clif_config_template.json clif_config.json
+```
+
+Edit `clif_config.json` to set your data path and timezone.
 
 ### 1. Initialize Configuration
 
@@ -136,10 +147,14 @@ Edit `flair_config.yaml` to point to your CLIF data.
 ### 2. Build Cohort
 
 ``` bash
-flair build-cohort
+uv run build_cohort.py
 ```
 
-Creates the shared ICU cohort from your CLIF data with: - Adults (age \>= 18) - At least one ICU ADT record - Length of stay \> 0 - `imv_at_24hr` flag for Tasks 3 & 4
+Creates the shared ICU cohort from your CLIF data with:
+- Adults (age >= 18)
+- At least one ICU ADT record
+- Hospitalization LOS > 0
+- First ICU stay LOS > 0
 
 ### 3. Build Task Datasets
 

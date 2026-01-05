@@ -1,1 +1,4 @@
 .DS*
+clif_config.json
+*.parquet
+*.log
