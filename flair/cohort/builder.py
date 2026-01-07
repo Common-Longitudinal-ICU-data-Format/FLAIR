@@ -25,9 +25,10 @@ class FLAIRCohortBuilder:
     - Length of stay > 0
     - At least one ICU ADT record
 
-    Output schema (7 columns):
+    Output schema (9 columns):
     - hospitalization_id, admission_dttm, discharge_dttm
     - age_at_admission, sex_category, race_category, ethnicity_category
+    - discharge_category (for mortality task), death_dttm (for readmission exclusions)
 
     Also returns ADT data for tasks to compute their own ICU timing.
     """
@@ -154,8 +155,9 @@ class FLAIRCohortBuilder:
 
         Returns:
             Tuple of (cohort DataFrame, ADT DataFrame, exclusion statistics dict)
-            - cohort: 7 columns (hospitalization_id, admission_dttm, discharge_dttm,
-                      age_at_admission, sex_category, race_category, ethnicity_category)
+            - cohort: 9 columns (hospitalization_id, admission_dttm, discharge_dttm,
+                      age_at_admission, sex_category, race_category, ethnicity_category,
+                      discharge_category, death_dttm)
             - adt_data: ADT DataFrame for tasks to compute ICU timing
             - exclusion_stats: Dict of exclusion counts
         """
@@ -205,7 +207,7 @@ class FLAIRCohortBuilder:
         patient = self._load_table(
             "patient",
             filters={"patient_id": patient_ids},
-            columns=["patient_id", "sex_category", "race_category", "ethnicity_category"],
+            columns=["patient_id", "sex_category", "race_category", "ethnicity_category", "death_dttm"],
         )
 
         # ============================================
@@ -245,7 +247,7 @@ class FLAIRCohortBuilder:
         logger.info(f"After LOS filter (> {min_los_days}): {cohort.height:,}")
 
         # ============================================
-        # STEP 5: Select final columns (8 columns - 7 base + discharge_category for mortality task)
+        # STEP 5: Select final columns (9 columns - 7 base + discharge_category + death_dttm)
         # ============================================
         cohort = cohort.select([
             "hospitalization_id",
@@ -256,6 +258,7 @@ class FLAIRCohortBuilder:
             "race_category",
             "ethnicity_category",
             "discharge_category",  # Needed for mortality task labels
+            "death_dttm",  # Needed for ICU readmission task exclusions
         ])
 
         exclusion_stats["final"] = cohort.height

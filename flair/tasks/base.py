@@ -141,6 +141,9 @@ class BaseTask(ABC):
         """
         Compute ICU timing and hospital info from ADT data.
 
+        Uses rank-based approach: each ADT record with location_category="icu"
+        is a distinct ICU stay, ranked by in_dttm within each hospitalization.
+
         Args:
             adt: ADT DataFrame with location data
 
@@ -167,90 +170,32 @@ class BaseTask(ABC):
                 "hospital_type": [],
             })
 
-        # Sort by hospitalization and time
-        icu_adt = icu_adt.sort(["hospitalization_id", "in_dttm"])
-
-        # Detect new ICU stays (transition from non-ICU or start of hospitalization)
-        # For consecutive ICU locations, they're part of the same stay
-        icu_adt = icu_adt.with_columns(
-            pl.col("hospitalization_id")
-            .shift(1)
-            .over("hospitalization_id")
-            .alias("prev_hosp")
-        )
-
-        # A new ICU stay starts when:
-        # 1. It's the first row for this hospitalization (prev_hosp is null)
-        # 2. The previous location wasn't consecutive (would need out_dttm check)
-        # For simplicity, we'll use a gap-based approach
-        icu_adt = icu_adt.with_columns(
+        # Rank ICU stays by in_dttm within each hospitalization
+        icu_ranked = icu_adt.with_columns(
             pl.col("in_dttm")
-            .shift(1)
+            .rank("ordinal")
             .over("hospitalization_id")
-            .alias("prev_out_dttm")
+            .alias("icu_stay_num")
         )
 
-        # Check if out_dttm column exists, if not use in_dttm of next row
-        if "out_dttm" in icu_adt.columns:
-            # Use actual out_dttm for gap detection
-            icu_adt = icu_adt.with_columns(
-                pl.col("out_dttm")
-                .shift(1)
-                .over("hospitalization_id")
-                .alias("prev_out_dttm")
-            )
-
-        # New stay if first row OR gap > 1 hour from previous
-        icu_adt = icu_adt.with_columns(
-            (
-                pl.col("prev_hosp").is_null()
-                | (
-                    (pl.col("in_dttm") - pl.col("prev_out_dttm")).dt.total_seconds()
-                    > 3600
-                )
-            )
-            .fill_null(True)
-            .alias("is_new_stay")
-        )
-
-        # Number the ICU stays
-        icu_adt = icu_adt.with_columns(
-            pl.col("is_new_stay").cum_sum().over("hospitalization_id").alias("icu_stay_num")
-        )
-
-        # Determine end time column
-        end_col = "out_dttm" if "out_dttm" in icu_adt.columns else "in_dttm"
-
-        # Build aggregation list - include hospital_id and hospital_type if available
-        agg_cols = [
-            pl.col("in_dttm").min().alias("icu_start"),
-            pl.col(end_col).max().alias("icu_end"),
-        ]
-        if "hospital_id" in icu_adt.columns:
-            agg_cols.append(pl.col("hospital_id").first().alias("hospital_id"))
-        if "hospital_type" in icu_adt.columns:
-            agg_cols.append(pl.col("hospital_type").first().alias("hospital_type"))
-
-        # Aggregate ICU stays
-        icu_stays = icu_adt.group_by(["hospitalization_id", "icu_stay_num"]).agg(agg_cols)
-
-        # Get first ICU stay (includes hospital_id and hospital_type if available)
+        # Build first ICU stay columns
         first_icu_cols = [
             "hospitalization_id",
-            pl.col("icu_start").alias("first_icu_start_time"),
-            pl.col("icu_end").alias("first_icu_end_time"),
+            pl.col("in_dttm").alias("first_icu_start_time"),
+            pl.col("out_dttm").alias("first_icu_end_time"),
         ]
-        if "hospital_id" in icu_stays.columns:
+        if "hospital_id" in icu_ranked.columns:
             first_icu_cols.append("hospital_id")
-        if "hospital_type" in icu_stays.columns:
+        if "hospital_type" in icu_ranked.columns:
             first_icu_cols.append("hospital_type")
 
-        first_icu = icu_stays.filter(pl.col("icu_stay_num") == 1).select(first_icu_cols)
+        # Get first ICU stay (rank 1)
+        first_icu = icu_ranked.filter(pl.col("icu_stay_num") == 1).select(first_icu_cols)
 
-        # Get second ICU stay (for readmission)
-        second_icu = icu_stays.filter(pl.col("icu_stay_num") == 2).select([
+        # Get second ICU stay (rank 2) for readmission label
+        second_icu = icu_ranked.filter(pl.col("icu_stay_num") == 2).select([
             "hospitalization_id",
-            pl.col("icu_start").alias("second_icu_start_time"),
+            pl.col("in_dttm").alias("second_icu_start_time"),
         ])
 
         # Join first and second
