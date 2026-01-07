@@ -48,7 +48,7 @@ def generate_task_dataset(
     train_end: str,
     test_start: str,
     test_end: str,
-    output_path: str,
+    output_path: str = None,
 ) -> pl.DataFrame:
     """
     Generate a complete task-specific dataset with temporal split.
@@ -63,10 +63,10 @@ def generate_task_dataset(
         train_end: Train period end date (YYYY-MM-DD)
         test_start: Test period start date (YYYY-MM-DD)
         test_end: Test period end date (YYYY-MM-DD)
-        output_path: Path to save parquet file
+        output_path: Optional path to save parquet file
 
     Returns:
-        DataFrame with columns:
+        DataFrame with 11 columns:
         - hospitalization_id, admission_dttm, discharge_dttm
         - window_start, window_end
         - task-specific label column
@@ -84,24 +84,27 @@ def generate_task_dataset(
         ... )
         >>> print(f"N={len(df)}, Train={len(df.filter(pl.col('split')=='train'))}")
     """
-    # Build base cohort (all ICU hospitalizations)
+    # Build base cohort + ADT data (for ICU timing computation)
     cohort_builder = FLAIRCohortBuilder(config_path)
-    cohort = cohort_builder.build_cohort()
+    cohort, adt_data, _stats = cohort_builder.build_cohort()
 
     # Get task instance
     task = get_task(task_name)
 
     # Build task-specific dataset with temporal split
+    # Pass ADT data so task can compute its own ICU timing
     dataset = task.build_task_dataset(
         cohort,
+        adt_data,
         train_start=train_start,
         train_end=train_end,
         test_start=test_start,
         test_end=test_end,
     )
 
-    # Save to parquet
-    dataset.write_parquet(output_path)
+    # Save to parquet if path provided
+    if output_path:
+        dataset.write_parquet(output_path)
 
     return dataset
 

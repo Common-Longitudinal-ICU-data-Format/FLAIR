@@ -4,13 +4,12 @@ Task 7: ICU Readmission Prediction
 Binary classification task to predict whether a patient will be
 readmitted to the ICU during the same hospitalization.
 
-Uses first 24 hours of ICU data to predict ICU readmission.
+Uses entire first ICU stay data to predict ICU readmission.
 Only includes patients with at least 24 hours first ICU stay.
 """
 
 import polars as pl
 import logging
-from typing import Optional
 
 from flair.tasks.base import BaseTask, TaskConfig, TaskType
 
@@ -57,109 +56,121 @@ class Task7ICUReadmission(BaseTask):
             ],
         )
 
-    def filter_cohort(self, cohort_df: pl.DataFrame) -> pl.DataFrame:
+    def filter_cohort(
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
+    ) -> pl.DataFrame:
         """
         Filter to patients with at least 24 hours first ICU stay.
 
-        Requires first_icu_24hr_completion_time to be not null.
+        Args:
+            cohort_df: Base cohort DataFrame
+            icu_timing: ICU timing DataFrame
+
+        Returns:
+            Filtered cohort (only patients with >= 24hr first ICU stay)
         """
-        if "first_icu_24hr_completion_time" in cohort_df.columns:
-            filtered = cohort_df.filter(
-                pl.col("first_icu_24hr_completion_time").is_not_null()
-            )
-            logger.info(
-                f"Filtered to patients with >= 24hr first ICU stay: "
-                f"{filtered.height} of {cohort_df.height}"
-            )
-            return filtered
+        # Join cohort with ICU timing
+        cohort_with_timing = cohort_df.join(
+            icu_timing.select([
+                "hospitalization_id",
+                "first_icu_start_time",
+                "first_icu_end_time",
+            ]),
+            on="hospitalization_id",
+            how="inner",
+        )
 
-        # Fallback: calculate from first_icu_start_time and first_icu_end_time
-        if (
-            "first_icu_start_time" in cohort_df.columns
-            and "first_icu_end_time" in cohort_df.columns
-        ):
-            filtered = cohort_df.filter(
-                (
-                    (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
-                    .dt.total_seconds()
-                    / 3600
-                )
-                >= 24
+        # Filter to >= 24 hours ICU stay
+        filtered = cohort_with_timing.filter(
+            (
+                (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
+                .dt.total_seconds()
+                / 3600
             )
-            logger.info(
-                f"Filtered to patients with >= 24hr first ICU stay: "
-                f"{filtered.height} of {cohort_df.height}"
-            )
-            return filtered
+            >= 24
+        )
 
-        logger.warning("No ICU timing columns found - returning full cohort")
-        return cohort_df
+        # Drop the timing columns
+        filtered = filtered.drop(["first_icu_start_time", "first_icu_end_time"])
 
-    def build_time_windows(self, task_cohort: pl.DataFrame) -> pl.DataFrame:
+        logger.info(
+            f"Filtered to patients with >= 24hr first ICU stay: "
+            f"{filtered.height} of {cohort_df.height}"
+        )
+
+        return filtered
+
+    def build_time_windows(
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
+    ) -> pl.DataFrame:
         """
-        Build time windows for ICU readmission task.
+        Build time windows for Task 7.
 
         Uses entire first ICU stay (variable length):
-        - window_start = first_icu_start_time (start of first ICU stay)
+        - window_start = first_icu_start_time
         - window_end = first_icu_end_time (end of first ICU stay = prediction time)
 
-        This allows using ALL data from the first ICU stay to predict
-        whether the patient will be readmitted to the ICU.
+        Args:
+            cohort_df: Filtered cohort DataFrame
+            icu_timing: ICU timing DataFrame
+
+        Returns:
+            DataFrame with hospitalization_id, window_start, window_end
         """
-        return task_cohort.select(
-            [
+        return (
+            cohort_df.select("hospitalization_id")
+            .join(
+                icu_timing.select([
+                    "hospitalization_id",
+                    "first_icu_start_time",
+                    "first_icu_end_time",
+                ]),
+                on="hospitalization_id",
+                how="inner",
+            )
+            .select([
                 pl.col("hospitalization_id"),
-                pl.col("admission_dttm"),
-                pl.col("discharge_dttm"),
                 pl.col("first_icu_start_time").alias("window_start"),
                 pl.col("first_icu_end_time").alias("window_end"),
-            ]
+            ])
         )
 
     def build_labels(
-        self,
-        cohort_df: pl.DataFrame,
-        narratives_dir: Optional[str] = None,
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
     ) -> pl.DataFrame:
         """
         Build ICU readmission labels.
 
-        Label = 1 if patient returned to ICU (second_icu_start_time exists)
-
-        The cohort builder already computes second_icu_start_time for patients
-        who had multiple ICU stays within the same hospitalization.
+        Label = 1 if second_icu_start_time exists (patient returned to ICU)
 
         Args:
-            cohort_df: Cohort DataFrame with second_icu_start_time column
-            narratives_dir: Not used for this task
+            cohort_df: Cohort DataFrame
+            icu_timing: ICU timing DataFrame with second_icu_start_time column
 
         Returns:
             DataFrame with [hospitalization_id, label_icu_readmission]
         """
-        # Check if labels are pre-computed
-        if "label_icu_readmission" in cohort_df.columns:
-            labels = cohort_df.select(["hospitalization_id", "label_icu_readmission"])
-            self._log_readmission_stats(labels)
-            return labels
-
-        # Extract from second_icu_start_time
-        if "second_icu_start_time" in cohort_df.columns:
-            labels = cohort_df.select(
-                [
-                    pl.col("hospitalization_id"),
-                    pl.col("second_icu_start_time")
-                    .is_not_null()
-                    .cast(pl.Int32)
-                    .alias("label_icu_readmission"),
-                ]
+        labels = (
+            cohort_df.select("hospitalization_id")
+            .join(
+                icu_timing.select([
+                    "hospitalization_id",
+                    "second_icu_start_time",
+                ]),
+                on="hospitalization_id",
+                how="inner",
             )
-            self._log_readmission_stats(labels)
-            return labels
-
-        raise ValueError(
-            "Cannot build labels: cohort has no second_icu_start_time column. "
-            "Ensure cohort builder calculates ICU readmission timing."
+            .select([
+                pl.col("hospitalization_id"),
+                pl.col("second_icu_start_time")
+                .is_not_null()
+                .cast(pl.Int32)
+                .alias("label_icu_readmission"),
+            ])
         )
+
+        self._log_readmission_stats(labels)
+        return labels
 
     def _log_readmission_stats(self, labels: pl.DataFrame) -> None:
         """Log statistics about the ICU readmission labels."""

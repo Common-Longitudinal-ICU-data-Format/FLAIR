@@ -110,6 +110,8 @@ The window definition varies by task:
 
 The window is task-specific and not always aligned with ICU admission/discharge times.
 
+> **Community-Driven**: These tasks are driven by community needs. Have a cool prediction task idea? Open a [PR](https://github.com/clif-consortium/FLAIR/pulls) or [Issue](https://github.com/clif-consortium/FLAIR/issues)! We're actively working on adding more tasks.
+
 **Note**: Each task has its own cohort size (N) based on task-specific filters. All tasks share the same base criteria: hospitalizations with at least 1 ICU stay.
 
 ------------------------------------------------------------------------

@@ -11,7 +11,6 @@ Target is a continuous value in hours.
 
 import polars as pl
 import logging
-from typing import Optional
 
 from flair.tasks.base import BaseTask, TaskConfig, TaskType
 
@@ -24,7 +23,7 @@ class Task5ICULoS(BaseTask):
 
     Input: First 24 hours of ICU data
     Output: Continuous value (hours)
-    Cohort: ICU patients with first_icu_24hr_completion_time not null (>= 24hr ICU stay)
+    Cohort: ICU patients with >= 24hr first ICU stay
     """
 
     @property
@@ -50,49 +49,82 @@ class Task5ICULoS(BaseTask):
             ],
         )
 
-    def filter_cohort(self, cohort_df: pl.DataFrame) -> pl.DataFrame:
+    def filter_cohort(
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
+    ) -> pl.DataFrame:
         """
         Filter to patients with at least 24 hours ICU stay.
 
-        Requires first_icu_24hr_completion_time to be not null,
-        indicating the patient had at least 24 hours of ICU data.
+        Args:
+            cohort_df: Base cohort DataFrame (7 columns)
+            icu_timing: ICU timing DataFrame with first_icu_start_time, first_icu_end_time
+
+        Returns:
+            Filtered cohort (only patients with >= 24hr first ICU stay)
         """
-        if "first_icu_24hr_completion_time" in cohort_df.columns:
-            filtered = cohort_df.filter(
-                pl.col("first_icu_24hr_completion_time").is_not_null()
-            )
-            logger.info(
-                f"Filtered to patients with >= 24hr ICU stay: "
-                f"{filtered.height} of {cohort_df.height}"
-            )
-            return filtered
+        # Join cohort with ICU timing
+        cohort_with_timing = cohort_df.join(
+            icu_timing.select([
+                "hospitalization_id",
+                "first_icu_start_time",
+                "first_icu_end_time",
+            ]),
+            on="hospitalization_id",
+            how="inner",
+        )
 
-        # Fallback: calculate from first_icu_start_time and first_icu_end_time
-        if (
-            "first_icu_start_time" in cohort_df.columns
-            and "first_icu_end_time" in cohort_df.columns
-        ):
-            filtered = cohort_df.filter(
-                (
-                    (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
-                    .dt.total_seconds()
-                    / 3600
-                )
-                >= 24
+        # Filter to >= 24 hours ICU stay
+        filtered = cohort_with_timing.filter(
+            (
+                (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
+                .dt.total_seconds()
+                / 3600
             )
-            logger.info(
-                f"Filtered to patients with >= 24hr ICU stay: "
-                f"{filtered.height} of {cohort_df.height}"
-            )
-            return filtered
+            >= 24
+        )
 
-        logger.warning("No ICU timing columns found - returning full cohort")
-        return cohort_df
+        # Drop the timing columns (base cohort should stay 7 columns)
+        filtered = filtered.drop(["first_icu_start_time", "first_icu_end_time"])
+
+        logger.info(
+            f"Filtered to patients with >= 24hr ICU stay: "
+            f"{filtered.height} of {cohort_df.height}"
+        )
+
+        return filtered
+
+    def build_time_windows(
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Build time windows for Task 5.
+
+        window_start = first_icu_start_time
+        window_end = first_icu_start_time + 24 hours
+
+        Args:
+            cohort_df: Filtered cohort DataFrame
+            icu_timing: ICU timing DataFrame
+
+        Returns:
+            DataFrame with hospitalization_id, window_start, window_end
+        """
+        return (
+            cohort_df.select("hospitalization_id")
+            .join(
+                icu_timing.select(["hospitalization_id", "first_icu_start_time"]),
+                on="hospitalization_id",
+                how="inner",
+            )
+            .select([
+                pl.col("hospitalization_id"),
+                pl.col("first_icu_start_time").alias("window_start"),
+                (pl.col("first_icu_start_time") + pl.duration(hours=24)).alias("window_end"),
+            ])
+        )
 
     def build_labels(
-        self,
-        cohort_df: pl.DataFrame,
-        narratives_dir: Optional[str] = None,
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
     ) -> pl.DataFrame:
         """
         Build ICU LOS labels.
@@ -100,36 +132,31 @@ class Task5ICULoS(BaseTask):
         Label = first_icu_end_time - first_icu_start_time (in hours)
 
         Args:
-            cohort_df: Cohort DataFrame with ICU timing columns
-            narratives_dir: Not used for this task
+            cohort_df: Cohort DataFrame (7 columns)
+            icu_timing: ICU timing DataFrame with first_icu_start_time, first_icu_end_time
 
         Returns:
             DataFrame with [hospitalization_id, icu_los_hours]
         """
-        # Check if labels are pre-computed
-        if "icu_los_hours" in cohort_df.columns:
-            labels = cohort_df.select(["hospitalization_id", "icu_los_hours"])
-            self._log_los_stats(labels)
-            return labels
-
-        # Calculate from ICU timing columns
-        if (
-            "first_icu_start_time" not in cohort_df.columns
-            or "first_icu_end_time" not in cohort_df.columns
-        ):
-            raise ValueError(
-                "Cohort must have first_icu_start_time and first_icu_end_time columns"
+        labels = (
+            cohort_df.select("hospitalization_id")
+            .join(
+                icu_timing.select([
+                    "hospitalization_id",
+                    "first_icu_start_time",
+                    "first_icu_end_time",
+                ]),
+                on="hospitalization_id",
+                how="inner",
             )
-
-        labels = cohort_df.select(
-            [
+            .select([
                 pl.col("hospitalization_id"),
                 (
                     (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
                     .dt.total_seconds()
                     / 3600
                 ).alias("icu_los_hours"),
-            ]
+            ])
         )
 
         self._log_los_stats(labels)
@@ -137,15 +164,13 @@ class Task5ICULoS(BaseTask):
 
     def _log_los_stats(self, labels: pl.DataFrame) -> None:
         """Log statistics about the LOS values."""
-        stats = labels.select(
-            [
-                pl.col("icu_los_hours").mean().alias("mean"),
-                pl.col("icu_los_hours").std().alias("std"),
-                pl.col("icu_los_hours").min().alias("min"),
-                pl.col("icu_los_hours").max().alias("max"),
-                pl.col("icu_los_hours").median().alias("median"),
-            ]
-        ).row(0, named=True)
+        stats = labels.select([
+            pl.col("icu_los_hours").mean().alias("mean"),
+            pl.col("icu_los_hours").std().alias("std"),
+            pl.col("icu_los_hours").min().alias("min"),
+            pl.col("icu_los_hours").max().alias("max"),
+            pl.col("icu_los_hours").median().alias("median"),
+        ]).row(0, named=True)
 
         logger.info(
             f"ICU LOS stats (hours): "

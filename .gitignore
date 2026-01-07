@@ -3,3 +3,4 @@ clif_config.json
 *.parquet
 *.log
 presentation/
+__pycache__

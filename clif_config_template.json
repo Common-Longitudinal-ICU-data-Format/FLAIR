@@ -1,25 +1,6 @@
 {
-  "data_sources": {
-    "format": "parquet",
-    "base_path": "./data/clif",
+    "site": "sitename",
+    "data_directory": "/path/to/clif/data",
+    "filetype": "parquet",
     "timezone": "US/Central"
-  },
-  "benchmark_outcomes": {
-    "icu_los": {
-      "generate_labels": true,
-      "description": "Regression - predicts ICU length of stay in hours"
-    },
-    "icu_readmission": {
-      "generate_labels": true,
-      "description": "Binary classification - predicts ICU readmission within same hospitalization"
-    },
-    "hospital_mortality": {
-      "generate_labels": true,
-      "description": "Binary classification - predicts in-hospital mortality"
-    },
-    "icu_mortality": {
-      "generate_labels": true,
-      "description": "Binary classification - predicts ICU mortality (once per stay, after 24H)"
-    }
-  }
 }
