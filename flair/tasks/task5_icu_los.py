@@ -1,12 +1,12 @@
 """
 Task 5: ICU Length of Stay Prediction
 
-Regression task to predict total ICU length of stay using the first
+Regression task to predict remaining ICU length of stay using the first
 24 hours of ICU data.
 
-Uses first 24 hours of ICU data to predict total ICU LOS.
+Uses first 24 hours of ICU data to predict remaining ICU LOS (total - 24hr).
 Only includes patients with at least 24 hours ICU stay.
-Target is a continuous value in hours.
+Target is a continuous value in hours (remaining LOS after first 24 hours).
 """
 
 import polars as pl
@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 class Task5ICULoS(BaseTask):
     """
-    Predict total ICU length of stay (first ICU stay).
+    Predict remaining ICU length of stay (first ICU stay).
 
     Input: First 24 hours of ICU data
-    Output: Continuous value (hours)
+    Output: Continuous value (hours) - remaining LOS after first 24 hours
     Cohort: ICU patients with >= 24hr first ICU stay
     """
 
@@ -34,7 +34,7 @@ class Task5ICULoS(BaseTask):
         return TaskConfig(
             name="task5_icu_los",
             display_name="ICU Length of Stay",
-            description="Predict total ICU length of stay from first 24 hours",
+            description="Predict remaining ICU length of stay from first 24 hours",
             task_type=TaskType.REGRESSION,
             input_window_hours=24,
             prediction_window=None,
@@ -129,7 +129,8 @@ class Task5ICULoS(BaseTask):
         """
         Build ICU LOS labels.
 
-        Label = first_icu_end_time - first_icu_start_time (in hours)
+        Label = (first_icu_end_time - first_icu_start_time) - 24 hours
+        We predict remaining LOS after the first 24 hours of ICU data.
 
         Args:
             cohort_df: Cohort DataFrame (7 columns)
@@ -155,6 +156,7 @@ class Task5ICULoS(BaseTask):
                     (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
                     .dt.total_seconds()
                     / 3600
+                    - 24  # Subtract 24 hours - predicting remaining LOS after first 24hr
                 ).alias("icu_los_hours"),
             ])
         )
@@ -163,7 +165,7 @@ class Task5ICULoS(BaseTask):
         return labels
 
     def _log_los_stats(self, labels: pl.DataFrame) -> None:
-        """Log statistics about the LOS values."""
+        """Log statistics about the remaining LOS values (after first 24hr)."""
         stats = labels.select([
             pl.col("icu_los_hours").mean().alias("mean"),
             pl.col("icu_los_hours").std().alias("std"),
@@ -173,7 +175,7 @@ class Task5ICULoS(BaseTask):
         ]).row(0, named=True)
 
         logger.info(
-            f"ICU LOS stats (hours): "
+            f"Remaining ICU LOS stats (hours after first 24hr): "
             f"mean={stats['mean']:.1f}, "
             f"median={stats['median']:.1f}, "
             f"std={stats['std']:.1f}, "
