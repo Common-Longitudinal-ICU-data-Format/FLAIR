@@ -71,7 +71,7 @@ This approach ensures your code will work on consortium data without modificatio
 
 ## 📊 Benchmark Tasks
 
-FLAIR provides **7 clinically relevant prediction tasks**, all using the first 24 hours of ICU data as input:
+FLAIR provides **7 clinically relevant prediction tasks**:
 
 ### Binary Classification Tasks
 
@@ -79,8 +79,8 @@ FLAIR provides **7 clinically relevant prediction tasks**, all using the first 2
 |---------------|---------------|--------------------|-----------------------|
 | 1 | Discharged Home | Predict if patient will be discharged directly home | All ICU patients |
 | 2 | Discharged to LTACH | Predict if patient will go to long-term acute care | All ICU patients |
-| 6 | Hospital Mortality | Predict in-hospital death | ICU stay ≥ 24hr |
-| 7 | ICU Readmission | Predict return to ICU within same hospitalization | ICU stay ≥ 24hr |
+| 6 | Hospital Mortality | Predict in-hospital death (first 24hr ICU data) | 1st ICU stay ≥ 24hr |
+| 7 | ICU Readmission | Predict return to ICU (entire 1st ICU stay data) | 1st ICU stay ≥ 24hr |
 
 ### Multiclass Classification Tasks
 
@@ -93,7 +93,22 @@ FLAIR provides **7 clinically relevant prediction tasks**, all using the first 2
 | Task | Name | Description | Cohort Filter |
 |---------------|---------------|--------------------|-----------------------|
 | 4 | Hypoxic Proportion | Predict fraction of hypoxic hours (24-72hr window) | IMV at 24hr only |
-| 5 | ICU Length of Stay | Predict total ICU duration in hours | ICU stay ≥ 24hr |
+| 5 | ICU Length of Stay | Predict 1st ICU stay duration (first 24hr data) | 1st ICU stay ≥ 24hr |
+
+### Understanding Time Windows
+
+Each task defines a **time window** for data extraction:
+
+- **`window_start`**: Beginning of the data collection period
+- **`window_end`**: The **prediction time** - this is when the model makes its prediction
+
+**Critical**: You can use ALL data points within the window (`window_start` to `window_end`), but you **CANNOT** use any data after `window_end`. Using data beyond the prediction time would be data leakage.
+
+The window definition varies by task:
+- **Tasks 1-6**: Window is first 24 hours from ICU admission (`first_icu_start_time` to `+24hr`)
+- **Task 7**: Window is the entire first ICU stay (`first_icu_start_time` to `first_icu_end_time`)
+
+The window is task-specific and not always aligned with ICU admission/discharge times.
 
 **Note**: Each task has its own cohort size (N) based on task-specific filters. All tasks share the same base criteria: hospitalizations with at least 1 ICU stay.
 
@@ -175,7 +190,7 @@ df = generate_task_dataset(
     train_end="2022-12-31",
     test_start="2023-01-01",
     test_end="2023-12-31",
-    output_path="task5_icu_los.parquet"  # optional
+    output_path="task5_icu_los.parquet"
 )
 
 print(f"Total N: {len(df)}")

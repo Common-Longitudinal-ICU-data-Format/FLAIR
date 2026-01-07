@@ -21,9 +21,10 @@ class Task7ICUReadmission(BaseTask):
     """
     Predict ICU readmission (return to ICU within same hospitalization).
 
-    Input: First 24 hours of ICU data
+    Input: Entire first ICU stay (variable length, from start to end of 1st ICU)
     Output: Binary (1 = readmitted to ICU, 0 = not readmitted)
     Cohort: ICU patients with >= 24 hours first ICU stay
+    Prediction time: End of first ICU stay
 
     Note: This predicts ICU readmission within the same hospitalization,
     NOT hospital readmission after discharge.
@@ -39,7 +40,7 @@ class Task7ICUReadmission(BaseTask):
             display_name="ICU Readmission",
             description="Predict whether patient will be readmitted to ICU during hospitalization",
             task_type=TaskType.BINARY_CLASSIFICATION,
-            input_window_hours=24,
+            input_window_hours=None,  # Variable window (entire 1st ICU stay)
             prediction_window=None,
             cohort_filter="icu_24hr_complete",
             label_column="label_icu_readmission",
@@ -93,6 +94,27 @@ class Task7ICUReadmission(BaseTask):
 
         logger.warning("No ICU timing columns found - returning full cohort")
         return cohort_df
+
+    def build_time_windows(self, task_cohort: pl.DataFrame) -> pl.DataFrame:
+        """
+        Build time windows for ICU readmission task.
+
+        Uses entire first ICU stay (variable length):
+        - window_start = first_icu_start_time (start of first ICU stay)
+        - window_end = first_icu_end_time (end of first ICU stay = prediction time)
+
+        This allows using ALL data from the first ICU stay to predict
+        whether the patient will be readmitted to the ICU.
+        """
+        return task_cohort.select(
+            [
+                pl.col("hospitalization_id"),
+                pl.col("admission_dttm"),
+                pl.col("discharge_dttm"),
+                pl.col("first_icu_start_time").alias("window_start"),
+                pl.col("first_icu_end_time").alias("window_end"),
+            ]
+        )
 
     def build_labels(
         self,

@@ -25,7 +25,6 @@ Usage:
     )
 """
 
-from typing import Optional
 import polars as pl
 
 __version__ = "1.0.0"
@@ -49,7 +48,7 @@ def generate_task_dataset(
     train_end: str,
     test_start: str,
     test_end: str,
-    output_path: Optional[str] = None,
+    output_path: str,
 ) -> pl.DataFrame:
     """
     Generate a complete task-specific dataset with temporal split.
@@ -64,7 +63,7 @@ def generate_task_dataset(
         train_end: Train period end date (YYYY-MM-DD)
         test_start: Test period start date (YYYY-MM-DD)
         test_end: Test period end date (YYYY-MM-DD)
-        output_path: Optional path to save parquet file
+        output_path: Path to save parquet file
 
     Returns:
         DataFrame with columns:
@@ -101,9 +100,8 @@ def generate_task_dataset(
         test_end=test_end,
     )
 
-    # Optionally save to parquet
-    if output_path:
-        dataset.write_parquet(output_path)
+    # Save to parquet
+    dataset.write_parquet(output_path)
 
     return dataset
 

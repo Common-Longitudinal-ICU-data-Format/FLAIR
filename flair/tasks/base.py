@@ -7,7 +7,7 @@ based on task-specific filters (all from base ICU hospitalizations).
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 from typing import Dict, Any, List, Optional, Tuple
 import polars as pl
@@ -169,6 +169,31 @@ class BaseTask(ABC):
 
         return cohort_df.select(available_cols)
 
+    def build_time_windows(self, task_cohort: pl.DataFrame) -> pl.DataFrame:
+        """
+        Build time windows for data extraction.
+
+        Override in subclasses for task-specific window calculations.
+        Default: window_start = first_icu_start_time, window_end = +input_window_hours
+
+        Args:
+            task_cohort: Task-filtered cohort DataFrame
+
+        Returns:
+            DataFrame with: hospitalization_id, admission_dttm, discharge_dttm,
+                           window_start, window_end
+        """
+        time_col = "first_icu_start_time" if "first_icu_start_time" in task_cohort.columns else "admission_dttm"
+        return task_cohort.select(
+            [
+                pl.col("hospitalization_id"),
+                pl.col("admission_dttm"),
+                pl.col("discharge_dttm"),
+                pl.col(time_col).alias("window_start"),
+                (pl.col(time_col) + pl.duration(hours=self._task_config.input_window_hours)).alias("window_end"),
+            ]
+        )
+
     def build_task_dataset(
         self,
         cohort_df: pl.DataFrame,
@@ -198,11 +223,11 @@ class BaseTask(ABC):
             - split (train/test based on admission_dttm)
             - demographics (age, sex, race, ethnicity)
         """
-        # Parse date strings
-        train_start_dt = datetime.strptime(train_start, "%Y-%m-%d")
-        train_end_dt = datetime.strptime(train_end, "%Y-%m-%d")
-        test_start_dt = datetime.strptime(test_start, "%Y-%m-%d")
-        test_end_dt = datetime.strptime(test_end, "%Y-%m-%d")
+        # Parse date strings (use date objects to avoid timezone issues)
+        train_start_dt = date.fromisoformat(train_start)
+        train_end_dt = date.fromisoformat(train_end)
+        test_start_dt = date.fromisoformat(test_start)
+        test_end_dt = date.fromisoformat(test_end)
 
         # 1. Filter cohort for this task (each task has different N)
         task_cohort = self.filter_cohort(cohort_df)
@@ -211,17 +236,8 @@ class BaseTask(ABC):
         # 2. Build labels
         labels = self.build_labels(task_cohort)
 
-        # 3. Build time windows (window_start = first_icu_start_time, window_end = +24hr)
-        time_col = "first_icu_start_time" if "first_icu_start_time" in task_cohort.columns else "admission_dttm"
-        windows = task_cohort.select(
-            [
-                pl.col("hospitalization_id"),
-                pl.col("admission_dttm"),
-                pl.col("discharge_dttm"),
-                pl.col(time_col).alias("window_start"),
-                (pl.col(time_col) + pl.duration(hours=self._task_config.input_window_hours)).alias("window_end"),
-            ]
-        )
+        # 3. Build time windows (can be overridden by subclasses)
+        windows = self.build_time_windows(task_cohort)
 
         # 4. Build demographics
         demographic_cols = ["hospitalization_id"]
@@ -231,17 +247,18 @@ class BaseTask(ABC):
         demographics = task_cohort.select(demographic_cols)
 
         # 5. Assign temporal split based on admission_dttm
+        # Use .dt.date() to strip time/timezone for comparison with date objects
         split_df = task_cohort.select(
             [
                 pl.col("hospitalization_id"),
                 pl.when(
-                    (pl.col("admission_dttm") >= train_start_dt)
-                    & (pl.col("admission_dttm") <= train_end_dt)
+                    (pl.col("admission_dttm").dt.date() >= train_start_dt)
+                    & (pl.col("admission_dttm").dt.date() <= train_end_dt)
                 )
                 .then(pl.lit("train"))
                 .when(
-                    (pl.col("admission_dttm") >= test_start_dt)
-                    & (pl.col("admission_dttm") <= test_end_dt)
+                    (pl.col("admission_dttm").dt.date() >= test_start_dt)
+                    & (pl.col("admission_dttm").dt.date() <= test_end_dt)
                 )
                 .then(pl.lit("test"))
                 .otherwise(pl.lit(None))
