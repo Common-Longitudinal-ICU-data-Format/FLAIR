@@ -44,10 +44,10 @@ from flair.helpers.tripod_ai import generate_tripod_ai_report
 def generate_task_dataset(
     config_path: str,
     task_name: str,
-    train_start: str,
-    train_end: str,
-    test_start: str,
-    test_end: str,
+    train_start: str = None,
+    train_end: str = None,
+    test_start: str = None,
+    test_end: str = None,
     output_path: str = None,
 ) -> pl.DataFrame:
     """
@@ -56,13 +56,18 @@ def generate_task_dataset(
     Each task has its own cohort size (N) based on task-specific filters.
     All tasks share the same base: hospitalizations with at least 1 ICU stay.
 
+    For MIMIC (de-identified dates): Date parameters are optional. If site is
+    "mimic", a 70/30 temporal split is used by sorting admission_dttm.
+
+    For other sites: Date parameters are required for date-based splitting.
+
     Args:
         config_path: Path to CLIF config JSON file
         task_name: One of TASK_REGISTRY.keys() (e.g., "task5_icu_los")
-        train_start: Train period start date (YYYY-MM-DD)
-        train_end: Train period end date (YYYY-MM-DD)
-        test_start: Test period start date (YYYY-MM-DD)
-        test_end: Test period end date (YYYY-MM-DD)
+        train_start: Train period start date (YYYY-MM-DD). Optional for MIMIC.
+        train_end: Train period end date (YYYY-MM-DD). Optional for MIMIC.
+        test_start: Test period start date (YYYY-MM-DD). Optional for MIMIC.
+        test_end: Test period end date (YYYY-MM-DD). Optional for MIMIC.
         output_path: Optional path to save parquet file
 
     Returns:
@@ -74,6 +79,12 @@ def generate_task_dataset(
         - age_at_admission, sex_category, race_category, ethnicity_category
 
     Example:
+        >>> # For MIMIC (no dates needed):
+        >>> df = generate_task_dataset(
+        ...     config_path="clif_config.json",
+        ...     task_name="task5_icu_los",
+        ... )
+        >>> # For other sites (dates required):
         >>> df = generate_task_dataset(
         ...     config_path="clif_config.json",
         ...     task_name="task5_icu_los",
@@ -88,11 +99,15 @@ def generate_task_dataset(
     cohort_builder = FLAIRCohortBuilder(config_path)
     cohort, adt_data, _stats = cohort_builder.build_cohort()
 
+    # Get site from config for split logic
+    site = cohort_builder._parse_clif_config()["site"]
+
     # Get task instance
     task = get_task(task_name)
 
     # Build task-specific dataset with temporal split
     # Pass ADT data so task can compute its own ICU timing
+    # Pass site so task can use 70/30 split for MIMIC
     dataset = task.build_task_dataset(
         cohort,
         adt_data,
@@ -100,6 +115,7 @@ def generate_task_dataset(
         train_end=train_end,
         test_start=test_start,
         test_end=test_end,
+        site=site,
     )
 
     # Save to parquet if path provided

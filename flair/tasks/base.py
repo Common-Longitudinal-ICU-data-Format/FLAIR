@@ -256,23 +256,30 @@ class BaseTask(ABC):
         self,
         cohort_df: pl.DataFrame,
         adt_data: pl.DataFrame,
-        train_start: str,
-        train_end: str,
-        test_start: str,
-        test_end: str,
+        train_start: str = None,
+        train_end: str = None,
+        test_start: str = None,
+        test_end: str = None,
+        site: str = None,
     ) -> pl.DataFrame:
         """
         Build complete task-specific dataset with temporal split.
 
         Each task outputs a standardized 13-column parquet.
 
+        For MIMIC (de-identified dates): Uses 70/30 temporal split by
+        sorting admission_dttm. Date parameters are ignored.
+
+        For other sites: Uses date-based split. Date parameters are required.
+
         Args:
             cohort_df: Base cohort DataFrame (7 columns)
             adt_data: ADT DataFrame for computing ICU timing
-            train_start: Train period start date (YYYY-MM-DD)
-            train_end: Train period end date (YYYY-MM-DD)
-            test_start: Test period start date (YYYY-MM-DD)
-            test_end: Test period end date (YYYY-MM-DD)
+            train_start: Train period start date (YYYY-MM-DD). Optional for MIMIC.
+            train_end: Train period end date (YYYY-MM-DD). Optional for MIMIC.
+            test_start: Test period start date (YYYY-MM-DD). Optional for MIMIC.
+            test_end: Test period end date (YYYY-MM-DD). Optional for MIMIC.
+            site: Site name from config (e.g., "mimic"). Used to determine split method.
 
         Returns:
             DataFrame with 13 columns:
@@ -283,12 +290,6 @@ class BaseTask(ABC):
             - age_at_admission, sex_category, race_category, ethnicity_category
             - hospital_id, hospital_type
         """
-        # Parse date strings
-        train_start_dt = date.fromisoformat(train_start)
-        train_end_dt = date.fromisoformat(train_end)
-        test_start_dt = date.fromisoformat(test_start)
-        test_end_dt = date.fromisoformat(test_end)
-
         # 1. Compute ICU timing from ADT data
         icu_timing = self._compute_icu_timing(adt_data)
 
@@ -302,22 +303,38 @@ class BaseTask(ABC):
         # 4. Build time windows (task-specific)
         windows = self.build_time_windows(task_cohort, icu_timing)
 
-        # 5. Assign temporal split based on admission_dttm
-        split_df = task_cohort.select([
-            pl.col("hospitalization_id"),
-            pl.when(
-                (pl.col("admission_dttm").dt.date() >= train_start_dt)
-                & (pl.col("admission_dttm").dt.date() <= train_end_dt)
-            )
-            .then(pl.lit("train"))
-            .when(
-                (pl.col("admission_dttm").dt.date() >= test_start_dt)
-                & (pl.col("admission_dttm").dt.date() <= test_end_dt)
-            )
-            .then(pl.lit("test"))
-            .otherwise(pl.lit(None))
-            .alias("split"),
-        ])
+        # 5. Assign split based on site
+        if site and site.lower() == "mimic":
+            # MIMIC: Use 70/30 temporal split (de-identified dates)
+            split_df = self._assign_temporal_split(task_cohort)
+            logger.info("Using 70/30 temporal split for MIMIC (de-identified dates)")
+        else:
+            # Non-MIMIC: Use date-based split (require dates)
+            if not all([train_start, train_end, test_start, test_end]):
+                raise ValueError(
+                    "Date parameters required for non-MIMIC sites. "
+                    "Provide train_start, train_end, test_start, test_end."
+                )
+            train_start_dt = date.fromisoformat(train_start)
+            train_end_dt = date.fromisoformat(train_end)
+            test_start_dt = date.fromisoformat(test_start)
+            test_end_dt = date.fromisoformat(test_end)
+
+            split_df = task_cohort.select([
+                pl.col("hospitalization_id"),
+                pl.when(
+                    (pl.col("admission_dttm").dt.date() >= train_start_dt)
+                    & (pl.col("admission_dttm").dt.date() <= train_end_dt)
+                )
+                .then(pl.lit("train"))
+                .when(
+                    (pl.col("admission_dttm").dt.date() >= test_start_dt)
+                    & (pl.col("admission_dttm").dt.date() <= test_end_dt)
+                )
+                .then(pl.lit("test"))
+                .otherwise(pl.lit(None))
+                .alias("split"),
+            ])
 
         # 6. Get hospital info from icu_timing
         hospital_info = icu_timing.select([
@@ -376,6 +393,38 @@ class BaseTask(ABC):
         )
 
         return result
+
+    def _assign_temporal_split(
+        self,
+        task_cohort: pl.DataFrame,
+        train_ratio: float = 0.7
+    ) -> pl.DataFrame:
+        """
+        Assign train/test split by sorting admission_dttm temporally.
+
+        Used for MIMIC (de-identified dates) where date-based splits
+        are not meaningful. First 70% by admission time = train,
+        last 30% = test.
+
+        Args:
+            task_cohort: Cohort DataFrame with admission_dttm column
+            train_ratio: Fraction of data for training (default 0.7)
+
+        Returns:
+            DataFrame with [hospitalization_id, split]
+        """
+        # Sort by admission_dttm and add row index
+        sorted_df = task_cohort.sort("admission_dttm").with_row_index("_row_num")
+        total = sorted_df.height
+        cutoff = int(total * train_ratio)
+
+        return sorted_df.select([
+            pl.col("hospitalization_id"),
+            pl.when(pl.col("_row_num") < cutoff)
+            .then(pl.lit("train"))
+            .otherwise(pl.lit("test"))
+            .alias("split"),
+        ])
 
     def get_evaluation_metrics(self) -> List[str]:
         """Get list of evaluation metrics for this task."""
