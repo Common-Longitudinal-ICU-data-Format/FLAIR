@@ -13,6 +13,27 @@ from typing import Dict, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def _strip_timezone_from_pandas(df: "pd.DataFrame") -> "pd.DataFrame":
+    """
+    Strip timezone information from all datetime columns in a pandas DataFrame.
+
+    Args:
+        df: pandas DataFrame with potentially timezone-aware datetime columns
+
+    Returns:
+        DataFrame with timezone-naive datetime columns
+    """
+    import pandas as pd
+
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            if hasattr(df[col].dtype, 'tz') and df[col].dtype.tz is not None:
+                logger.debug(f"Stripping timezone from column: {col}")
+                df[col] = df[col].dt.tz_localize(None)
+
+    return df
+
+
 class FLAIRCohortBuilder:
     """
     Build FLAIR benchmark cohort directly from CLIF data using clifpy.
@@ -122,6 +143,8 @@ class FLAIRCohortBuilder:
 
         # Convert to polars if pandas
         if hasattr(df, "values"):
+            # Strip timezone from datetime columns before polars conversion
+            df = _strip_timezone_from_pandas(df)
             df = pl.from_pandas(df)
 
         # Select columns if specified
