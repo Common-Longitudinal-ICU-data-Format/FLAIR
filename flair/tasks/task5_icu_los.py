@@ -11,6 +11,7 @@ Target is a continuous value in hours (remaining LOS after first 24 hours).
 
 import polars as pl
 import logging
+from typing import Dict
 
 from flair.tasks.base import BaseTask, TaskConfig, TaskType
 
@@ -25,6 +26,14 @@ class Task5ICULoS(BaseTask):
     Output: Continuous value (hours) - remaining LOS after first 24 hours
     Cohort: ICU patients with >= 24hr first ICU stay
     """
+
+    # Default outlier bounds for remaining LOS (in hours)
+    DEFAULT_MIN_REMAINING_LOS = 2
+    DEFAULT_MAX_REMAINING_LOS = 1000
+
+    def __init__(self, config=None):
+        super().__init__(config)
+        self._exclusion_stats: Dict[str, int] = {}
 
     @property
     def name(self) -> str:
@@ -53,15 +62,20 @@ class Task5ICULoS(BaseTask):
         self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
     ) -> pl.DataFrame:
         """
-        Filter to patients with at least 24 hours ICU stay.
+        Filter to patients with:
+        1. At least 24 hours ICU stay
+        2. Remaining LOS within valid range (2 < hours < 1000)
 
         Args:
             cohort_df: Base cohort DataFrame (7 columns)
             icu_timing: ICU timing DataFrame with first_icu_start_time, first_icu_end_time
 
         Returns:
-            Filtered cohort (only patients with >= 24hr first ICU stay)
+            Filtered cohort (only patients meeting both criteria)
         """
+        initial_count = cohort_df.height
+        self._exclusion_stats["initial"] = initial_count
+
         # Join cohort with ICU timing
         cohort_with_timing = cohort_df.join(
             icu_timing.select([
@@ -73,23 +87,47 @@ class Task5ICULoS(BaseTask):
             how="inner",
         )
 
-        # Filter to >= 24 hours ICU stay
-        filtered = cohort_with_timing.filter(
+        # Compute remaining LOS (total ICU stay - 24 hours)
+        cohort_with_timing = cohort_with_timing.with_columns(
             (
                 (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
                 .dt.total_seconds()
                 / 3600
-            )
-            >= 24
+                - 24
+            ).alias("_remaining_los_hours")
         )
 
-        # Drop the timing columns (base cohort should stay 7 columns)
-        filtered = filtered.drop(["first_icu_start_time", "first_icu_end_time"])
+        # Filter 1: >= 24 hours ICU stay (remaining_los >= 0)
+        before_24hr = cohort_with_timing.height
+        filtered = cohort_with_timing.filter(pl.col("_remaining_los_hours") >= 0)
+        self._exclusion_stats["excluded_insufficient_stay"] = before_24hr - filtered.height
+        self._exclusion_stats["after_24hr_filter"] = filtered.height
 
-        logger.info(
-            f"Filtered to patients with >= 24hr ICU stay: "
-            f"{filtered.height} of {cohort_df.height}"
+        # Filter 2: Exclude very short remaining LOS (<= min threshold)
+        before_short = filtered.height
+        filtered = filtered.filter(
+            pl.col("_remaining_los_hours") > self.DEFAULT_MIN_REMAINING_LOS
         )
+        self._exclusion_stats["excluded_short_remaining_los"] = before_short - filtered.height
+        self._exclusion_stats["after_short_filter"] = filtered.height
+
+        # Filter 3: Exclude very long remaining LOS (>= max threshold)
+        before_long = filtered.height
+        filtered = filtered.filter(
+            pl.col("_remaining_los_hours") < self.DEFAULT_MAX_REMAINING_LOS
+        )
+        self._exclusion_stats["excluded_long_remaining_los"] = before_long - filtered.height
+        self._exclusion_stats["final"] = filtered.height
+
+        # Log exclusion statistics
+        self._log_exclusion_stats()
+
+        # Drop helper columns (base cohort should stay 7 columns)
+        filtered = filtered.drop([
+            "first_icu_start_time",
+            "first_icu_end_time",
+            "_remaining_los_hours",
+        ])
 
         return filtered
 
@@ -181,3 +219,34 @@ class Task5ICULoS(BaseTask):
             f"std={stats['std']:.1f}, "
             f"range=[{stats['min']:.1f}, {stats['max']:.1f}]"
         )
+
+    def _log_exclusion_stats(self) -> None:
+        """Log detailed exclusion statistics for ICU LOS cohort."""
+        logger.info("=" * 50)
+        logger.info("ICU LOS COHORT EXCLUSIONS")
+        logger.info("=" * 50)
+        logger.info(f"Initial cohort: {self._exclusion_stats.get('initial', 0):,}")
+        logger.info(
+            f"  - Excluded (<24hr ICU stay): "
+            f"{self._exclusion_stats.get('excluded_insufficient_stay', 0):,}"
+        )
+        logger.info(
+            f"  After 24hr filter: {self._exclusion_stats.get('after_24hr_filter', 0):,}"
+        )
+        logger.info(
+            f"  - Excluded (remaining LOS <= {self.DEFAULT_MIN_REMAINING_LOS}hr): "
+            f"{self._exclusion_stats.get('excluded_short_remaining_los', 0):,}"
+        )
+        logger.info(
+            f"  After short stay filter: {self._exclusion_stats.get('after_short_filter', 0):,}"
+        )
+        logger.info(
+            f"  - Excluded (remaining LOS >= {self.DEFAULT_MAX_REMAINING_LOS}hr): "
+            f"{self._exclusion_stats.get('excluded_long_remaining_los', 0):,}"
+        )
+        logger.info(f"Final cohort: {self._exclusion_stats.get('final', 0):,}")
+        logger.info(
+            f"Outlier bounds: {self.DEFAULT_MIN_REMAINING_LOS} < hours < "
+            f"{self.DEFAULT_MAX_REMAINING_LOS}"
+        )
+        logger.info("=" * 50)

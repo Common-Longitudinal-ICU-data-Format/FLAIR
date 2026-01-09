@@ -80,7 +80,7 @@ FLAIR provides **7 clinically relevant prediction tasks**:
 | 1 | Discharged Home | Predict if patient will be discharged directly home | All ICU patients |
 | 2 | Discharged to LTACH | Predict if patient will go to long-term acute care | All ICU patients |
 | 6 | Hospital Mortality | Predict in-hospital death (first 24hr ICU data) | 1st ICU stay ≥ 24hr |
-| 7 | ICU Readmission | Predict return to ICU (entire 1st ICU stay data) | 1st ICU stay ≥ 24hr |
+| 7 | Unplanned ICU Readmission | Predict unplanned return to ICU (entire 1st ICU stay data) | 1st ICU stay ≥ 24hr |
 
 ### Multiclass Classification Tasks
 
