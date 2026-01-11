@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Set, Optional
 import re
 
-from flair.privacy.network_guard import BANNED_PACKAGES
+from flair_benchmark.privacy.network_guard import BANNED_PACKAGES
 
 logger = logging.getLogger(__name__)
 

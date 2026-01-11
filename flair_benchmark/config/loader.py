@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Union
 
-from flair.config.schema import FLAIRConfig, TaskConfig
+from flair_benchmark.config.schema import FLAIRConfig, TaskConfig
 
 logger = logging.getLogger(__name__)
 

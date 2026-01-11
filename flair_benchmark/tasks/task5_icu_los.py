@@ -13,7 +13,7 @@ import polars as pl
 import logging
 from typing import Dict
 
-from flair.tasks.base import BaseTask, TaskConfig, TaskType
+from flair_benchmark.tasks.base import BaseTask, TaskConfig, TaskType
 
 logger = logging.getLogger(__name__)
 

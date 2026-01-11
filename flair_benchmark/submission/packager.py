@@ -11,8 +11,8 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 import hashlib
 
-from flair.privacy.phi_detector import PHIDetector, PHIViolationError
-from flair.privacy.audit_log import log_operation
+from flair_benchmark.privacy.phi_detector import PHIDetector, PHIViolationError
+from flair_benchmark.privacy.audit_log import log_operation
 
 logger = logging.getLogger(__name__)
 

@@ -9,9 +9,9 @@ WARNING: Violations of privacy policies will result in submission rejection
 and potential ban from the FLAIR benchmark.
 """
 
-from flair.privacy.network_guard import NetworkBlocker, network_blocked
-from flair.privacy.phi_detector import PHIDetector, PHI_PATTERNS
-from flair.privacy.audit_log import AuditLog, log_operation
+from flair_benchmark.privacy.network_guard import NetworkBlocker, network_blocked
+from flair_benchmark.privacy.phi_detector import PHIDetector, PHI_PATTERNS
+from flair_benchmark.privacy.audit_log import AuditLog, log_operation
 
 __all__ = [
     "NetworkBlocker",

@@ -12,7 +12,7 @@ Key Features:
            ICU LOS, hospital mortality, ICU readmission
 
 Usage:
-    from flair import generate_task_dataset, TASK_REGISTRY
+    from flair_benchmark import generate_task_dataset, TASK_REGISTRY
 
     # Generate dataset for ICU LOS task with temporal split
     df = generate_task_dataset(
@@ -32,13 +32,13 @@ __author__ = "CLIF Consortium"
 __email__ = "clif_consortium@uchicago.edu"
 
 # Core library exports
-from flair.tasks import get_task, TASK_REGISTRY, BaseTask, TaskConfig, TaskType
-from flair.cohort.builder import FLAIRCohortBuilder
-from flair.datasets.builder import FLAIRDatasetBuilder
+from flair_benchmark.tasks import get_task, TASK_REGISTRY, BaseTask, TaskConfig, TaskType
+from flair_benchmark.cohort.builder import FLAIRCohortBuilder
+from flair_benchmark.datasets.builder import FLAIRDatasetBuilder
 
 # Helper exports
-from flair.helpers.table1 import get_table1
-from flair.helpers.tripod_ai import generate_tripod_ai_report
+from flair_benchmark.helpers.table1 import get_table1
+from flair_benchmark.helpers.tripod_ai import generate_tripod_ai_report
 
 
 def generate_task_dataset(

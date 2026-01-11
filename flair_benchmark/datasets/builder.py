@@ -11,10 +11,10 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
-from flair.tasks import get_task, BaseTask
-from flair.privacy.network_guard import NetworkBlocker
-from flair.privacy.phi_detector import PHIDetector, PHIViolationError
-from flair.privacy.audit_log import log_operation
+from flair_benchmark.tasks import get_task, BaseTask
+from flair_benchmark.privacy.network_guard import NetworkBlocker
+from flair_benchmark.privacy.phi_detector import PHIDetector, PHIViolationError
+from flair_benchmark.privacy.audit_log import log_operation
 
 logger = logging.getLogger(__name__)
 
@@ -310,7 +310,7 @@ def build_all_datasets(config_path: str) -> Dict[str, Path]:
     Returns:
         Dictionary mapping task names to output directories
     """
-    from flair.config.loader import load_config
+    from flair_benchmark.config.loader import load_config
 
     config = load_config(config_path)
     builder = FLAIRDatasetBuilder(config.model_dump())

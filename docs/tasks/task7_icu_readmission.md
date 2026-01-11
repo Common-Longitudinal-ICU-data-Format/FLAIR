@@ -232,7 +232,7 @@ The task maps CLIF location categories to simplified groups:
 ## Usage Example
 
 ``` python
-from flair import generate_task_dataset
+from flair_benchmark import generate_task_dataset
 
 df = generate_task_dataset(
     config_path="clif_config.json",

@@ -7,7 +7,7 @@ name = "flair-benchmark"
 version = "1.0.0"
 description = "Federated Learning Assessment for ICU Research - Privacy-first benchmark for CLIF data"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
     { name = "CLIF Consortium", email = "clif_consortium@uchicago.edu" }
@@ -24,7 +24,7 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -57,7 +57,7 @@ Repository = "https://github.com/clif-consortium/flair"
 Documentation = "https://clif-icu.com/flair"
 
 [tool.hatch.build.targets.wheel]
-packages = ["flair"]
+packages = ["flair_benchmark"]
 
 [tool.ruff]
 line-length = 100

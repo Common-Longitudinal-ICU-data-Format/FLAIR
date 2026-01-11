@@ -176,7 +176,7 @@ Edit `clif_config.json` to set your data path and timezone.
 ### 2. Generate Task Dataset
 
 ``` python
-from flair import generate_task_dataset, TASK_REGISTRY
+from flair_benchmark import generate_task_dataset, TASK_REGISTRY
 
 # View available tasks
 print(TASK_REGISTRY.keys())
