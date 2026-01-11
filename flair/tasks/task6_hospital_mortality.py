@@ -163,11 +163,14 @@ class Task6HospitalMortality(BaseTask):
     def _log_mortality_stats(self, labels: pl.DataFrame) -> None:
         """Log statistics about the mortality labels."""
         pos_count = labels.filter(pl.col("label_mortality") == 1).height
+        null_count = labels.filter(pl.col("label_mortality").is_null()).height
         total = labels.height
-        mortality_rate = (pos_count / total * 100) if total > 0 else 0
+        valid_total = total - null_count
+        mortality_rate = (pos_count / valid_total * 100) if valid_total > 0 else 0
 
         logger.info(
             f"Mortality labels: "
             f"{pos_count} positive ({mortality_rate:.1f}%), "
-            f"{total - pos_count} negative"
+            f"{valid_total - pos_count} negative"
+            + (f", {null_count} missing (will be excluded)" if null_count > 0 else "")
         )

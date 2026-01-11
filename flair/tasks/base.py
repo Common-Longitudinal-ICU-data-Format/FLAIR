@@ -366,8 +366,17 @@ class BaseTask(ABC):
         # 8. Filter to only train/test
         result = result.filter(pl.col("split").is_not_null())
 
-        # 9. Reorder to final 13-column schema
+        # 9. Filter out rows with null labels (can't train on missing outcomes)
         label_col = self._task_config.label_column
+        null_label_count = result.filter(pl.col(label_col).is_null()).height
+        if null_label_count > 0:
+            logger.warning(
+                f"Dropping {null_label_count} patients with missing {label_col} "
+                f"({null_label_count / result.height * 100:.1f}% of cohort)"
+            )
+            result = result.filter(pl.col(label_col).is_not_null())
+
+        # 10. Reorder to final 13-column schema
         result = result.select([
             "hospitalization_id",
             "admission_dttm",
