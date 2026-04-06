@@ -53,10 +53,40 @@ class Task1DischargedHome(BaseTask):
             ],
         )
 
+    def build_time_windows(
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Build time windows for Task 1.
+
+        window_start = first_icu_start_time
+        window_end = first_icu_start_time + 24 hours
+
+        Args:
+            cohort_df: Filtered cohort DataFrame
+            icu_timing: ICU timing DataFrame
+
+        Returns:
+            DataFrame with hospitalization_id, window_start, window_end
+        """
+        return (
+            cohort_df.select("hospitalization_id")
+            .join(
+                icu_timing.select(["hospitalization_id", "first_icu_start_time"]),
+                on="hospitalization_id",
+                how="inner",
+            )
+            .select([
+                pl.col("hospitalization_id"),
+                pl.col("first_icu_start_time").alias("window_start"),
+                (pl.col("first_icu_start_time") + pl.duration(hours=24)).alias("window_end"),
+            ])
+        )
+
     def build_labels(
         self,
         cohort_df: pl.DataFrame,
-        narratives_dir: Optional[str] = None,
+        icu_timing: pl.DataFrame,
     ) -> pl.DataFrame:
         """
         Build labels from disposition data.
@@ -66,7 +96,7 @@ class Task1DischargedHome(BaseTask):
 
         Args:
             cohort_df: Cohort DataFrame
-            narratives_dir: Path to narratives (for token-based extraction)
+            icu_timing: ICU timing DataFrame
 
         Returns:
             DataFrame with [hospitalization_id, label_home]

@@ -54,7 +54,9 @@ class Task4HypoxicProportion(BaseTask):
             ],
         )
 
-    def filter_cohort(self, cohort_df: pl.DataFrame) -> pl.DataFrame:
+    def filter_cohort(
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
+    ) -> pl.DataFrame:
         """
         Filter to patients on IMV at 24 hours.
 
@@ -74,10 +76,40 @@ class Task4HypoxicProportion(BaseTask):
         )
         return cohort_df
 
+    def build_time_windows(
+        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
+    ) -> pl.DataFrame:
+        """
+        Build time windows for Task 4.
+
+        window_start = first_icu_start_time
+        window_end = first_icu_start_time + 24 hours
+
+        Args:
+            cohort_df: Filtered cohort DataFrame
+            icu_timing: ICU timing DataFrame
+
+        Returns:
+            DataFrame with hospitalization_id, window_start, window_end
+        """
+        return (
+            cohort_df.select("hospitalization_id")
+            .join(
+                icu_timing.select(["hospitalization_id", "first_icu_start_time"]),
+                on="hospitalization_id",
+                how="inner",
+            )
+            .select([
+                pl.col("hospitalization_id"),
+                pl.col("first_icu_start_time").alias("window_start"),
+                (pl.col("first_icu_start_time") + pl.duration(hours=24)).alias("window_end"),
+            ])
+        )
+
     def build_labels(
         self,
         cohort_df: pl.DataFrame,
-        narratives_dir: Optional[str] = None,
+        icu_timing: pl.DataFrame,
     ) -> pl.DataFrame:
         """
         Build regression labels for hypoxic proportion.
@@ -91,7 +123,7 @@ class Task4HypoxicProportion(BaseTask):
 
         Args:
             cohort_df: Cohort DataFrame (should be pre-filtered to IMV patients)
-            narratives_dir: Path to narratives for proportion calculation
+            icu_timing: ICU timing DataFrame
 
         Returns:
             DataFrame with [hospitalization_id, task4_proportion]
