@@ -1,50 +1,35 @@
-"""Task definitions for FLAIR benchmark.
+"""Auto-discover task modules. Adding a task = drop a new .py file here.
 
-All 7 tasks share the same cohort (ICU hospitalizations with at least 1 ICU stay).
+Each task module must expose:
+    META: dict          # see docs/tasks for required keys
+    build(clif_config, train_end, test_start) -> pl.DataFrame
 """
 
-from flair_benchmark.tasks.base import BaseTask, TaskConfig, TaskType
-from flair_benchmark.tasks.task1_discharged_home import Task1DischargedHome
-from flair_benchmark.tasks.task2_discharged_ltach import Task2DischargedLTACH
-from flair_benchmark.tasks.task3_outcome_72hr import Task3Outcome72hr
-from flair_benchmark.tasks.task4_hypoxic_proportion import Task4HypoxicProportion
-from flair_benchmark.tasks.task5_icu_los import Task5ICULoS
-from flair_benchmark.tasks.task6_hospital_mortality import Task6HospitalMortality
-from flair_benchmark.tasks.task7_icu_readmission import Task7ICUReadmission
+from __future__ import annotations
 
-TASK_REGISTRY = {
-    "task1_discharged_home": Task1DischargedHome,
-    "task2_discharged_ltach": Task2DischargedLTACH,
-    "task3_outcome_72hr": Task3Outcome72hr,
-    "task4_hypoxic_proportion": Task4HypoxicProportion,
-    "task5_icu_los": Task5ICULoS,
-    "task6_hospital_mortality": Task6HospitalMortality,
-    "task7_icu_readmission": Task7ICUReadmission,
-}
+import importlib
+import pkgutil
+from types import ModuleType
 
 
-def get_task(task_name: str, config: dict = None) -> BaseTask:
-    """Get a task instance by name."""
-    if task_name not in TASK_REGISTRY:
+def list_tasks() -> list[str]:
+    """Return sorted task names (filenames without .py, no underscore prefix)."""
+    pkg = importlib.import_module(__name__)
+    return sorted(
+        name for _, name, _ in pkgutil.iter_modules(pkg.__path__)
+        if not name.startswith("_")
+    )
+
+
+def get_task(name: str) -> ModuleType:
+    """Import and return the task module. Validates META + build()."""
+    if name not in list_tasks():
         raise ValueError(
-            f"Unknown task: {task_name}. "
-            f"Available tasks: {list(TASK_REGISTRY.keys())}"
+            f"Unknown task: {name!r}. Available: {list_tasks()}"
         )
-    task_class = TASK_REGISTRY[task_name]
-    return task_class(config)
-
-
-__all__ = [
-    "BaseTask",
-    "TaskConfig",
-    "TaskType",
-    "Task1DischargedHome",
-    "Task2DischargedLTACH",
-    "Task3Outcome72hr",
-    "Task4HypoxicProportion",
-    "Task5ICULoS",
-    "Task6HospitalMortality",
-    "Task7ICUReadmission",
-    "TASK_REGISTRY",
-    "get_task",
-]
+    module = importlib.import_module(f"{__name__}.{name}")
+    if not hasattr(module, "META") or not hasattr(module, "build"):
+        raise TypeError(
+            f"Task module {name!r} must define META dict and build() function."
+        )
+    return module

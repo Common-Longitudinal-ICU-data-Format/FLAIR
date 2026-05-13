@@ -231,15 +231,10 @@ The task maps CLIF location categories to simplified groups:
 
 ## Usage Example
 
-``` python
-from flair_benchmark import generate_task_dataset
-
-df = generate_task_dataset(
-    config_path="clif_config.json",
-    task_name="task7_icu_readmission",
-    train_start="2020-01-01",
-    train_end="2022-12-31",
-    test_start="2023-01-01",
-    test_end="2023-12-31",
-)
+```bash
+flair load-task task7_icu_readmission \
+    --clif-config clif_config.json \
+    --train-end 2022-12-31 \
+    --test-start 2023-01-01 \
+    --out task7.parquet
 ```

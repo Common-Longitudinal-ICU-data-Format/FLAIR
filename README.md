@@ -127,23 +127,40 @@ FLAIR is a Python library that generates task-specific datasets for ICU predicti
 | ✅ Temporal train/test splits     | 🔧 Your training pipeline   |
 | ✅ Demographics & time windows    | 🔧 Your evaluation          |
 
-### Output Format
-
-Each task outputs a **single parquet file** with all required columns:
+### Cohort parquet (what `flair load-task` emits)
 
 | Column               | Type      | Description                            |
 |----------------------|-----------|----------------------------------------|
 | `hospitalization_id` | str       | Unique identifier                      |
-| `admission_dttm`     | datetime  | Hospital admission time                |
-| `discharge_dttm`     | datetime  | Hospital discharge time                |
-| `window_start`       | datetime  | ICU start time (input window start)    |
-| `window_end`         | datetime  | Prediction time (+24hr from ICU start) |
-| `{task_label}`       | int/float | Task-specific label                    |
+| `window_start`       | datetime  | Start of the input window              |
+| `window_end`         | datetime  | Prediction time — no data beyond this  |
+| `{task_label}`       | int/float | Task-specific label (see each task's META) |
 | `split`              | str       | "train" or "test"                      |
 | `age_at_admission`   | int       | Patient age                            |
 | `sex_category`       | str       | Patient sex                            |
 | `race_category`      | str       | Patient race                           |
 | `ethnicity_category` | str       | Patient ethnicity                      |
+
+### Predictions parquet (what you write back, strict schema)
+
+Append to the cohort parquet:
+
+| Column     | When required        | Type            |
+|------------|----------------------|-----------------|
+| `y_true`   | always               | int/float       |
+| `y_pred`   | binary, multiclass   | int             |
+| `y_prob`   | binary (recommended) | float in [0, 1] |
+| `class_probs_<class>` | multiclass | float in [0, 1] (one column per class) |
+| `y_pred_value` | regression       | float           |
+
+### Report bundle (what `flair build-report` emits)
+
+Four JSON files written to `--out`, each carrying audit metadata (`task_script_sha256`, `flair_version`, `generated_at`):
+
+- `table1.json` — cohort characteristics by split and by label (HIPAA cell suppression: counts < 10 → `"<10"`).
+- `tripod_ai.json` — TRIPOD-AI report auto-populated with discrimination / calibration metrics.
+- `fairness.json` — per-subgroup metrics (sex, race, ethnicity, age bin) plus parity gaps. Subgroups with n < 10 are dropped entirely.
+- `curves.json` — ROC / PR / calibration as downsampled raw points (no images). The central dashboard renders.
 
 ------------------------------------------------------------------------
 
@@ -165,121 +182,146 @@ pip install -e .
 
 ## 🚀 Quick Start
 
+FLAIR is a CLI. Two commands cover the whole workflow.
+
 ### 1. Configure CLIF Data Source
 
-``` bash
+```bash
 cp clif_config_template.json clif_config.json
 ```
 
-Edit `clif_config.json` to set your data path and timezone.
+Edit `clif_config.json` to set your data path, filetype, and timezone.
 
-### 2. Generate Task Dataset
+### 2. Build a task cohort
 
-``` python
-from flair_benchmark import generate_task_dataset, TASK_REGISTRY
+```bash
+flair list-tasks
+# task1_discharged_home  task2_discharged_ltach  task3_outcome_72hr
+# task4_hypoxic_proportion  task5_icu_los  task6_hospital_mortality
+# task7_icu_readmission
 
-# View available tasks
-print(TASK_REGISTRY.keys())
-# ['task1_discharged_home', 'task2_discharged_ltach', 'task3_outcome_72hr',
-#  'task4_hypoxic_proportion', 'task5_icu_los', 'task6_hospital_mortality',
-#  'task7_icu_readmission']
-
-# Generate dataset for ICU LOS task with temporal split
-df = generate_task_dataset(
-    config_path="clif_config.json",
-    task_name="task5_icu_los",
-    train_start="2020-01-01",
-    train_end="2022-12-31",
-    test_start="2023-01-01",
-    test_end="2023-12-31",
-    output_path="task5_icu_los.parquet"
-)
-
-print(f"Total N: {len(df)}")
-print(f"Train: {len(df.filter(df['split'] == 'train'))}")
-print(f"Test: {len(df.filter(df['split'] == 'test'))}")
+flair load-task task6_hospital_mortality \
+    --clif-config clif_config.json \
+    --train-end 2022-12-31 \
+    --test-start 2023-01-01 \
+    --out cohort.parquet
+# (omit --train-end / --test-start for MIMIC: 70/30 temporal split is used)
 ```
 
-### 3. Use the Dataset
+### 3. Build features and train a model (your code)
 
-``` python
+```python
 import polars as pl
+from clifpy import ClifOrchestrator
 
-# Load dataset
-df = pl.read_parquet("task5_icu_los.parquet")
+cohort = pl.read_parquet("cohort.parquet")
+ids = cohort["hospitalization_id"].to_list()
 
-# Split into train/test
-train = df.filter(pl.col("split") == "train")
-test = df.filter(pl.col("split") == "test")
-
-# Access labels
-y_train = train["icu_los_hours"]
-y_test = test["icu_los_hours"]
-
-# Access demographics for subgroup analysis
-demographics = train.select(["age_at_admission", "sex_category", "race_category"])
+co = ClifOrchestrator(data_directory="...", filetype="parquet", timezone="US/Central")
+wide = co.create_wide_dataset(
+    hospitalization_ids=ids,
+    # ... vitals/labs/respiratory_support categories you want ...
+)
+# join wide → train your model → produce y_pred / y_prob.
 ```
+
+Or query CLIF tables directly:
+
+```python
+from clifpy.tables import Vitals
+vitals = Vitals.from_file(
+    data_directory="...", filetype="parquet", timezone="US/Central",
+    filters={"hospitalization_id": ids,
+             "vital_category": ["heart_rate", "sbp", "spo2"]},
+)
+```
+
+### 4. Append predictions and run the report
+
+```python
+preds = cohort.with_columns([
+    pl.Series("y_true", y_true),
+    pl.Series("y_pred", y_pred),
+    pl.Series("y_prob", y_prob),  # binary tasks
+])
+preds.write_parquet("preds.parquet")
+```
+
+```bash
+flair build-report preds.parquet \
+    --task task6_hospital_mortality \
+    --out ./report/
+# → report/table1.json table1.json fairness.json curves.json
+```
+
+See [examples/end_to_end.py](examples/end_to_end.py) for a runnable demo.
 
 ------------------------------------------------------------------------
 
-## 🔒 Privacy Policy
+## 🔒 Privacy model
 
-```         
-╔════════════════════════════════════════════════════════════════╗
-║                     FLAIR PRIVACY POLICY                       ║
-╠════════════════════════════════════════════════════════════════╣
-║                                                                ║
-║  1. NO NETWORK REQUESTS                                        ║
-║     • All network access blocked at Python socket level        ║
-║     • Packages like requests, urllib3, httpx are banned        ║
-║     • Violation = immediate submission rejection               ║
-║                                                                ║
-║  2. PHI PROTECTION                                             ║
-║     • All outputs scanned for PHI patterns                     ║
-║     • Cell counts < 10 are suppressed (HIPAA safe harbor)      ║
-║     • Individual-level data never leaves the site              ║
-║                                                                ║
-║  3. REVIEW PROCESS                                             ║
-║     • PIs at each site review code before execution            ║
-║     • PIs have final say — they are not required to run        ║
-║     • Code inspection for data exfiltration attempts           ║
-║                                                                ║
-║  4. CONSEQUENCES                                               ║
-║     • If data exfiltration found during review:                ║
-║       → Submitter BANNED from FLAIR                            ║
-║       → Incident reported to submitter's institution           ║
-║                                                                ║
-║  PIs are doing you a favor by running your code on their data. ║
-║  Respect their trust and protect patient privacy.              ║
-║                                                                ║
-╚════════════════════════════════════════════════════════════════╝
-```
+FLAIR-Bench is one component of a larger federated stack. The library itself is intentionally minimal — it does not enforce network isolation or PHI runtime checks. Those guarantees come from two other layers:
+
+1. **CLIF-WorkBench container** — every site runs FLAIR inside a Singularity container with no internet, no root, immutable read-only image. That is where network egress is blocked at the kernel level.
+2. **Aggregate-only outputs** — patient-level data never leaves the site. `flair build-report` emits four JSON files of aggregated statistics; that is the only artifact a site shares.
+
+What the library *does* enforce:
+
+- HIPAA cell suppression in `table1.json` (counts < 10 → `"<10"`).
+- Subgroup drop in `fairness.json` (any group with n < 10 is omitted entirely).
+- Calibration bin suppression in `curves.json` (bins with count < 10 report `null` for the true rate).
+- Per-task script SHA-256 stamped into every output JSON so the central aggregator can verify two sites ran byte-identical task code.
+
+PIs at each site still audit code before running it and have final approval. The simplicity of the new layout — each task = one polars file — makes that audit tractable.
 
 ------------------------------------------------------------------------
 
 ## 🏗️ Architecture
 
-```         
-FLAIR/
-├── flair/                      # Main package
-│   ├── __init__.py             # Main API: generate_task_dataset()
-│   ├── cohort/                 # Cohort builder (clifpy integration)
-│   ├── config/                 # Configuration management
-│   ├── datasets/               # Dataset builder
-│   ├── helpers/                # table1, metrics, tripod_ai
-│   └── tasks/                  # Task definitions (7 tasks)
-│       ├── base.py             # BaseTask with build_task_dataset()
-│       ├── task1_discharged_home.py
-│       ├── task2_discharged_ltach.py
-│       ├── task3_outcome_72hr.py
-│       ├── task4_hypoxic_proportion.py
-│       ├── task5_icu_los.py
-│       ├── task6_hospital_mortality.py
-│       └── task7_icu_readmission.py
-├── clif_config_template.json   # CLIF data configuration template
-├── pyproject.toml              # Package configuration
-└── tests/                      # Test suite
 ```
+flair_benchmark/
+├── __init__.py                 # tiny: list_tasks, get_task, __version__
+├── cli.py                      # the `flair` CLI: load-task, build-report, list-tasks
+├── _clif.py                    # clifpy → polars loaders (Hospitalization, Adt, Patient,
+│                               #   Vitals, Labs, RespiratorySupport)
+├── _split.py                   # temporal date split / MIMIC 70-30 fallback
+├── _icu_timing.py              # rank-based first/second ICU stay (shared default)
+├── _hash.py                    # SHA-256 of a task .py for audit metadata
+├── tasks/                      # one polars script per task — add a new task = drop a .py
+│   ├── __init__.py             # importlib auto-discovery (no registry dict)
+│   ├── task1_discharged_home.py
+│   ├── task2_discharged_ltach.py
+│   ├── task3_outcome_72hr.py
+│   ├── task4_hypoxic_proportion.py
+│   ├── task5_icu_los.py
+│   ├── task6_hospital_mortality.py
+│   └── task7_icu_readmission.py
+└── report/
+    ├── __init__.py             # build_report() orchestrator
+    ├── _suppress.py            # HIPAA cell suppression helper
+    ├── table1.py               # cohort characteristics
+    ├── tripod_ai.py            # TRIPOD-AI auto-populated
+    ├── fairness.py             # per-subgroup metrics + parity gaps
+    └── curves.py               # ROC / PR / calibration as raw points
+```
+
+### Adding a new task
+
+Drop a new module under `flair_benchmark/tasks/` exposing:
+
+```python
+META = { "name": ..., "task_type": "binary"|"multiclass"|"regression",
+         "label_column": ..., "input_window_hours": ..., ... }
+
+def build(clif_config: str,
+          train_end: str | None,
+          test_start: str | None) -> pl.DataFrame:
+    """Return columns: hospitalization_id, window_start, window_end,
+    <META['label_column']>, split, age_at_admission, sex_category,
+    race_category, ethnicity_category."""
+```
+
+That is the entire contract. `flair list-tasks` auto-discovers it. See `task6_hospital_mortality.py` as the reference template.
 
 ------------------------------------------------------------------------
 

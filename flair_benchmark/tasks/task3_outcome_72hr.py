@@ -1,213 +1,125 @@
 """
-Task 3: 72-Hour Respiratory Outcome Prediction
+Task 3: 72-Hour Respiratory Outcome (multiclass)
 
-Multi-class classification task to predict the respiratory status
-at 72 hours post-ICU admission for patients on invasive mechanical
-ventilation (IMV).
+Cohort: patients on IMV at the 24-hour mark of their first ICU stay.
+Input window: first 24h of ICU.
+Prediction window: 24h → 72h.
 
-Classes:
-- imv_on: Still on mechanical ventilation at 72 hours
-- imv_off: Successfully weaned from ventilation
-- expired: Deceased by 72 hours
+Classes (label = task3_label, integer-encoded):
+  0 = imv_on   : still on IMV at the 72h mark
+  1 = imv_off  : off IMV at the 72h mark, alive
+  2 = expired  : died (death_dttm) on or before the 72h mark
 
-Uses first 24 hours of ICU data to predict 24-72 hour window outcomes.
-Only includes patients on IMV at the 24-hour mark.
+Pipeline:
+  1. base_icu_cohort()        — adult ICU hospitalizations + ADT (see _clif.py)
+  2. compute_icu_timing()     — rank-based first ICU stay (see _icu_timing.py)
+  3. load_respiratory_support() filtered to IMV
+  4. cohort = hospitalizations with an IMV row covering t24
+  5. label  = check IMV coverage at t72 vs death_dttm
+  6. window = first 24h of first ICU stay
+  7. assign_split()           — MIMIC 70/30 or date cutoffs (see _split.py)
 """
 
+from __future__ import annotations
+
 import polars as pl
-import logging
-from typing import Dict, Any, Optional
 
-from flair_benchmark.tasks.base import BaseTask, TaskConfig, TaskType
+from flair_benchmark._clif import (base_icu_cohort, load_respiratory_support,
+                                    read_clif_config)
+from flair_benchmark._icu_timing import compute_icu_timing
+from flair_benchmark._split import assign_split
 
-logger = logging.getLogger(__name__)
+META = {
+    "name": "task3_outcome_72hr",
+    "display_name": "72-Hour Respiratory Outcome",
+    "task_type": "multiclass",
+    "label_column": "task3_label",
+    "class_names": ["imv_on", "imv_off", "expired"],
+    "input_window_hours": 24,
+    "prediction_window": [24, 72],
+    "cohort_description": "Adults on IMV at the 24-hour mark of first ICU stay",
+    "inclusion_criteria": [
+        "age_at_admission >= 18",
+        "at least one respiratory_support IMV row covering first_icu_start + 24h",
+    ],
+    "exclusion_criteria": [
+        "no IMV at 24-hour mark",
+    ],
+    "evaluation_metrics": ["accuracy", "macro_f1", "weighted_f1",
+                           "per_class_precision", "per_class_recall",
+                           "per_class_f1", "confusion_matrix"],
+}
+
+OUTPUT_COLS = [
+    "hospitalization_id", "window_start", "window_end",
+    META["label_column"], "split",
+    "age_at_admission", "sex_category", "race_category", "ethnicity_category",
+]
 
 
-class Task3Outcome72hr(BaseTask):
+def build(clif_config: str, train_end: str | None,
+          test_start: str | None) -> pl.DataFrame:
+    cfg = read_clif_config(clif_config)
+    cohort, adt = base_icu_cohort(cfg)
+    timing = compute_icu_timing(adt)
+
+    cohort = cohort.join(timing, on="hospitalization_id", how="inner").with_columns([
+        (pl.col("first_icu_start_time") + pl.duration(hours=24)).alias("t24"),
+        (pl.col("first_icu_start_time") + pl.duration(hours=72)).alias("t72"),
+    ])
+
+    hosp_ids = cohort["hospitalization_id"].to_list()
+    resp = load_respiratory_support(cfg, hospitalization_ids=hosp_ids,
+                                    device_categories=["IMV"])
+
+    # An IMV row "covers" t if recorded_dttm <= t AND (next IMV record start > t OR null).
+    # CLIF respiratory_support is a status stream — a row sets the device at recorded_dttm
+    # and is active until the next row for the same hospitalization. We approximate
+    # "on IMV at time t" by: any IMV row with recorded_dttm <= t exists, AND the most
+    # recent respiratory_support row (any device) at or before t has device_category == 'IMV'.
+    imv_at_t24 = _on_imv_at(resp, cohort.select(["hospitalization_id", "t24"]), "t24")
+    imv_at_t72 = _on_imv_at(resp, cohort.select(["hospitalization_id", "t72"]), "t72")
+
+    df = cohort.join(imv_at_t24, on="hospitalization_id", how="inner")  # cohort filter
+    df = df.join(imv_at_t72, on="hospitalization_id", how="left")
+
+    expired_by_72h = (
+        pl.col("death_dttm").is_not_null() & (pl.col("death_dttm") <= pl.col("t72"))
+    )
+    df = df.with_columns(
+        pl.when(expired_by_72h).then(pl.lit(2))      # expired
+        .when(pl.col("on_imv_at_t72").fill_null(False)).then(pl.lit(0))  # imv_on
+        .otherwise(pl.lit(1))                         # imv_off
+        .alias("task3_label")
+    )
+
+    df = df.with_columns([
+        pl.col("first_icu_start_time").alias("window_start"),
+        pl.col("t24").alias("window_end"),
+    ])
+
+    df = assign_split(df, cfg["site"], train_end, test_start)
+    df = df.filter(pl.col("split").is_not_null())
+    return df.select(OUTPUT_COLS)
+
+
+def _on_imv_at(resp: pl.DataFrame, targets: pl.DataFrame,
+               at_col: str) -> pl.DataFrame:
+    """For each (hospitalization_id, at_col) target, return whether the
+    last respiratory_support row at or before `at_col` is an IMV row.
+
+    Returns a DataFrame with [hospitalization_id, on_imv_at_<at_col>].
     """
-    Predict respiratory outcome at 72 hours for IMV patients.
-
-    Input: First 24 hours of ICU data
-    Output: Multi-class (imv_on=0, imv_off=1, expired=2)
-    Cohort: Only patients on IMV at 24 hours
-
-    This task evaluates the ability to predict ventilator weaning
-    success or mortality within the 24-72 hour window.
-    """
-
-    @property
-    def name(self) -> str:
-        return "task3_outcome_72hr"
-
-    def _get_default_config(self) -> TaskConfig:
-        return TaskConfig(
-            name="task3_outcome_72hr",
-            display_name="72-Hour Respiratory Outcome",
-            description="Predict respiratory status at 72 hours for IMV patients",
-            task_type=TaskType.MULTICLASS_CLASSIFICATION,
-            input_window_hours=24,
-            prediction_window=(24, 72),  # Predict outcomes in 24-72hr window
-            cohort_filter="imv_only",  # Only IMV patients at 24hr
-            label_column="task3_label",
-            class_names=["imv_on", "imv_off", "expired"],
-            evaluation_metrics=[
-                "accuracy",
-                "macro_f1",
-                "weighted_f1",
-                "per_class_precision",
-                "per_class_recall",
-                "per_class_f1",
-                "confusion_matrix",
-            ],
-        )
-
-    def filter_cohort(
-        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
-    ) -> pl.DataFrame:
-        """
-        Filter to patients on IMV at 24 hours.
-
-        This task only includes patients who are on invasive mechanical
-        ventilation at the 24-hour mark.
-        """
-        # Check for IMV indicator column
-        if "imv_at_24hr" in cohort_df.columns:
-            filtered = cohort_df.filter(pl.col("imv_at_24hr") == True)
-            logger.info(
-                f"Filtered to IMV patients: {filtered.height} of {cohort_df.height}"
-            )
-            return filtered
-
-        # If not available, return all (will need to filter during label extraction)
-        logger.warning(
-            "No imv_at_24hr column found - cohort filtering will happen during label extraction"
-        )
-        return cohort_df
-
-    def build_time_windows(
-        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
-    ) -> pl.DataFrame:
-        """
-        Build time windows for Task 3.
-
-        window_start = first_icu_start_time
-        window_end = first_icu_start_time + 24 hours
-
-        Args:
-            cohort_df: Filtered cohort DataFrame
-            icu_timing: ICU timing DataFrame
-
-        Returns:
-            DataFrame with hospitalization_id, window_start, window_end
-        """
-        return (
-            cohort_df.select("hospitalization_id")
-            .join(
-                icu_timing.select(["hospitalization_id", "first_icu_start_time"]),
-                on="hospitalization_id",
-                how="inner",
-            )
-            .select([
-                pl.col("hospitalization_id"),
-                pl.col("first_icu_start_time").alias("window_start"),
-                (pl.col("first_icu_start_time") + pl.duration(hours=24)).alias("window_end"),
-            ])
-        )
-
-    def build_labels(
-        self,
-        cohort_df: pl.DataFrame,
-        icu_timing: pl.DataFrame,
-    ) -> pl.DataFrame:
-        """
-        Build multi-class labels for respiratory outcome.
-
-        Labels are extracted from the 24-72 hour window:
-        - 0 (imv_on): Patient still on IMV at 72 hours
-        - 1 (imv_off): Patient weaned from IMV by 72 hours
-        - 2 (expired): Patient deceased by 72 hours
-
-        Args:
-            cohort_df: Cohort DataFrame (should be pre-filtered to IMV patients)
-            icu_timing: ICU timing DataFrame
-
-        Returns:
-            DataFrame with [hospitalization_id, task3_label]
-        """
-        # Check if labels are pre-computed
-        if "task3_label" in cohort_df.columns:
-            labels = cohort_df.select(["hospitalization_id", "task3_label"])
-            self._log_class_distribution(labels)
-            return labels
-
-        # Extract from narratives
-        if narratives_dir:
-            return self._extract_labels_from_narratives(cohort_df, narratives_dir)
-
-        raise ValueError(
-            "Cannot build labels: no task3_label column and no narratives_dir provided"
-        )
-
-    def _extract_labels_from_narratives(
-        self,
-        cohort_df: pl.DataFrame,
-        narratives_dir: str,
-    ) -> pl.DataFrame:
-        """
-        Extract respiratory outcome labels from narrative sequences.
-
-        Analyzes the 24-72 hour window for:
-        - Device tokens (resp_device_imv -> still on IMV)
-        - Disposition tokens (disposition_expired -> deceased)
-        - Absence of IMV tokens (-> weaned)
-        """
-        from pathlib import Path
-
-        narratives_path = Path(narratives_dir)
-        hosp_ids = cohort_df["hospitalization_id"].unique().to_list()
-
-        # This is a simplified extraction - real implementation would
-        # analyze the 24-72hr time window more carefully
-        narratives = pl.scan_parquet(narratives_path / "*.parquet")
-
-        # Get events in 24-72hr window
-        # Note: This requires event_time column in narratives
-        labels = (
-            narratives.filter(pl.col("hospitalization_id").is_in(hosp_ids))
-            .group_by("hospitalization_id")
-            .agg(
-                [
-                    pl.col("clif_sentence")
-                    .filter(pl.col("clif_sentence") == "disposition_expired")
-                    .count()
-                    .alias("expired_count"),
-                    pl.col("clif_sentence")
-                    .filter(pl.col("clif_sentence").str.contains("resp_device_imv"))
-                    .count()
-                    .alias("imv_count"),
-                ]
-            )
-            .with_columns(
-                [
-                    pl.when(pl.col("expired_count") > 0)
-                    .then(pl.lit(2))  # expired
-                    .when(pl.col("imv_count") > 0)
-                    .then(pl.lit(0))  # imv_on
-                    .otherwise(pl.lit(1))  # imv_off
-                    .alias("task3_label"),
-                ]
-            )
-            .select(["hospitalization_id", "task3_label"])
-            .collect()
-        )
-
-        self._log_class_distribution(labels)
-        return labels
-
-    def _log_class_distribution(self, labels: pl.DataFrame) -> None:
-        """Log the class distribution for this task."""
-        class_counts = labels.group_by("task3_label").count().sort("task3_label")
-        logger.info("Task 3 label distribution:")
-        for row in class_counts.iter_rows(named=True):
-            class_name = self._get_default_config().class_names[row["task3_label"]]
-            logger.info(f"  {class_name} ({row['task3_label']}): {row['count']}")
+    # Find most-recent respiratory_support row at or before each target time
+    joined = (
+        targets.join(resp, on="hospitalization_id", how="inner")
+        .filter(pl.col("recorded_dttm") <= pl.col(at_col))
+        .sort([pl.col("hospitalization_id"), pl.col("recorded_dttm")])
+        .group_by("hospitalization_id")
+        .agg(pl.col("device_category").last().alias("last_device"))
+    )
+    out_name = f"on_imv_at_{at_col}"
+    return joined.select([
+        "hospitalization_id",
+        (pl.col("last_device").str.to_uppercase() == "IMV").alias(out_name),
+    ])

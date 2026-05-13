@@ -1,176 +1,77 @@
 """
-Task 6: In-Hospital Mortality Prediction
+Task 6: In-Hospital Mortality (binary classification)
 
-Binary classification task to predict whether a patient will die
-during the hospitalization.
+Pipeline (reads top-to-bottom):
+  1. base_icu_cohort()    — adult ICU hospitalizations + ADT (see _clif.py)
+  2. compute_icu_timing() — rank-based first/second ICU stay (see _icu_timing.py)
+  3. filter ≥ 24h first ICU stay
+  4. label = discharge_category in {expired, hospice}
+  5. window = first 24h of first ICU stay
+  6. assign_split()       — MIMIC 70/30 or date cutoffs (see _split.py)
 
-Uses first 24 hours of ICU data to predict mortality at discharge.
-Only includes patients with at least 24 hours ICU stay.
-Expected prevalence: ~5-15% mortality.
+Expected positive prevalence: ~5-15%.
 """
 
+from __future__ import annotations
+
 import polars as pl
-import logging
 
-from flair_benchmark.tasks.base import BaseTask, TaskConfig, TaskType
+from flair_benchmark._clif import base_icu_cohort, read_clif_config
+from flair_benchmark._icu_timing import compute_icu_timing
+from flair_benchmark._split import assign_split
 
-logger = logging.getLogger(__name__)
+META = {
+    "name": "task6_hospital_mortality",
+    "display_name": "In-Hospital Mortality",
+    "task_type": "binary",
+    "label_column": "label_mortality",
+    "positive_class": "expired_or_hospice",
+    "input_window_hours": 24,
+    "prediction_window": None,
+    "cohort_description": "Adults with first ICU stay >= 24 hours",
+    "inclusion_criteria": [
+        "age_at_admission >= 18",
+        "valid admission_dttm and discharge_dttm",
+        "first ICU stay duration >= 24 hours",
+    ],
+    "exclusion_criteria": [
+        "missing discharge_category",
+    ],
+    "evaluation_metrics": ["auroc", "auprc", "accuracy", "precision", "recall",
+                           "f1", "specificity", "npv"],
+}
+
+OUTPUT_COLS = [
+    "hospitalization_id", "window_start", "window_end",
+    META["label_column"], "split",
+    "age_at_admission", "sex_category", "race_category", "ethnicity_category",
+]
 
 
-class Task6HospitalMortality(BaseTask):
-    """
-    Predict in-hospital mortality.
+def build(clif_config: str, train_end: str | None,
+          test_start: str | None) -> pl.DataFrame:
+    """End-to-end build. Returns a parquet-ready polars DataFrame."""
+    cfg = read_clif_config(clif_config)
+    cohort, adt = base_icu_cohort(cfg)
+    timing = compute_icu_timing(adt)
 
-    Input: First 24 hours of ICU data
-    Output: Binary (1 = expired, 0 = survived)
-    Cohort: ICU patients with >= 24 hours ICU stay
-    Expected prevalence: ~5-15%
-    """
+    df = cohort.join(timing, on="hospitalization_id", how="inner").filter(
+        ((pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
+         .dt.total_seconds() / 3600.0) >= 24
+    )
 
-    @property
-    def name(self) -> str:
-        return "task6_hospital_mortality"
+    df = df.with_columns(
+        pl.col("discharge_category").str.to_lowercase()
+        .is_in(["expired", "hospice"])
+        .cast(pl.Int32)
+        .alias("label_mortality")
+    ).filter(pl.col("label_mortality").is_not_null())
 
-    def _get_default_config(self) -> TaskConfig:
-        return TaskConfig(
-            name="task6_hospital_mortality",
-            display_name="In-Hospital Mortality",
-            description="Predict whether patient will die during hospitalization",
-            task_type=TaskType.BINARY_CLASSIFICATION,
-            input_window_hours=24,
-            prediction_window=None,
-            cohort_filter="icu_24hr_complete",
-            label_column="label_mortality",
-            positive_class="expired",
-            evaluation_metrics=[
-                "auroc",
-                "auprc",
-                "accuracy",
-                "precision",
-                "recall",
-                "f1",
-                "specificity",
-                "npv",
-            ],
-        )
+    df = df.with_columns([
+        pl.col("first_icu_start_time").alias("window_start"),
+        (pl.col("first_icu_start_time") + pl.duration(hours=24)).alias("window_end"),
+    ])
 
-    def filter_cohort(
-        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
-    ) -> pl.DataFrame:
-        """
-        Filter to patients with at least 24 hours ICU stay.
-
-        Args:
-            cohort_df: Base cohort DataFrame (8 columns including discharge_category)
-            icu_timing: ICU timing DataFrame
-
-        Returns:
-            Filtered cohort (only patients with >= 24hr first ICU stay)
-        """
-        # Join cohort with ICU timing
-        cohort_with_timing = cohort_df.join(
-            icu_timing.select([
-                "hospitalization_id",
-                "first_icu_start_time",
-                "first_icu_end_time",
-            ]),
-            on="hospitalization_id",
-            how="inner",
-        )
-
-        # Filter to >= 24 hours ICU stay
-        filtered = cohort_with_timing.filter(
-            (
-                (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
-                .dt.total_seconds()
-                / 3600
-            )
-            >= 24
-        )
-
-        # Drop the timing columns
-        filtered = filtered.drop(["first_icu_start_time", "first_icu_end_time"])
-
-        logger.info(
-            f"Filtered to patients with >= 24hr ICU stay: "
-            f"{filtered.height} of {cohort_df.height}"
-        )
-
-        return filtered
-
-    def build_time_windows(
-        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
-    ) -> pl.DataFrame:
-        """
-        Build time windows for Task 6.
-
-        window_start = first_icu_start_time
-        window_end = first_icu_start_time + 24 hours
-
-        Args:
-            cohort_df: Filtered cohort DataFrame
-            icu_timing: ICU timing DataFrame
-
-        Returns:
-            DataFrame with hospitalization_id, window_start, window_end
-        """
-        return (
-            cohort_df.select("hospitalization_id")
-            .join(
-                icu_timing.select(["hospitalization_id", "first_icu_start_time"]),
-                on="hospitalization_id",
-                how="inner",
-            )
-            .select([
-                pl.col("hospitalization_id"),
-                pl.col("first_icu_start_time").alias("window_start"),
-                (pl.col("first_icu_start_time") + pl.duration(hours=24)).alias("window_end"),
-            ])
-        )
-
-    def build_labels(
-        self, cohort_df: pl.DataFrame, icu_timing: pl.DataFrame
-    ) -> pl.DataFrame:
-        """
-        Build mortality labels from discharge_category.
-
-        Label = 1 if discharge_category in ['expired', 'hospice'], else 0
-
-        Args:
-            cohort_df: Cohort DataFrame with discharge_category column
-            icu_timing: ICU timing DataFrame (not used for mortality)
-
-        Returns:
-            DataFrame with [hospitalization_id, label_mortality]
-        """
-        if "discharge_category" not in cohort_df.columns:
-            raise ValueError(
-                "Cohort must have discharge_category column for mortality labels"
-            )
-
-        labels = cohort_df.select([
-            pl.col("hospitalization_id"),
-            (
-                pl.col("discharge_category").str.to_lowercase().is_in(["expired", "hospice"])
-            )
-            .cast(pl.Int32)
-            .alias("label_mortality"),
-        ])
-
-        self._log_mortality_stats(labels)
-        return labels
-
-    def _log_mortality_stats(self, labels: pl.DataFrame) -> None:
-        """Log statistics about the mortality labels."""
-        pos_count = labels.filter(pl.col("label_mortality") == 1).height
-        null_count = labels.filter(pl.col("label_mortality").is_null()).height
-        total = labels.height
-        valid_total = total - null_count
-        mortality_rate = (pos_count / valid_total * 100) if valid_total > 0 else 0
-
-        logger.info(
-            f"Mortality labels: "
-            f"{pos_count} positive ({mortality_rate:.1f}%), "
-            f"{valid_total - pos_count} negative"
-            + (f", {null_count} missing (will be excluded)" if null_count > 0 else "")
-        )
+    df = assign_split(df, cfg["site"], train_end, test_start)
+    df = df.filter(pl.col("split").is_not_null())
+    return df.select(OUTPUT_COLS)

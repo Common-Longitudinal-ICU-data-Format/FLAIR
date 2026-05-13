@@ -1,41 +1,40 @@
-# FLAIR Example Notebooks
+# FLAIR Examples
 
-Interactive [Marimo](https://marimo.io) notebooks demonstrating each FLAIR benchmark task.
-
-## Setup
+## End-to-end run
 
 ```bash
-# Install flair-benchmark with examples dependencies
-uv pip install -e ".[examples]"
+python examples/end_to_end.py \
+    --clif-config clif_config.json \
+    --task task6_hospital_mortality \
+    --out ./flair_run/
 ```
 
-## Running
+This:
 
-```bash
-# Open the overview notebook
-marimo edit examples/00_overview.py
+1. calls `flair load-task` to produce `./flair_run/cohort.parquet`
+2. trains a trivial sklearn baseline on demographics only (you'd swap in real features built with `clifpy`),
+3. writes `./flair_run/preds.parquet` with `y_true` / `y_pred` / `y_prob`,
+4. calls `flair build-report` to write the four JSONs into `./flair_run/report/`.
 
-# Or open a specific task
-marimo edit examples/task1_discharged_home.py
+Tasks 1, 2, 6, 7 are binary; task 3 is multiclass; tasks 4, 5 are regression. The script switches on `META['task_type']` automatically.
+
+## What you actually do
+
+For a real model:
+
+```python
+from clifpy import ClifOrchestrator
+
+co = ClifOrchestrator(
+    data_directory=cfg["data_directory"],
+    filetype=cfg["filetype"],
+    timezone=cfg["timezone"],
+)
+wide = co.create_wide_dataset(
+    hospitalization_ids=cohort["hospitalization_id"].to_list(),
+    # vitals / labs / respiratory_support categories you want as features
+    ...,
+)
 ```
 
-## Notebooks
-
-| Notebook | Task | Type |
-|----------|------|------|
-| `00_overview.py` | All tasks overview | Index |
-| `task1_discharged_home.py` | Discharged Home | Binary Classification |
-| `task2_discharged_ltach.py` | Discharged to LTACH | Binary Classification (imbalanced) |
-| `task3_72hr_respiratory_outcome.py` | 72-Hour Respiratory Outcome | Multiclass Classification |
-| `task4_hypoxic_failure_proportion.py` | Hypoxic Failure Proportion | Regression |
-| `task5_icu_length_of_stay.py` | ICU Length of Stay | Regression |
-| `task6_hospital_mortality.py` | In-Hospital Mortality | Binary Classification |
-| `task7_unplanned_icu_readmission.py` | Unplanned ICU Readmission | Binary Classification |
-
-## Prerequisites
-
-To run the dataset generation cells, you need:
-1. CLIF-formatted data (e.g., MIMIC-CLIF)
-2. A `clif_config.json` file pointing to your data directory
-
-The task inspection cells (config, metrics list) work without any data.
+or query individual tables (`Vitals.from_file`, `Labs.from_file`, …). FLAIR does not prescribe feature engineering — that's the user's job.
