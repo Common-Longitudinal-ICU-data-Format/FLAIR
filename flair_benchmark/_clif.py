@@ -34,17 +34,20 @@ def read_clif_config(path: str) -> dict:
 
 
 def pd_to_pl(pdf) -> pl.DataFrame:
-    """Strip timezone from every datetime64 column, then convert to polars.
+    """Convert clifpy pandas df to polars, stripping any timezone info.
 
-    clifpy returns tz-aware pandas; polars conversion requires tz stripped.
+    clifpy attaches site tz to datetime columns; polars-native
+    `dt.replace_time_zone(None)` makes all datetimes tz-naive so
+    downstream comparisons cannot mix tz-aware and tz-naive values.
     """
-    import pandas as pd
-
-    for col in pdf.columns:
-        if pd.api.types.is_datetime64_any_dtype(pdf[col]):
-            if hasattr(pdf[col].dtype, "tz") and pdf[col].dtype.tz is not None:
-                pdf[col] = pdf[col].dt.tz_localize(None)
-    return pl.from_pandas(pdf)
+    df = pl.from_pandas(pdf)
+    tz_cols = [
+        name for name, dtype in df.schema.items()
+        if isinstance(dtype, pl.Datetime) and dtype.time_zone is not None
+    ]
+    if tz_cols:
+        df = df.with_columns([pl.col(c).dt.replace_time_zone(None) for c in tz_cols])
+    return df
 
 
 def _load(table_cls, cfg: dict, filters: Optional[dict] = None,
