@@ -3,6 +3,11 @@
 Each task module must expose:
     META: dict          # see docs/tasks for required keys
     build(clif_config, train_end, test_start) -> pl.DataFrame
+
+META taxonomy fields (required, enum-validated):
+    task_class       ∈ {outcome, deterioration, intervention, operational}
+    temporal_pattern ∈ {episode, fixed_horizon, continuous}
+    prediction_unit  ∈ {one-per-stay, one-per-decision-point, one-per-timestep}
 """
 
 from __future__ import annotations
@@ -10,6 +15,16 @@ from __future__ import annotations
 import importlib
 import pkgutil
 from types import ModuleType
+
+TASK_CLASS_VALUES = {"outcome", "deterioration", "intervention", "operational"}
+TEMPORAL_PATTERN_VALUES = {"episode", "fixed_horizon", "continuous"}
+PREDICTION_UNIT_VALUES = {"one-per-stay", "one-per-decision-point", "one-per-timestep"}
+
+_TAXONOMY_ENUMS = {
+    "task_class": TASK_CLASS_VALUES,
+    "temporal_pattern": TEMPORAL_PATTERN_VALUES,
+    "prediction_unit": PREDICTION_UNIT_VALUES,
+}
 
 
 def list_tasks() -> list[str]:
@@ -32,4 +47,19 @@ def get_task(name: str) -> ModuleType:
         raise TypeError(
             f"Task module {name!r} must define META dict and build() function."
         )
+    _validate_taxonomy(name, module.META)
     return module
+
+
+def _validate_taxonomy(task_name: str, meta: dict) -> None:
+    for field, allowed in _TAXONOMY_ENUMS.items():
+        if field not in meta:
+            raise TypeError(
+                f"Task {task_name!r}: META is missing required key {field!r}. "
+                f"Allowed values: {sorted(allowed)}."
+            )
+        if meta[field] not in allowed:
+            raise ValueError(
+                f"Task {task_name!r}: META[{field!r}] = {meta[field]!r} "
+                f"is not one of {sorted(allowed)}."
+            )

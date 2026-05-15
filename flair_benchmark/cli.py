@@ -67,13 +67,52 @@ def build_report_cmd(
         typer.echo(f"  {kind:10s} → {path}")
 
 
+@app.command("extract-metadata")
+def extract_metadata_cmd(
+    clif_config: str = typer.Option(..., "--clif-config",
+                                    help="Path to clif_config.json"),
+    out: str = typer.Option(..., "--out",
+                            help="Output directory for per-task JSONs"),
+    tasks: Optional[list[str]] = typer.Option(
+        None, "--task",
+        help="Restrict to one or more tasks (repeat the flag). Default: all 10."),
+    skip_sofa: bool = typer.Option(False, "--skip-sofa",
+                                   help="Skip SOFA (clifpy ClifOrchestrator is heavy)."),
+    skip_comorb: bool = typer.Option(False, "--skip-comorb",
+                                     help="Skip Charlson/Elixhauser if HospitalDiagnosis "
+                                          "is unavailable at the site."),
+) -> None:
+    """Per-site cohort metadata for the FLAIR leaderboard. Writes one
+    <task_name>.json into the output directory."""
+    import json
+
+    from flair_benchmark.metadata import extract_site_metadata
+
+    per_task = extract_site_metadata(clif_config, tasks, skip_sofa, skip_comorb)
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for task_name, payload in per_task.items():
+        path = out_dir / f"{task_name}.json"
+        path.write_text(json.dumps(payload, indent=2, default=str))
+        typer.echo(f"  {task_name:32s} → {path}")
+
+
 @app.command("list-tasks")
 def list_tasks_cmd() -> None:
-    """List discovered task names."""
-    from flair_benchmark.tasks import list_tasks
+    """List discovered task names with taxonomy columns."""
+    from flair_benchmark.tasks import get_task, list_tasks
 
+    header = (f"{'name':32s}  {'task_class':14s}  "
+              f"{'temporal_pattern':16s}  {'prediction_unit':24s}  task_type")
+    typer.echo(header)
+    typer.echo("-" * len(header))
     for name in list_tasks():
-        typer.echo(name)
+        m = get_task(name).META
+        typer.echo(
+            f"{name:32s}  {m['task_class']:14s}  "
+            f"{m['temporal_pattern']:16s}  {m['prediction_unit']:24s}  "
+            f"{m['task_type']}"
+        )
 
 
 def main() -> None:

@@ -4,3 +4,4 @@ clif_config.json
 *.log
 presentation/
 __pycache__
+paper/

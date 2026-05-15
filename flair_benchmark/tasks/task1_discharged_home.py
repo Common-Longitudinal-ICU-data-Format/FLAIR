@@ -22,6 +22,9 @@ from flair_benchmark._split import assign_split
 META = {
     "name": "task1_discharged_home",
     "display_name": "Discharged Home",
+    "task_class": "outcome",
+    "temporal_pattern": "episode",
+    "prediction_unit": "one-per-stay",
     "task_type": "binary",
     "label_column": "label_home",
     "positive_class": "home",

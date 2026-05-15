@@ -71,29 +71,33 @@ This approach ensures your code will work on consortium data without modificatio
 
 ## 📊 Benchmark Tasks
 
-FLAIR provides **7 clinically relevant prediction tasks**:
+FLAIR provides **10 clinically relevant prediction tasks** organised by a two-axis taxonomy: *task class* (what is predicted) × *temporal pattern* (when the prediction is made). A third practical axis — *prediction unit* — determines the shape of the prediction file each submission ships. The taxonomy is declared once on every task's `META` dict and mirrored in `paper/supplement.md §S0`.
 
-### Binary Classification Tasks
+### Task design space
 
-| Task | Name | Description | Cohort Filter |
-|---------------|---------------|--------------------|-----------------------|
-| 1 | Discharged Home | Predict if patient will be discharged directly home | All ICU patients |
-| 2 | Discharged to LTACH | Predict if patient will go to long-term acute care | All ICU patients |
-| 6 | Hospital Mortality | Predict in-hospital death (first 24hr ICU data) | 1st ICU stay ≥ 24hr |
-| 7 | Unplanned ICU Readmission | Predict unplanned return to ICU (entire 1st ICU stay data) | 1st ICU stay ≥ 24hr |
+|   | episode | fixed_horizon | continuous |
+|---------------|---------------|--------------------------|----------------|
+| **outcome** | T1, T2, T6 | — *(v2)* | — *(v2)* |
+| **deterioration** | — *(v2)* | T3, T4 | T10 (AKI, Koyner-style) |
+| **intervention** | — *(v2)* | T8 (intubation), T9 (reintubation) | — *(v2)* |
+| **operational** | T5, T7 | — *(v2)* | — *(v2)* |
 
-### Multiclass Classification Tasks
+Cells marked *(v2)* are intentionally deferred — see supplement §S0.3 for the v2 roadmap.
 
-| Task | Name | Description | Cohort Filter |
-|---------------|---------------|--------------------|-----------------------|
-| 3 | 72-Hour Respiratory Outcome | Predict ventilator status at 72hr (on/off/expired) | IMV at 24hr only |
+### v1 task list
 
-### Regression Tasks
-
-| Task | Name | Description | Cohort Filter |
-|---------------|---------------|--------------------|-----------------------|
-| 4 | Hypoxic Proportion | Predict fraction of hypoxic hours (24-72hr window) | IMV at 24hr only |
-| 5 | ICU Length of Stay | Predict 1st ICU stay duration (first 24hr data) | 1st ICU stay ≥ 24hr |
+| \# | Name | task_class | temporal_pattern | prediction_unit | Type | Cohort filter |
+|-----------|-----------|-----------|-----------|-----------|-----------|-----------|
+| 1 | Discharged Home | outcome | episode | one-per-stay | Binary | All ICU adults |
+| 2 | Discharged to LTACH | outcome | episode | one-per-stay | Binary | All ICU adults |
+| 3 | 72-Hour Respiratory Outcome | deterioration | fixed_horizon | one-per-stay | Multiclass | On IMV at 24h |
+| 4 | Hypoxic Proportion | deterioration | fixed_horizon | one-per-stay | Regression | On IMV at 24h |
+| 5 | ICU Length of Stay | operational | episode | one-per-stay | Regression | 1st ICU stay ≥ 24h |
+| 6 | In-Hospital Mortality | outcome | episode | one-per-stay | Binary | 1st ICU stay ≥ 24h |
+| 7 | Unplanned ICU Readmission | operational | episode | one-per-stay | Binary | 1st ICU stay ≥ 1h, survives ICU |
+| 8 | Intubation within 6h | intervention | fixed_horizon | one-per-decision-point | Binary | Not on IMV at ICU admission |
+| 9 | Reintubation within 72h | intervention | fixed_horizon | one-per-decision-point | Binary | Extubated after ≥ 24h IMV |
+| 10 | AKI KDIGO-2 within 24h ([Koyner 2018](https://doi.org/10.1097/CCM.0000000000003123)) | deterioration | continuous | one-per-timestep | Binary | ≥ 1 SCr, first SCr \< 3.0 mg/dL, no RRT within 48h |
 
 ### Understanding Time Windows
 
@@ -104,11 +108,7 @@ Each task defines a **time window** for data extraction:
 
 **Critical**: You can use ALL data points within the window (`window_start` to `window_end`), but you **CANNOT** use any data after `window_end`. Using data beyond the prediction time would be data leakage.
 
-The window definition varies by task:
-- **Tasks 1-6**: Window is first 24 hours from ICU admission (`first_icu_start_time` to `+24hr`)
-- **Task 7**: Window is the entire first ICU stay (`first_icu_start_time` to `first_icu_end_time`)
-
-The window is task-specific and not always aligned with ICU admission/discharge times.
+Window shape varies by `prediction_unit`: - **`one-per-stay`** (T1–T7): one window per hospitalization. For T1–T6 the window is `first_icu_start_time → +24h`; for T7 it is the full first ICU stay. - **`one-per-decision-point`** (T8, T9): each row carries its own `decision_point_dttm` (T8) or `extubation_dttm` (T9); `window_end = decision_point` and `window_start = decision_point − 24h`. - **`one-per-timestep`** (T10): each hourly row has its own `prediction_dttm`; `window_end = prediction_dttm` and `window_start = prediction_dttm − 24h`. Rows stop being emitted after the first KDIGO-2 onset (no label leakage).
 
 > **Community-Driven**: These tasks are driven by community needs. Have a cool prediction task idea? Open a [PR](https://github.com/clif-consortium/FLAIR/pulls) or [Issue](https://github.com/clif-consortium/FLAIR/issues)! We're actively working on adding more tasks.
 
@@ -129,37 +129,37 @@ FLAIR is a Python library that generates task-specific datasets for ICU predicti
 
 ### Cohort parquet (what `flair load-task` emits)
 
-| Column               | Type      | Description                            |
-|----------------------|-----------|----------------------------------------|
-| `hospitalization_id` | str       | Unique identifier                      |
-| `window_start`       | datetime  | Start of the input window              |
-| `window_end`         | datetime  | Prediction time — no data beyond this  |
+| Column               | Type      | Description                                |
+|--------------------|------------------|-----------------------------------|
+| `hospitalization_id` | str       | Unique identifier                          |
+| `window_start`       | datetime  | Start of the input window                  |
+| `window_end`         | datetime  | Prediction time — no data beyond this      |
 | `{task_label}`       | int/float | Task-specific label (see each task's META) |
-| `split`              | str       | "train" or "test"                      |
-| `age_at_admission`   | int       | Patient age                            |
-| `sex_category`       | str       | Patient sex                            |
-| `race_category`      | str       | Patient race                           |
-| `ethnicity_category` | str       | Patient ethnicity                      |
+| `split`              | str       | "train" or "test"                          |
+| `age_at_admission`   | int       | Patient age                                |
+| `sex_category`       | str       | Patient sex                                |
+| `race_category`      | str       | Patient race                               |
+| `ethnicity_category` | str       | Patient ethnicity                          |
 
 ### Predictions parquet (what you write back, strict schema)
 
 Append to the cohort parquet:
 
-| Column     | When required        | Type            |
-|------------|----------------------|-----------------|
-| `y_true`   | always               | int/float       |
-| `y_pred`   | binary, multiclass   | int             |
-| `y_prob`   | binary (recommended) | float in [0, 1] |
-| `class_probs_<class>` | multiclass | float in [0, 1] (one column per class) |
-| `y_pred_value` | regression       | float           |
+| Column | When required | Type |
+|-------------------|------------------------------|------------------------|
+| `y_true` | always | int/float |
+| `y_pred` | binary, multiclass | int |
+| `y_prob` | binary (recommended) | float in \[0, 1\] |
+| `class_probs_<class>` | multiclass | float in \[0, 1\] (one column per class) |
+| `y_pred_value` | regression | float |
 
 ### Report bundle (what `flair build-report` emits)
 
 Four JSON files written to `--out`, each carrying audit metadata (`task_script_sha256`, `flair_version`, `generated_at`):
 
-- `table1.json` — cohort characteristics by split and by label (HIPAA cell suppression: counts < 10 → `"<10"`).
+- `table1.json` — cohort characteristics by split and by label (HIPAA cell suppression: counts \< 10 → `"<10"`).
 - `tripod_ai.json` — TRIPOD-AI report auto-populated with discrimination / calibration metrics.
-- `fairness.json` — per-subgroup metrics (sex, race, ethnicity, age bin) plus parity gaps. Subgroups with n < 10 are dropped entirely.
+- `fairness.json` — per-subgroup metrics (sex, race, ethnicity, age bin) plus parity gaps. Subgroups with n \< 10 are dropped entirely.
 - `curves.json` — ROC / PR / calibration as downsampled raw points (no images). The central dashboard renders.
 
 ------------------------------------------------------------------------
@@ -186,7 +186,7 @@ FLAIR is a CLI. Two commands cover the whole workflow.
 
 ### 1. Configure CLIF Data Source
 
-```bash
+``` bash
 cp clif_config_template.json clif_config.json
 ```
 
@@ -194,11 +194,10 @@ Edit `clif_config.json` to set your data path, filetype, and timezone.
 
 ### 2. Build a task cohort
 
-```bash
+``` bash
 flair list-tasks
-# task1_discharged_home  task2_discharged_ltach  task3_outcome_72hr
-# task4_hypoxic_proportion  task5_icu_los  task6_hospital_mortality
-# task7_icu_readmission
+# Prints name + task_class + temporal_pattern + prediction_unit + task_type
+# for every discovered task (T1–T10).
 
 flair load-task task6_hospital_mortality \
     --clif-config clif_config.json \
@@ -210,7 +209,7 @@ flair load-task task6_hospital_mortality \
 
 ### 3. Build features and train a model (your code)
 
-```python
+``` python
 import polars as pl
 from clifpy import ClifOrchestrator
 
@@ -227,7 +226,7 @@ wide = co.create_wide_dataset(
 
 Or query CLIF tables directly:
 
-```python
+``` python
 from clifpy.tables import Vitals
 vitals = Vitals.from_file(
     data_directory="...", filetype="parquet", timezone="US/Central",
@@ -238,7 +237,7 @@ vitals = Vitals.from_file(
 
 ### 4. Append predictions and run the report
 
-```python
+``` python
 preds = cohort.with_columns([
     pl.Series("y_true", y_true),
     pl.Series("y_pred", y_pred),
@@ -247,7 +246,7 @@ preds = cohort.with_columns([
 preds.write_parquet("preds.parquet")
 ```
 
-```bash
+``` bash
 flair build-report preds.parquet \
     --task task6_hospital_mortality \
     --out ./report/
@@ -262,14 +261,14 @@ See [examples/end_to_end.py](examples/end_to_end.py) for a runnable demo.
 
 FLAIR-Bench is one component of a larger federated stack. The library itself is intentionally minimal — it does not enforce network isolation or PHI runtime checks. Those guarantees come from two other layers:
 
-1. **CLIF-WorkBench container** — every site runs FLAIR inside a Singularity container with no internet, no root, immutable read-only image. That is where network egress is blocked at the kernel level.
-2. **Aggregate-only outputs** — patient-level data never leaves the site. `flair build-report` emits four JSON files of aggregated statistics; that is the only artifact a site shares.
+1.  **CLIF-WorkBench container** — every site runs FLAIR inside a Singularity container with no internet, no root, immutable read-only image. That is where network egress is blocked at the kernel level.
+2.  **Aggregate-only outputs** — patient-level data never leaves the site. `flair build-report` emits four JSON files of aggregated statistics; that is the only artifact a site shares.
 
 What the library *does* enforce:
 
-- HIPAA cell suppression in `table1.json` (counts < 10 → `"<10"`).
-- Subgroup drop in `fairness.json` (any group with n < 10 is omitted entirely).
-- Calibration bin suppression in `curves.json` (bins with count < 10 report `null` for the true rate).
+- HIPAA cell suppression in `table1.json` (counts \< 10 → `"<10"`).
+- Subgroup drop in `fairness.json` (any group with n \< 10 is omitted entirely).
+- Calibration bin suppression in `curves.json` (bins with count \< 10 report `null` for the true rate).
 - Per-task script SHA-256 stamped into every output JSON so the central aggregator can verify two sites ran byte-identical task code.
 
 PIs at each site still audit code before running it and have final approval. The simplicity of the new layout — each task = one polars file — makes that audit tractable.
@@ -278,7 +277,7 @@ PIs at each site still audit code before running it and have final approval. The
 
 ## 🏗️ Architecture
 
-```
+```         
 flair_benchmark/
 ├── __init__.py                 # tiny: list_tasks, get_task, __version__
 ├── cli.py                      # the `flair` CLI: load-task, build-report, list-tasks
@@ -287,6 +286,8 @@ flair_benchmark/
 ├── _split.py                   # temporal date split / MIMIC 70-30 fallback
 ├── _icu_timing.py              # rank-based first/second ICU stay (shared default)
 ├── _hash.py                    # SHA-256 of a task .py for audit metadata
+├── _aki.py                     # KDIGO stage-2 logic + Koyner exclusions (used by task10)
+├── _ventilation_episodes.py    # consensus-window IMV episode detector (used by task8, task9)
 ├── tasks/                      # one polars script per task — add a new task = drop a .py
 │   ├── __init__.py             # importlib auto-discovery (no registry dict)
 │   ├── task1_discharged_home.py
@@ -295,7 +296,10 @@ flair_benchmark/
 │   ├── task4_hypoxic_proportion.py
 │   ├── task5_icu_los.py
 │   ├── task6_hospital_mortality.py
-│   └── task7_icu_readmission.py
+│   ├── task7_icu_readmission.py
+│   ├── task8_intubation_6h.py
+│   ├── task9_reintubation_72h.py
+│   └── task10_aki_kdigo2_24h.py
 └── report/
     ├── __init__.py             # build_report() orchestrator
     ├── _suppress.py            # HIPAA cell suppression helper
@@ -309,8 +313,12 @@ flair_benchmark/
 
 Drop a new module under `flair_benchmark/tasks/` exposing:
 
-```python
-META = { "name": ..., "task_type": "binary"|"multiclass"|"regression",
+``` python
+META = { "name": ...,
+         "task_class":       "outcome"|"deterioration"|"intervention"|"operational",
+         "temporal_pattern": "episode"|"fixed_horizon"|"continuous",
+         "prediction_unit":  "one-per-stay"|"one-per-decision-point"|"one-per-timestep",
+         "task_type": "binary"|"multiclass"|"regression",
          "label_column": ..., "input_window_hours": ..., ... }
 
 def build(clif_config: str,
@@ -360,6 +368,6 @@ We do not own any of the clinical datasets used with this benchmark. Access to C
 
 ## 📬 Contact
 
--   **Website**: [clif-icu.com](https://clif-icu.com)
--   **Email**: clif_consortium\@uchicago.edu
--   **Issues**: [GitHub Issues](https://github.com/clif-consortium/FLAIR/issues)
+- **Website**: [clif-icu.com](https://clif-icu.com)
+- **Email**: clif_consortium\@uchicago.edu
+- **Issues**: [GitHub Issues](https://github.com/clif-consortium/FLAIR/issues)

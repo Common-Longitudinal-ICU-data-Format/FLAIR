@@ -23,6 +23,9 @@ from flair_benchmark._split import assign_split
 META = {
     "name": "task6_hospital_mortality",
     "display_name": "In-Hospital Mortality",
+    "task_class": "outcome",
+    "temporal_pattern": "episode",
+    "prediction_unit": "one-per-stay",
     "task_type": "binary",
     "label_column": "label_mortality",
     "positive_class": "expired_or_hospice",

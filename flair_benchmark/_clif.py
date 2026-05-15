@@ -111,6 +111,14 @@ def load_labs(cfg: dict, hospitalization_ids: list[str],
     return _load(Labs, cfg, filters=filters)
 
 
+def load_hospital_diagnosis(cfg: dict,
+                            hospitalization_ids: Optional[list[str]] = None) -> pl.DataFrame:
+    """clifpy HospitalDiagnosis → polars. Filter by hospitalization_id when provided."""
+    from clifpy.tables import HospitalDiagnosis
+    filters = {"hospitalization_id": hospitalization_ids} if hospitalization_ids else None
+    return _load(HospitalDiagnosis, cfg, filters=filters)
+
+
 def base_icu_cohort(cfg: dict, min_age: int = 18,
                     min_los_days: float = 0.0) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Build the standard adult ICU base cohort.

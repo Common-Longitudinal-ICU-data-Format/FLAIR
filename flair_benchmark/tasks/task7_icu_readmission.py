@@ -44,6 +44,9 @@ LOCATION_MAPPING = {
 META = {
     "name": "task7_icu_readmission",
     "display_name": "Unplanned ICU Readmission",
+    "task_class": "operational",
+    "temporal_pattern": "episode",
+    "prediction_unit": "one-per-stay",
     "task_type": "binary",
     "label_column": "label_icu_readmission",
     "positive_class": "readmitted",

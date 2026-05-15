@@ -24,6 +24,9 @@ MAX_REMAINING_LOS_HOURS = 1000
 META = {
     "name": "task5_icu_los",
     "display_name": "ICU Length of Stay (remaining hours)",
+    "task_class": "operational",
+    "temporal_pattern": "episode",
+    "prediction_unit": "one-per-stay",
     "task_type": "regression",
     "label_column": "icu_los_hours",
     "input_window_hours": 24,

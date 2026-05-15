@@ -32,6 +32,9 @@ from flair_benchmark._split import assign_split
 META = {
     "name": "task3_outcome_72hr",
     "display_name": "72-Hour Respiratory Outcome",
+    "task_class": "deterioration",
+    "temporal_pattern": "fixed_horizon",
+    "prediction_unit": "one-per-stay",
     "task_type": "multiclass",
     "label_column": "task3_label",
     "class_names": ["imv_on", "imv_off", "expired"],

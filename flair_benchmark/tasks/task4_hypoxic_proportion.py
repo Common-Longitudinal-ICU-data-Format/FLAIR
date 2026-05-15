@@ -39,6 +39,9 @@ HYPOXIA_SPO2_THRESHOLD = 90.0
 META = {
     "name": "task4_hypoxic_proportion",
     "display_name": "Hypoxic Failure Proportion (24-72h)",
+    "task_class": "deterioration",
+    "temporal_pattern": "fixed_horizon",
+    "prediction_unit": "one-per-stay",
     "task_type": "regression",
     "label_column": "task4_proportion",
     "input_window_hours": 24,

@@ -22,6 +22,9 @@ from flair_benchmark._split import assign_split
 META = {
     "name": "task2_discharged_ltach",
     "display_name": "Discharged to LTACH",
+    "task_class": "outcome",
+    "temporal_pattern": "episode",
+    "prediction_unit": "one-per-stay",
     "task_type": "binary",
     "label_column": "label_ltach",
     "positive_class": "ltach",
