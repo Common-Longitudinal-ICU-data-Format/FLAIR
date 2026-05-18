@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T2 · Discharged to LTACH · FLAIR</title>
+<link rel="stylesheet" href="../shared.css">
+</head>
+<body>
+
+<nav class="top">
+  <a class="brand" href="../index.html">FLAIR</a>
+  <span><a href="../index.html">Index</a> · <a href="task1_discharged_home.html">← prev</a> · <a href="task3_outcome_72hr.html">next →</a></span>
+</nav>
+
+<main>
+<span class="badge blue">Task 2 of 10</span>
+<h1>Discharged to LTACH</h1>
+<p class="lead">At ICU hour 24, predict whether this hospitalization will end with transfer to a long-term acute care hospital — the "chronically critically ill" pathway.</p>
+
+<div>
+  <span class="pill">outcome</span>
+  <span class="pill purple">episode</span>
+  <span class="pill sage">one-per-stay</span>
+  <span class="pill terra">binary</span>
+</div>
+
+<h2>Prediction timeline</h2>
+<div class="timeline">
+<svg viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif">
+  <line x1="60" y1="100" x2="740" y2="100" stroke="#1a1a1a" stroke-width="1.5"/>
+  <rect x="120" y="85" width="240" height="30" fill="#e3edf3" stroke="#a8c5d6"/>
+  <line x1="120" y1="80" x2="120" y2="120" stroke="#1a1a1a"/>
+  <line x1="360" y1="70" x2="360" y2="130" stroke="#1a1a1a" stroke-width="2"/>
+  <text x="120" y="75" text-anchor="middle" font-size="12">ICU admit</text>
+  <text x="240" y="105" text-anchor="middle" font-size="13" fill="#1a1a1a">input window · 24h</text>
+  <text x="360" y="65" text-anchor="middle" font-size="13">prediction time (T+24h)</text>
+  <line x1="380" y1="100" x2="720" y2="100" stroke="#1a1a1a" stroke-dasharray="3 3"/>
+  <text x="540" y="90" text-anchor="middle" font-size="12" fill="#666">outcome resolved at hospital discharge</text>
+  <line x1="720" y1="80" x2="720" y2="120" stroke="#1a1a1a"/>
+  <text x="720" y="75" text-anchor="middle" font-size="12">discharge</text>
+  <text x="720" y="148" text-anchor="middle" font-size="12" fill="#666">label = 1 if discharge_category == "ltach"</text>
+</svg>
+</div>
+
+<h2>Cohort</h2>
+<table>
+<tr><th>Filter</th><td>All adult ICU hospitalizations</td></tr>
+<tr><th>Exclusion</th><td>Missing <code>discharge_category</code></td></tr>
+<tr><th>Input window</th><td>first_icu_start → first_icu_start + 24h</td></tr>
+<tr><th>Label column</th><td><code>label_ltach</code> · positive = "ltach"</td></tr>
+</table>
+
+<p style="background: var(--c-blue-soft); border-left: 3px solid var(--c-blue); padding: 12px 16px; border-radius: 4px; margin: 20px 0; font-size: 14px; line-height: 1.55;">
+  <strong>Note on the input window.</strong> The window above is the <em>minimum guaranteed lookback</em>, not a cap. The model is free to use any data observed before the prediction time — including data from <strong>previous hospitalizations</strong> of the same patient. Only data at or after the prediction time would constitute leakage.
+</p>
+
+<h2>MIMIC-CLIF Table 1 (validated)</h2>
+<p style="color:var(--muted); font-size:13px; margin-top:-8px;">Site: <code>mimic</code> · cell suppression: n &lt; 10 → <code>"&lt;10"</code> · years reflect MIMIC's date-shift scheme.</p>
+
+<table>
+<thead><tr><th>Cohort</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>n stays</th><td>85,166</td></tr>
+<tr><th>n rows</th><td>85,166</td></tr>
+<tr><th>Years observed</th><td>2105–2214 (bulk 2110–2189)</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Label</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>Positive (LTACH)</th><td>4,954 · prevalence 5.82%</td></tr>
+<tr><th>Negative</th><td>80,212</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Demographic</th><th>Distribution</th></tr></thead>
+<tbody>
+<tr><th>Sex</th><td>Female 37,212 · Male 47,954</td></tr>
+<tr><th>Race</th><td>White 57,905 · Black or AA 9,624 · Asian 2,626 · Other 5,921 · Unknown 8,797 · AI/AN 180 · NH/PI 113</td></tr>
+<tr><th>Ethnicity</th><td>Non-Hispanic 70,448 · Hispanic 3,419 · Unknown 11,299</td></tr>
+<tr><th>Age band</th><td>18–39: 7,970 · 40–64: 30,542 · 65–79: 28,667 · 80+: 17,987</td></tr>
+</tbody>
+</table>
+
+<h2>Clinical motivation</h2>
+<p>LTACH placement is operationally heavy — bed availability is scarce, family conversations are different, payer auth takes days. A reliable 24h signal lets the discharge planner start early instead of on day 14.</p>
+
+<h2>Why it's hard</h2>
+<ul>
+  <li>Extreme class imbalance — LTACH disposition is rare (often &lt; 5%).</li>
+  <li>Site variation is huge: some hospitals have on-campus LTACH partners, others ship out.</li>
+  <li>HIPAA suppression hits harder here — small subgroups → many <code>"&lt;10"</code> cells in fairness.</li>
+</ul>
+
+<h2>Baseline result (placeholder)</h2>
+<p style="color:var(--muted)">XGBoost on mCIDE count vector · MIMIC-CLIF · AUROC TBD · AUPRC TBD · once baseline run lands.</p>
+
+</main>
+
+<footer><div><a href="../index.html">← back to index</a> · <a href="task3_outcome_72hr.html">next: T3 →</a></div></footer>
+</body>
+</html>

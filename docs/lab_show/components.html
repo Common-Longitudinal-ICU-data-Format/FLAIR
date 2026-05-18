@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Components · FLAIR</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<nav class="top">
+  <a class="brand" href="index.html">FLAIR</a>
+  <span><a href="overview.html">Overview</a> · <a href="baseline.html">Baseline</a> · <a href="workflow.html">Workflow</a> · <a href="reports.html">Reports</a></span>
+</nav>
+
+<main>
+<span class="badge purple">02 · Components</span>
+<h1>Three CLI primitives.</h1>
+<p class="lead">FLAIR is a thin polars-on-clifpy layer with three commands: build a cohort, score predictions, summarize the site. Everything else (your features, your model) is yours.</p>
+
+<div class="tiles">
+  <a class="tile blue"   href="#tasks">    <span class="label">load-task</span>     <span class="sub">Cohort parquet</span></a>
+  <a class="tile purple" href="#report">   <span class="label">build-report</span>  <span class="sub">4-JSON bundle</span></a>
+  <a class="tile sage"   href="#summary">  <span class="label">extract-metadata</span><span class="sub">Site summary JSON</span></a>
+  <a class="tile terra"  href="#discover"> <span class="label">list-tasks</span>     <span class="sub">Auto-discovered</span></a>
+</div>
+
+<hr>
+
+<h2 id="tasks">1 · Task generation</h2>
+<p>One polars file per task under <code>flair_benchmark/tasks/</code>. Each exposes a <code>META</code> dict + a <code>build()</code> function. <code>flair load-task</code> materializes the cohort parquet — the contract every model trains against.</p>
+
+<pre><code>flair load-task task6_hospital_mortality \
+    --clif-config clif_config.json \
+    --train-end 2022-12-31 \
+    --test-start 2023-01-01 \
+    --out cohort.parquet
+# omit --train-end / --test-start on MIMIC → 70/30 temporal split fallback</code></pre>
+
+<h3>Cohort parquet schema</h3>
+<table>
+<thead><tr><th>Column</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>hospitalization_id</code></td><td>str</td><td>Unique stay</td></tr>
+<tr><td><code>window_start</code></td><td>datetime</td><td>Earliest data available</td></tr>
+<tr><td><code>window_end</code></td><td>datetime</td><td>Prediction time — no data after</td></tr>
+<tr><td><code>&lt;task_label&gt;</code></td><td>int/float</td><td>Per-task; see each task page</td></tr>
+<tr><td><code>split</code></td><td>str</td><td>"train" or "test"</td></tr>
+<tr><td>demographics</td><td>str/int</td><td>age_at_admission, sex/race/ethnicity_category</td></tr>
+</tbody>
+</table>
+
+<h3>10 tasks ship in v1</h3>
+<table>
+<thead><tr><th>#</th><th>Task</th><th>Type</th><th>Unit</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Discharged Home</td><td>binary</td><td>per-stay</td></tr>
+<tr><td>2</td><td>Discharged to LTACH</td><td>binary</td><td>per-stay</td></tr>
+<tr><td>3</td><td>72h Respiratory Outcome</td><td>multiclass</td><td>per-stay</td></tr>
+<tr><td>4</td><td>Hypoxic Proportion</td><td>regression</td><td>per-stay</td></tr>
+<tr><td>5</td><td>ICU LOS</td><td>regression</td><td>per-stay</td></tr>
+<tr><td>6</td><td>In-Hospital Mortality</td><td>binary</td><td>per-stay</td></tr>
+<tr><td>7</td><td>ICU Readmission</td><td>binary</td><td>per-stay</td></tr>
+<tr><td>8</td><td>Intubation within 6h</td><td>binary</td><td>per-decision-point</td></tr>
+<tr><td>9</td><td>Reintubation within 72h</td><td>binary</td><td>per-decision-point</td></tr>
+<tr><td>10</td><td>AKI KDIGO-2 within 24h</td><td>binary</td><td>per-timestep</td></tr>
+</tbody>
+</table>
+
+<hr>
+
+<h2 id="report">2 · Build report</h2>
+<p>Train your model. Write back <code>y_pred</code> / <code>y_prob</code> alongside the cohort. Run <code>build-report</code> — four standardized JSONs land in <code>--out</code>, every cell HIPAA-suppressed.</p>
+
+<pre><code>flair build-report preds.parquet \
+    --task task6_hospital_mortality \
+    --out ./report/</code></pre>
+
+<div class="features">
+  <div class="feature b">
+    <div class="head">table1.json</div>
+    <div class="desc">Cohort × split × label</div>
+    <div class="sub">n &lt; 10 → "&lt;10"</div>
+  </div>
+  <div class="feature p">
+    <div class="head">tripod_ai.json</div>
+    <div class="desc">AUROC, AUPRC, calibration, Brier</div>
+    <div class="sub">TRIPOD-AI auto-populated</div>
+  </div>
+  <div class="feature s">
+    <div class="head">fairness.json</div>
+    <div class="desc">Per-subgroup metrics + parity gaps</div>
+    <div class="sub">Subgroups with n &lt; 10 dropped</div>
+  </div>
+  <div class="feature t">
+    <div class="head">curves.json</div>
+    <div class="desc">ROC / PR / calibration points</div>
+    <div class="sub">Downsampled — central dashboard renders</div>
+  </div>
+</div>
+
+<p>Every JSON carries audit metadata: <code>task_script_sha256</code>, <code>flair_version</code>, <code>generated_at</code>. The aggregator can verify two sites ran byte-identical code.</p>
+
+<hr>
+
+<h2 id="summary">3 · Longitudinal summary</h2>
+<p>Run once per site, independent of any submission. Emits one JSON per (site, task) for the public leaderboard — prevalence, demographics, first-24h SOFA, Charlson + Elixhauser at admission, and <strong>yearly counts</strong> so the dashboard can show site-drift over time.</p>
+
+<pre><code>flair extract-metadata \
+    --clif-config clif_config.json \
+    --out ./meta/
+# → meta/task6_hospital_mortality.json (one file per task)</code></pre>
+
+<h3>Shape (T6 mortality, MIMIC)</h3>
+<pre><code>{
+  "site": "MIMIC", "flair_version": "2.0.0", "min_cell_n": 10,
+  "task": {"name": "task6_hospital_mortality", "task_type": "binary", ...},
+  "n_stays": 55957,
+  "label": {"positive_count": 7731, "negative_count": 48226, "prevalence": 0.1382},
+  "demographics": {
+     "sex_category":       {"Male": 31420, "Female": 24537},
+     "race_category":      {"White": 38712, "Black": 5841, "Other": ...},
+     "age_band":           {"18-39": 4120, "40-64": 22038, "65-79": 19872, "80+": 9927}
+  },
+  "label_by_subgroup": {...},
+  "sofa_first_24h_max":   {"n": 55957, "mean": 4.11, "median": 4, "p25": 1, "p75": 6},
+  "charlson_admission":   {"n": 26660, "mean": 2.49, "median": 2, "p25": 0, "p75": 4},
+  "elixhauser_admission": {"n": 26660, "mean": 14.16, "median": 13, "p25": 6, "p75": 21},
+  "yearly": {"2110": {"stays": 5421, "positive": 743}, ...}
+}</code></pre>
+
+<p>Longitudinal = yearly bucket. Lets the leaderboard show drift in case-mix, prevalence, and severity over years — a federated benchmark needs to know its denominator is moving.</p>
+
+<hr>
+
+<h2 id="discover">Auto-discovery</h2>
+<p>Drop a new <code>.py</code> under <code>flair_benchmark/tasks/</code> exposing <code>META</code> + <code>build()</code>. <code>flair list-tasks</code> picks it up — no registry, no router. That is the entire add-a-task contract.</p>
+
+<pre><code>$ flair list-tasks
+task1_discharged_home          outcome        episode         one-per-stay              binary
+task2_discharged_ltach         outcome        episode         one-per-stay              binary
+...
+task10_aki_kdigo2_24h          deterioration  continuous      one-per-timestep          binary</code></pre>
+
+</main>
+
+<footer><div><a href="index.html">← back to index</a></div></footer>
+
+</body>
+</html>

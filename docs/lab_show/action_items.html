@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study plan &amp; action items · FLAIR</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<nav class="top">
+  <a class="brand" href="index.html">FLAIR</a>
+  <span><a href="overview.html">Overview</a> · <a href="baseline.html">Baseline</a> · <a href="workflow.html">Workflow</a> · <a href="reports.html">Reports</a></span>
+</nav>
+
+<main>
+<span class="badge">08 · Study plan · Action items</span>
+<h1>Plan, milestones, ideas.</h1>
+<p class="lead">Lab-show living doc — what we are building toward NEJM AI, what is blocked, what is parked.</p>
+
+<h2>Milestones</h2>
+
+<table>
+<thead><tr><th>#</th><th>Milestone</th><th>State</th><th>Owner</th><th>ETA</th></tr></thead>
+<tbody>
+<tr><td>M1</td><td>10-task catalog (T1–T10) with auto-discovery</td><td>done</td><td>FLAIR core</td><td>—</td></tr>
+<tr><td>M2</td><td>build-report 4-JSON bundle (table1 · tripod · fairness · curves)</td><td>done</td><td>FLAIR core</td><td>—</td></tr>
+<tr><td>M3</td><td>extract-metadata longitudinal summary (SOFA + CCI + Elix + yearly)</td><td>done</td><td>FLAIR core</td><td>—</td></tr>
+<tr><td>M4</td><td>mCIDE count-vector featurizer (MIMIC-CLIF)</td><td>in progress</td><td>baseline team</td><td>2026-06-30</td></tr>
+<tr><td>M5</td><td>XGBoost baseline trained per task, hyperparams frozen</td><td>pending</td><td>baseline team</td><td>2026-07-15</td></tr>
+<tr><td>M6</td><td>Containerize baseline (Singularity + lockfile)</td><td>pending</td><td>infra</td><td>2026-07-31</td></tr>
+<tr><td>M7</td><td>Pass FLAIR compliance test end-to-end on MIMIC-CLIF</td><td>pending</td><td>infra</td><td>2026-08-10</td></tr>
+<tr><td>M8</td><td>FLAIR portal MVP — upload · review · notify · azure-blob</td><td>pending</td><td>portal team</td><td>2026-09-01</td></tr>
+<tr><td>M9</td><td>Pilot run at first 3 CLIF sites</td><td>pending</td><td>site leads</td><td>2026-10-01</td></tr>
+<tr><td>M10</td><td>NEJM AI manuscript v1 — baselines + cross-site benchmark</td><td>pending</td><td>writing team</td><td>2026-12-15</td></tr>
+</tbody>
+</table>
+
+<h2>Action items (rolling)</h2>
+
+<table>
+<thead><tr><th>Item</th><th>Owner</th><th>Blocked by</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Decide count-vector category granularity (raw mCIDE vs. grouped)</td><td>baseline team</td><td>—</td><td>raw is simpler; grouped may help T10 AKI signal</td></tr>
+<tr><td>Pick XGBoost hyperparameter freeze policy</td><td>baseline team</td><td>M4</td><td>per-task vs. one config? — vote</td></tr>
+<tr><td>Define banned-API list for portal first-pass review</td><td>portal team</td><td>—</td><td>start: socket, urllib, requests, subprocess.run with network</td></tr>
+<tr><td>Spec the Azure Blob container layout per study</td><td>infra</td><td>—</td><td>one blob container per study; one prefix per site</td></tr>
+<tr><td>Spec the "site opt-in" UX on the portal</td><td>portal team</td><td>M8</td><td>study card + diff against last accepted submission</td></tr>
+<tr><td>Add load_hospital_diagnosis + comorbidity to extract-metadata</td><td>FLAIR core</td><td>—</td><td><strong>done</strong> · validated on MIMIC (Charlson 2.49, Elix 14.16)</td></tr>
+<tr><td>Verify SOFA max-in-window on MIMIC</td><td>FLAIR core</td><td>—</td><td><strong>done</strong> · mean 4.11, IQR [1, 6]</td></tr>
+<tr><td>Add per-task <code>display_name</code> + clinical motivation to task META</td><td>FLAIR core</td><td>—</td><td>display_name already present; motivation strings TBD</td></tr>
+<tr><td>Lab show slot for FLAIR walkthrough</td><td>PI</td><td>—</td><td>this HTML bundle is the slide deck</td></tr>
+</tbody>
+</table>
+
+<h2>Parking lot (v2 tasks)</h2>
+
+<p>Empty cells in the README task taxonomy — deferred until v1 ships, captured here so the open-bench PR pipeline knows what's wanted.</p>
+
+<table>
+<thead><tr><th>task_class</th><th>temporal_pattern</th><th>Candidate task</th></tr></thead>
+<tbody>
+<tr><td>deterioration</td><td>episode</td><td>ARDS onset within stay</td></tr>
+<tr><td>intervention</td><td>continuous</td><td>Vasopressor initiation (hourly)</td></tr>
+<tr><td>outcome</td><td>fixed_horizon</td><td>30-day all-cause readmission</td></tr>
+<tr><td>operational</td><td>fixed_horizon</td><td>Imminent ICU bed turnover (next 4h)</td></tr>
+</tbody>
+</table>
+
+<h2>Open questions</h2>
+
+<ul>
+  <li>Do we publish per-site results in the paper or aggregate-only? Sites' preference matters.</li>
+  <li>Should the count-vector baseline include time-of-day / day-of-week features, or stay strictly count?</li>
+  <li>What is the threshold for "beat the baseline" — Δ AUROC &gt; 0.02 with non-overlapping bootstrap CI?</li>
+  <li>Does the FLAIR compliance test need a separate "site-readiness" check (e.g., parquet exists, timezone set)?</li>
+  <li>Storage TTL on Azure Blob — keep raw site JSONs for 90 days? forever? until paper accepted?</li>
+</ul>
+
+<h2>Audience for this bundle</h2>
+
+<ul>
+  <li>Lab show — walk through with the team during a study-plan slot.</li>
+  <li>Prospective task contributors — link them here when they ask "how do I add a task?"</li>
+  <li>Reviewer-facing — supplement-style document the NEJM AI editors can open from the paper repo.</li>
+  <li>CLIF consortium site PIs — link before a "do you want to run this study?" prompt lands.</li>
+</ul>
+
+</main>
+
+<footer><div><a href="index.html">← back to index</a></div></footer>
+
+</body>
+</html>

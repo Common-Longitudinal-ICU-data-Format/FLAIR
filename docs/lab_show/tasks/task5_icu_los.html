@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T5 · ICU LOS · FLAIR</title>
+<link rel="stylesheet" href="../shared.css">
+</head>
+<body>
+
+<nav class="top">
+  <a class="brand" href="../index.html">FLAIR</a>
+  <span><a href="../index.html">Index</a> · <a href="task4_hypoxic_proportion.html">← prev</a> · <a href="task6_hospital_mortality.html">next →</a></span>
+</nav>
+
+<main>
+<span class="badge sage">Task 5 of 10</span>
+<h1>ICU Length of Stay (remaining hours)</h1>
+<p class="lead">At ICU hour 24, predict the remaining hours of the first ICU stay. Pure operational target — staffing, bed management, capacity planning.</p>
+
+<div>
+  <span class="pill sage">operational</span>
+  <span class="pill purple">episode</span>
+  <span class="pill sage">one-per-stay</span>
+  <span class="pill terra">regression</span>
+</div>
+
+<h2>Prediction timeline</h2>
+<div class="timeline">
+<svg viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif">
+  <line x1="60" y1="100" x2="740" y2="100" stroke="#1a1a1a" stroke-width="1.5"/>
+  <rect x="120" y="85" width="200" height="30" fill="#e3edf3" stroke="#a8c5d6"/>
+  <line x1="120" y1="80" x2="120" y2="120" stroke="#1a1a1a"/>
+  <line x1="320" y1="70" x2="320" y2="130" stroke="#1a1a1a" stroke-width="2"/>
+  <line x1="640" y1="80" x2="640" y2="120" stroke="#1a1a1a"/>
+  <text x="120" y="75" text-anchor="middle" font-size="12">ICU admit</text>
+  <text x="220" y="105" text-anchor="middle" font-size="13">input · 24h</text>
+  <text x="320" y="65" text-anchor="middle" font-size="13">prediction (T+24h)</text>
+  <line x1="340" y1="100" x2="620" y2="100" stroke="#1a1a1a" stroke-dasharray="3 3"/>
+  <text x="480" y="90" text-anchor="middle" font-size="12" fill="#666">remaining ICU hours</text>
+  <text x="640" y="75" text-anchor="middle" font-size="12">ICU discharge</text>
+  <text x="400" y="150" text-anchor="middle" font-size="12" fill="#666">label = (icu_end_dttm − (first_icu_start + 24h)) in hours</text>
+</svg>
+</div>
+
+<h2>Cohort</h2>
+<table>
+<tr><th>Filter</th><td>Adults with first ICU stay &gt; 26 hours (remaining LOS &gt; 2h)</td></tr>
+<tr><th>Exclusion</th><td>Remaining LOS at the low or high tail (configured min/max thresholds)</td></tr>
+<tr><th>Input window</th><td>first_icu_start → first_icu_start + 24h</td></tr>
+<tr><th>Label column</th><td><code>icu_los_hours</code> · float, in hours</td></tr>
+</table>
+
+<p style="background: var(--c-blue-soft); border-left: 3px solid var(--c-blue); padding: 12px 16px; border-radius: 4px; margin: 20px 0; font-size: 14px; line-height: 1.55;">
+  <strong>Note on the input window.</strong> The window above is the <em>minimum guaranteed lookback</em>, not a cap. The model is free to use any data observed before the prediction time — including data from <strong>previous hospitalizations</strong> of the same patient. Only data at or after the prediction time would constitute leakage.
+</p>
+
+<h2>MIMIC-CLIF Table 1 (validated)</h2>
+<p style="color:var(--muted); font-size:13px; margin-top:-8px;">Site: <code>mimic</code> · cell suppression: n &lt; 10 → <code>"&lt;10"</code> · years reflect MIMIC's date-shift scheme.</p>
+
+<table>
+<thead><tr><th>Cohort</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>n stays</th><td>52,814</td></tr>
+<tr><th>n rows</th><td>52,814</td></tr>
+<tr><th>Years observed</th><td>2105–2214 (bulk 2110–2189)</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Label (remaining ICU hours)</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>n</th><td>52,814</td></tr>
+<tr><th>Mean</th><td>64.51 h</td></tr>
+<tr><th>Median (IQR)</th><td>31.05 (14.06 – 71.76) h</td></tr>
+<tr><th>SD</th><td>96.52 h</td></tr>
+</tbody>
+</table>
+<p style="color:var(--muted); font-size:13px;">Heavy right tail — a small number of long stays drives mean far above median.</p>
+
+<table>
+<thead><tr><th>Demographic</th><th>Distribution</th></tr></thead>
+<tbody>
+<tr><th>Sex</th><td>Female 22,589 · Male 30,225</td></tr>
+<tr><th>Race</th><td>White 36,101 · Black or AA 5,495 · Asian 1,557 · Other 3,628 · Unknown 5,858 · AI/AN 112 · NH/PI 63</td></tr>
+<tr><th>Ethnicity</th><td>Non-Hispanic 43,328 · Hispanic 2,063 · Unknown 7,423</td></tr>
+<tr><th>Age band</th><td>18–39: 4,413 · 40–64: 18,827 · 65–79: 18,673 · 80+: 10,901</td></tr>
+</tbody>
+</table>
+
+<h2>Clinical motivation</h2>
+<p>Bed turnover is the rate-limit on ICU throughput. A 24h LOS estimate at every admission lets capacity-planning roll up to a unit-level forecast — and at the patient level, it sets discharge-planning urgency.</p>
+
+<h2>Why it's hard</h2>
+<ul>
+  <li>Long right tail — a handful of patients stay weeks; their absolute error dominates RMSE.</li>
+  <li>Operational signal at first 24h is sparse for short-stay patients.</li>
+  <li>Survivorship: censored patients (transferred out, died) have no clean LOS — handled via cohort filter, but limits the cohort.</li>
+</ul>
+
+<h2>Baseline result (placeholder)</h2>
+<p style="color:var(--muted)">XGBoost regressor · MIMIC-CLIF · MAE TBD · R² TBD · once baseline run lands.</p>
+
+</main>
+
+<footer><div><a href="../index.html">← back to index</a> · <a href="task6_hospital_mortality.html">next: T6 →</a></div></footer>
+</body>
+</html>

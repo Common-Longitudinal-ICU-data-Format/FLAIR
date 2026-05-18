@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baseline · FLAIR</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<nav class="top">
+  <a class="brand" href="index.html">FLAIR</a>
+  <span><a href="overview.html">Overview</a> · <a href="components.html">Components</a> · <a href="workflow.html">Workflow</a> · <a href="reports.html">Reports</a></span>
+</nav>
+
+<main>
+<span class="badge terra">03 · Baseline · NEJM AI anchor</span>
+<h1>Beat the count-vector.</h1>
+<p class="lead">Every leaderboard needs a floor. FLAIR's floor is a gradient-boosted machine over mCIDE count vectors: cheap, portable, explainable. Every future model is scored against it across all 17+ sites — <strong>from traditional ML (logistic regression, random forest, XGBoost) to deep sequence models to foundation models</strong>. One leaderboard, one comparator, every model class on the same axis.</p>
+
+<h2>The featurization</h2>
+
+<p>For each patient's input window, count how many times every mCIDE category appears. That's the whole vector — one scalar per category, across every CLIF long-table.</p>
+
+<div class="timeline">
+<svg viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif">
+  <!-- Patient timeline -->
+  <text x="20" y="40" font-size="14" fill="#666">Patient trajectory (input window)</text>
+  <line x1="20" y1="65" x2="500" y2="65" stroke="#1a1a1a" stroke-width="1.5"/>
+  <line x1="20" y1="60" x2="20" y2="70" stroke="#1a1a1a" stroke-width="1.5"/>
+  <line x1="500" y1="60" x2="500" y2="70" stroke="#1a1a1a" stroke-width="1.5"/>
+  <text x="20" y="86" font-size="12" fill="#444">window_start</text>
+  <text x="500" y="86" font-size="12" fill="#444" text-anchor="end">window_end</text>
+
+  <!-- Event markers (vitals/labs/meds) -->
+  <circle cx="60"  cy="65" r="4" fill="#a8c5d6"/>
+  <circle cx="95"  cy="65" r="4" fill="#a8c5d6"/>
+  <circle cx="125" cy="65" r="4" fill="#c5b8d6"/>
+  <circle cx="150" cy="65" r="4" fill="#a8c5d6"/>
+  <circle cx="180" cy="65" r="4" fill="#b8d0c2"/>
+  <circle cx="220" cy="65" r="4" fill="#a8c5d6"/>
+  <circle cx="260" cy="65" r="4" fill="#d6b5a3"/>
+  <circle cx="295" cy="65" r="4" fill="#c5b8d6"/>
+  <circle cx="330" cy="65" r="4" fill="#a8c5d6"/>
+  <circle cx="370" cy="65" r="4" fill="#b8d0c2"/>
+  <circle cx="410" cy="65" r="4" fill="#a8c5d6"/>
+  <circle cx="440" cy="65" r="4" fill="#d6b5a3"/>
+  <circle cx="470" cy="65" r="4" fill="#a8c5d6"/>
+
+  <!-- Arrow to vector -->
+  <line x1="540" y1="65" x2="620" y2="65" stroke="#1a1a1a" stroke-width="1.5"/>
+  <polygon points="620,65 610,59 610,71" fill="#1a1a1a"/>
+  <text x="580" y="55" text-anchor="middle" font-size="11" fill="#666">count</text>
+
+  <!-- Count vector -->
+  <text x="640" y="40" font-size="14" fill="#666">count vector</text>
+  <rect x="640" y="55" width="40" height="22" fill="#e3edf3" stroke="#a8c5d6"/>
+  <text x="660" y="71" text-anchor="middle" font-size="12">heart_rate · 18</text>
+  <rect x="640" y="80" width="40" height="22" fill="#ece5f0" stroke="#c5b8d6"/>
+  <text x="660" y="96" text-anchor="middle" font-size="12">lactate · 4</text>
+  <rect x="640" y="105" width="40" height="22" fill="#e3eee7" stroke="#b8d0c2"/>
+  <text x="660" y="121" text-anchor="middle" font-size="12">norepi · 9</text>
+  <rect x="640" y="130" width="40" height="22" fill="#f0e3d8" stroke="#d6b5a3"/>
+  <text x="660" y="146" text-anchor="middle" font-size="12">IMV · 1</text>
+  <text x="660" y="170" text-anchor="middle" font-size="12" fill="#666">…</text>
+
+  <!-- Model + score -->
+  <rect x="120" y="200" width="180" height="60" rx="6" fill="#fff" stroke="#1a1a1a"/>
+  <text x="210" y="225" text-anchor="middle" font-size="16">XGBoost</text>
+  <text x="210" y="245" text-anchor="middle" font-size="12" fill="#666">one per task</text>
+
+  <line x1="320" y1="230" x2="420" y2="230" stroke="#1a1a1a" stroke-width="1.5"/>
+  <polygon points="420,230 410,224 410,236" fill="#1a1a1a"/>
+  <text x="370" y="220" text-anchor="middle" font-size="11" fill="#666">predict</text>
+
+  <rect x="440" y="200" width="180" height="60" rx="6" fill="#e3edf3" stroke="#a8c5d6"/>
+  <text x="530" y="225" text-anchor="middle" font-size="16">y_pred · y_prob</text>
+  <text x="530" y="245" text-anchor="middle" font-size="12" fill="#666">→ build-report</text>
+
+  <line x1="160" y1="170" x2="160" y2="195" stroke="#1a1a1a" stroke-width="1.5"/>
+  <polygon points="160,200 154,190 166,190" fill="#1a1a1a"/>
+</svg>
+</div>
+
+<h2>Why count-vector?</h2>
+
+<div class="features">
+  <div class="feature b">
+    <div class="head">Cheap</div>
+    <div class="desc">Sparse vector → XGBoost in minutes on a laptop.</div>
+  </div>
+  <div class="feature p">
+    <div class="head">Portable</div>
+    <div class="desc">No tokenizer, no embedding, no GPU. Containerizes trivially.</div>
+  </div>
+  <div class="feature s">
+    <div class="head">Explainable</div>
+    <div class="desc">SHAP per feature → "creatinine count drove this prediction."</div>
+  </div>
+  <div class="feature t">
+    <div class="head">Reproducible</div>
+    <div class="desc">Identical featurizer + identical model object → byte-identical scores at every site.</div>
+  </div>
+</div>
+
+<h2>The model</h2>
+<p><strong>XGBoost</strong> — gradient-boosted tree ensemble. Binary classifier for T1, T2, T6, T7, T8, T9, T10; multiclass for T3; regression for T4, T5. One booster per task. Hyperparameters frozen at submission time; no per-site tuning.</p>
+
+<h2>What ships in the container</h2>
+
+<table>
+<thead><tr><th>Artifact</th><th>What it is</th></tr></thead>
+<tbody>
+<tr><td><code>featurizer.py</code></td><td>Count-vector code reading the cohort + CLIF tables.</td></tr>
+<tr><td><code>model.pkl</code></td><td>Trained XGBoost booster (one per task).</td></tr>
+<tr><td><code>predict.py</code></td><td>Entry point — produces <code>preds.parquet</code>.</td></tr>
+<tr><td><code>environment.lock</code></td><td>uv / pip-tools lockfile pinning every dep.</td></tr>
+<tr><td><code>Containerfile</code></td><td>Singularity / Docker recipe. Hash-pinned, network-off.</td></tr>
+</tbody>
+</table>
+
+<h2>The scoreboard prompt</h2>
+<p class="lead">"Beat the count-vector XGBoost baseline."</p>
+<p>That is the organizing question for every submission. Bring your transformer, your foundation model, your hand-crafted feature set — and beat a count-vector. If it doesn't beat the baseline on the federated leaderboard, the leaderboard tells the story.</p>
+
+<h2>Training corpus</h2>
+<p>Baseline is <strong>trained on MIMIC-CLIF</strong> (~70k ICU stays, single site) and shipped as a fixed model object. Every consortium site evaluates that same object on its private data — no fine-tuning, no re-training. This is what makes the comparison clean: when a new submission beats the baseline at site X, it's not because the baseline never saw site X.</p>
+
+</main>
+
+<footer><div><a href="index.html">← back to index</a></div></footer>
+
+</body>
+</html>

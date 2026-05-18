@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLAIR — Federated ICU Digital-Twin Benchmark</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+
+<main>
+
+<section class="hero">
+  <span class="badge">Lab show · Study plan</span>
+  <h1>FLAIR</h1>
+  <div class="dots">
+    <span class="dot b"></span><span class="dot p"></span>
+    <span class="dot s"></span><span class="dot t"></span>
+  </div>
+  <div class="tagline">Beyond a benchmark — an open evaluation ecosystem for ICU CDSS digital twins.</div>
+  <div class="subtag">Easy to deploy at every CLIF site.</div>
+  <div class="subtag" style="font-size:14px;">From traditional ML to foundation models — one comparator, one leaderboard.</div>
+  <div class="subtag" style="font-size:14px; margin-top:10px;">Moving ICU AI from proof-of-concept to a collected body of evidence.</div>
+  <div class="subtag" style="font-size:13px; font-style:italic; margin-top:6px;">[Target venue — NEJM AI or Nature.]</div>
+</section>
+
+<div class="tiles">
+  <a class="tile blue" href="components.html#tasks">
+    <span class="label">Tasks</span>
+    <span class="sub">Cohort generation</span>
+  </a>
+  <a class="tile purple" href="components.html#report">
+    <span class="label">Report</span>
+    <span class="sub">TRIPOD-AI · Fairness</span>
+  </a>
+  <a class="tile sage" href="components.html#summary">
+    <span class="label">Summary</span>
+    <span class="sub">Longitudinal metadata</span>
+  </a>
+  <a class="tile terra" href="baseline.html">
+    <span class="label">Baseline</span>
+    <span class="sub">mCIDE · XGBoost</span>
+  </a>
+</div>
+<div class="tiles-caption">Four building blocks — one federated benchmark.</div>
+
+<div class="features">
+  <div class="feature b">
+    <div class="big">17+</div>
+    <div class="desc">Participating CLIF sites</div>
+    <div class="sub">Nationwide US · 2000+ ICU beds</div>
+  </div>
+  <div class="feature s">
+    <div class="head">Offline containers</div>
+    <div class="desc">Immutable · network-isolated</div>
+    <div class="sub">Compliance-tested before rollout</div>
+  </div>
+  <div class="feature t">
+    <div class="head">Open benchmark</div>
+    <div class="desc">Task not listed? PR it.</div>
+    <div class="sub">Write against MIMIC-CLIF</div>
+  </div>
+  <div class="feature p">
+    <div class="head">Aggregate-only outputs</div>
+    <div class="desc">No PHI leaves any site</div>
+    <div class="sub">Cell-suppressed JSONs only</div>
+  </div>
+</div>
+
+<hr>
+
+<h2>Browse the pages</h2>
+
+<div class="pages">
+  <a class="page-card" href="overview.html">
+    <span class="num">01</span>
+    <span class="title">Overview</span>
+    <span class="hook">Why federated, what CLIF + mCIDE buy us, and the MIMIC-CLIF entry path.</span>
+  </a>
+  <a class="page-card" href="components.html">
+    <span class="num">02</span>
+    <span class="title">Components</span>
+    <span class="hook">Three FLAIR CLI primitives: task generation, build-report, and longitudinal summary.</span>
+  </a>
+  <a class="page-card" href="baseline.html">
+    <span class="num">03</span>
+    <span class="title">Baseline (NEJM AI)</span>
+    <span class="hook">mCIDE count-vector + XGBoost. The scoreboard anchor: beat it or explain why.</span>
+  </a>
+  <a class="page-card" href="workflow.html">
+    <span class="num">04</span>
+    <span class="title">Submission workflow</span>
+    <span class="hook">From ship-to-portal through site opt-in to results return.</span>
+  </a>
+  <a class="page-card" href="compliance.html">
+    <span class="num">05</span>
+    <span class="title">Compliance &amp; infra</span>
+    <span class="hook">Immutable containers, FLAIR compliance test, Rush Azure Blob, PHI guarantees.</span>
+  </a>
+  <a class="page-card" href="reports.html">
+    <span class="num">06</span>
+    <span class="title">Reports</span>
+    <span class="hook">TRIPOD-AI + FairCareAI: what gets published per task once results land.</span>
+  </a>
+  <a class="page-card" href="tasks/task1_discharged_home.html">
+    <span class="num">07</span>
+    <span class="title">10 prediction tasks</span>
+    <span class="hook">Each task has its own page with cohort filter, label, and a prediction-timeline diagram.</span>
+  </a>
+  <a class="page-card" href="action_items.html">
+    <span class="num">08</span>
+    <span class="title">Study plan &amp; action items</span>
+    <span class="hook">Milestones, parking-lot ideas, owners, and ETAs. Living document.</span>
+  </a>
+</div>
+
+<h2>Task catalog</h2>
+<table>
+<thead><tr><th>#</th><th>Task</th><th>Class</th><th>Temporal</th><th>Prediction unit</th><th>Type</th><th>Page</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Discharged Home</td><td>outcome</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task1_discharged_home.html">open</a></td></tr>
+<tr><td>2</td><td>Discharged to LTACH</td><td>outcome</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task2_discharged_ltach.html">open</a></td></tr>
+<tr><td>3</td><td>72-Hour Respiratory Outcome</td><td>deterioration</td><td>fixed_horizon</td><td>one-per-stay</td><td>multiclass</td><td><a href="tasks/task3_outcome_72hr.html">open</a></td></tr>
+<tr><td>4</td><td>Hypoxic Proportion</td><td>deterioration</td><td>fixed_horizon</td><td>one-per-stay</td><td>regression</td><td><a href="tasks/task4_hypoxic_proportion.html">open</a></td></tr>
+<tr><td>5</td><td>ICU Length of Stay</td><td>operational</td><td>episode</td><td>one-per-stay</td><td>regression</td><td><a href="tasks/task5_icu_los.html">open</a></td></tr>
+<tr><td>6</td><td>In-Hospital Mortality</td><td>outcome</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task6_hospital_mortality.html">open</a></td></tr>
+<tr><td>7</td><td>Unplanned ICU Readmission</td><td>operational</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task7_icu_readmission.html">open</a></td></tr>
+<tr><td>8</td><td>Intubation within 6h</td><td>intervention</td><td>fixed_horizon</td><td>one-per-decision-point</td><td>binary</td><td><a href="tasks/task8_intubation_6h.html">open</a></td></tr>
+<tr><td>9</td><td>Reintubation within 72h</td><td>intervention</td><td>fixed_horizon</td><td>one-per-decision-point</td><td>binary</td><td><a href="tasks/task9_reintubation_72h.html">open</a></td></tr>
+<tr><td>10</td><td>AKI KDIGO-2 within 24h</td><td>deterioration</td><td>continuous</td><td>one-per-timestep</td><td>binary</td><td><a href="tasks/task10_aki_kdigo2_24h.html">open</a></td></tr>
+</tbody>
+</table>
+
+</main>
+
+<footer>
+  <div class="dots">
+    <span style="background:var(--c-blue)"></span>
+    <span style="background:var(--c-purple)"></span>
+    <span style="background:var(--c-sage)"></span>
+    <span style="background:var(--c-terracotta)"></span>
+  </div>
+  <div>flair-benchmark 2.0.0 · docs/lab_show · open <code>index.html</code> in any browser</div>
+</footer>
+
+</body>
+</html>

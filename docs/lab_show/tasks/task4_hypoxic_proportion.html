@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T4 · Hypoxic Proportion · FLAIR</title>
+<link rel="stylesheet" href="../shared.css">
+</head>
+<body>
+
+<nav class="top">
+  <a class="brand" href="../index.html">FLAIR</a>
+  <span><a href="../index.html">Index</a> · <a href="task3_outcome_72hr.html">← prev</a> · <a href="task5_icu_los.html">next →</a></span>
+</nav>
+
+<main>
+<span class="badge purple">Task 4 of 10</span>
+<h1>Hypoxic Failure Proportion (24–72h)</h1>
+<p class="lead">For patients on IMV at hour 24, predict the proportion of SpO₂ readings in the 24–72h window that fall below 88%. Continuous-valued severity proxy.</p>
+
+<div>
+  <span class="pill">deterioration</span>
+  <span class="pill purple">fixed_horizon</span>
+  <span class="pill sage">one-per-stay</span>
+  <span class="pill terra">regression</span>
+</div>
+
+<h2>Prediction timeline</h2>
+<div class="timeline">
+<svg viewBox="0 0 800 220" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif">
+  <line x1="60" y1="120" x2="740" y2="120" stroke="#1a1a1a" stroke-width="1.5"/>
+  <rect x="120" y="105" width="200" height="30" fill="#e3edf3" stroke="#a8c5d6"/>
+  <rect x="320" y="105" width="280" height="30" fill="#f0e3d8" stroke="#d6b5a3"/>
+  <line x1="120" y1="100" x2="120" y2="140" stroke="#1a1a1a"/>
+  <line x1="320" y1="90"  x2="320" y2="150" stroke="#1a1a1a" stroke-width="2"/>
+  <line x1="600" y1="100" x2="600" y2="140" stroke="#1a1a1a"/>
+  <text x="120" y="95" text-anchor="middle" font-size="12">ICU admit</text>
+  <text x="220" y="125" text-anchor="middle" font-size="13">input · 24h</text>
+  <text x="320" y="85" text-anchor="middle" font-size="13">prediction (T+24h, must be on IMV)</text>
+  <text x="460" y="125" text-anchor="middle" font-size="13">SpO₂ &lt; 88% proportion</text>
+  <text x="600" y="95" text-anchor="middle" font-size="12">T+72h</text>
+  <text x="400" y="180" text-anchor="middle" font-size="12" fill="#666">label = (# SpO₂ &lt; 88) / (# SpO₂ readings in [24h, 72h))</text>
+</svg>
+</div>
+
+<h2>Cohort</h2>
+<table>
+<tr><th>Filter</th><td>Adults on IMV at the 24-hour mark of first ICU stay</td></tr>
+<tr><th>Exclusion</th><td>No IMV at 24h · no SpO₂ readings in [24h, 72h)</td></tr>
+<tr><th>Input window</th><td>first_icu_start → first_icu_start + 24h</td></tr>
+<tr><th>Label column</th><td><code>task4_proportion</code> · float in [0, 1]</td></tr>
+</table>
+
+<p style="background: var(--c-blue-soft); border-left: 3px solid var(--c-blue); padding: 12px 16px; border-radius: 4px; margin: 20px 0; font-size: 14px; line-height: 1.55;">
+  <strong>Note on the input window.</strong> The window above is the <em>minimum guaranteed lookback</em>, not a cap. The model is free to use any data observed before the prediction time — including data from <strong>previous hospitalizations</strong> of the same patient. Only data at or after the prediction time would constitute leakage.
+</p>
+
+<h2>MIMIC-CLIF Table 1 (validated)</h2>
+<p style="color:var(--muted); font-size:13px; margin-top:-8px;">Site: <code>mimic</code> · cell suppression: n &lt; 10 → <code>"&lt;10"</code> · years reflect MIMIC's date-shift scheme.</p>
+
+<table>
+<thead><tr><th>Cohort</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>n stays</th><td>31,071</td></tr>
+<tr><th>n rows</th><td>31,071</td></tr>
+<tr><th>Years observed</th><td>2110–2214 (bulk 2110–2189)</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Label (regression target)</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>n</th><td>31,071</td></tr>
+<tr><th>Mean</th><td>0.0094</td></tr>
+<tr><th>Median (IQR)</th><td>0.00 (0.00 – 0.00)</td></tr>
+<tr><th>SD</th><td>0.0364</td></tr>
+</tbody>
+</table>
+<p style="color:var(--muted); font-size:13px;">Distribution is heavy at zero — most IMV patients never desaturate below 88% during the 24–72h window.</p>
+
+<table>
+<thead><tr><th>Demographic</th><th>Distribution</th></tr></thead>
+<tbody>
+<tr><th>Sex</th><td>Female 11,920 · Male 19,151</td></tr>
+<tr><th>Race</th><td>White 20,097 · Black or AA 2,670 · Asian 855 · Other 2,096 · Unknown 5,233 · AI/AN 69 · NH/PI 51</td></tr>
+<tr><th>Ethnicity</th><td>Non-Hispanic 23,742 · Hispanic 1,128 · Unknown 6,201</td></tr>
+<tr><th>Age band</th><td>18–39: 2,808 · 40–64: 11,638 · 65–79: 11,406 · 80+: 5,219</td></tr>
+</tbody>
+</table>
+
+<h2>Clinical motivation</h2>
+<p>A continuous severity signal lets you order patients by expected oxygenation burden — useful for trial enrollment, RT staffing, and prone-positioning candidate identification. Cleaner than a binary "ARDS yes/no" label, which is famously hard to define.</p>
+
+<h2>Why it's hard</h2>
+<ul>
+  <li>Label denominator varies — short-stay patients have fewer SpO₂ readings, noisier rates.</li>
+  <li>SpO₂ devices and sampling intervals differ per site (continuous monitor vs. q1h spot check).</li>
+  <li>Distribution is heavy at zero; mean-squared error punishes the tail disproportionately.</li>
+</ul>
+
+<h2>Baseline result (placeholder)</h2>
+<p style="color:var(--muted)">XGBoost regressor on mCIDE count vector · MIMIC-CLIF · MAE TBD · R² TBD · once baseline run lands.</p>
+
+</main>
+
+<footer><div><a href="../index.html">← back to index</a> · <a href="task5_icu_los.html">next: T5 →</a></div></footer>
+</body>
+</html>
