@@ -6,6 +6,8 @@ Each task script imports the small subset it needs:
         read_clif_config, base_icu_cohort,
         load_hospitalization, load_adt, load_patient,
         load_respiratory_support, load_vitals, load_labs,
+        load_medication_admin_intermittent,
+        load_medication_admin_continuous,
         pd_to_pl,
     )
 """
@@ -99,11 +101,58 @@ def load_respiratory_support(cfg: dict, hospitalization_ids: list[str],
 
 
 def load_vitals(cfg: dict, hospitalization_ids: list[str],
-                vital_categories: list[str]) -> pl.DataFrame:
-    """clifpy Vitals → polars. Long table — always filter by hospitalization_id AND vital_category."""
+                vital_categories: Optional[list[str]] = None) -> pl.DataFrame:
+    """clifpy Vitals → polars. Long table — always filter by hospitalization_id.
+    Pass vital_categories=None to load all vital categories (used when the
+    first-recorded-vital timestamp matters and the category is irrelevant)."""
     from clifpy.tables import Vitals
-    filters = {"hospitalization_id": hospitalization_ids, "vital_category": vital_categories}
+    filters: dict = {"hospitalization_id": hospitalization_ids}
+    if vital_categories is not None:
+        filters["vital_category"] = vital_categories
     return _load(Vitals, cfg, filters=filters)
+
+
+def load_medication_admin_intermittent(
+    cfg: dict,
+    hospitalization_ids: list[str],
+    med_categories: Optional[list[str]] = None,
+    med_groups: Optional[list[str]] = None,
+) -> pl.DataFrame:
+    """clifpy MedicationAdminIntermittent → polars. Long table — always filter
+    by hospitalization_id. Optional med_categories / med_groups are matched
+    case-insensitively on the polars side (column + input both lowercased) to
+    be robust against site-level casing drift in CLIF mCIDE enum values."""
+    from clifpy.tables import MedicationAdminIntermittent
+    df = _load(MedicationAdminIntermittent, cfg,
+               filters={"hospitalization_id": hospitalization_ids})
+    if med_categories is not None:
+        wanted = [s.lower() for s in med_categories]
+        df = df.filter(pl.col("med_category").str.to_lowercase().is_in(wanted))
+    if med_groups is not None:
+        wanted = [s.lower() for s in med_groups]
+        df = df.filter(pl.col("med_group").str.to_lowercase().is_in(wanted))
+    return df
+
+
+def load_medication_admin_continuous(
+    cfg: dict,
+    hospitalization_ids: list[str],
+    med_categories: Optional[list[str]] = None,
+    med_groups: Optional[list[str]] = None,
+) -> pl.DataFrame:
+    """clifpy MedicationAdminContinuous → polars. Long table — always filter
+    by hospitalization_id. Optional med_categories / med_groups are matched
+    case-insensitively (see load_medication_admin_intermittent)."""
+    from clifpy.tables import MedicationAdminContinuous
+    df = _load(MedicationAdminContinuous, cfg,
+               filters={"hospitalization_id": hospitalization_ids})
+    if med_categories is not None:
+        wanted = [s.lower() for s in med_categories]
+        df = df.filter(pl.col("med_category").str.to_lowercase().is_in(wanted))
+    if med_groups is not None:
+        wanted = [s.lower() for s in med_groups]
+        df = df.filter(pl.col("med_group").str.to_lowercase().is_in(wanted))
+    return df
 
 
 def load_labs(cfg: dict, hospitalization_ids: list[str],
