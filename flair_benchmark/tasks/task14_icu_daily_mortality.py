@@ -1,23 +1,33 @@
 """
-Task 13: ICU Daily Disposition (multiclass, one-per-timestep at 07:00 local).
+Task 14: ICU Daily In-Hospital Mortality (binary, one-per-timestep at 07:00 local).
 
 Clinical question:
   Given everything we know about this ICU patient up to today's 07:00 rounds,
-  what is the most likely eventual hospital disposition? This prediction
-  informs daily goals-of-care discussions: continue vs. withdraw life support.
+  will this hospitalization end with the patient dying in hospital — either
+  by death (Expired) or transition to Hospice — rather than transferring out
+  to a Long-Term Acute Care Hospital (LTACH)?
 
-Classes (label = label_disposition, integer-encoded):
-  0 = ltach        : discharged to a Long Term Acute Care Hospital
-  1 = alive_other  : any other living disposition (home, SNF, rehab, AMA,
-                     assisted living, group home, ... and also "Still Admitted"
-                     and "Other" — see label rule below)
-  2 = dead_hospice : died in hospital (Expired) or discharged to Hospice
+Cohort framing (conditional on non-survival):
+  The cohort includes only hospitalizations whose eventual discharge_category
+  maps to either LTACH or in-hospital mortality (Expired/Hospice). Patients
+  who survive to ordinary disposition (home/SNF/rehab/AMA/...) are EXCLUDED.
+  The task therefore predicts a binary terminal-trajectory question:
+  in-hospital mortality (1) vs LTACH (0).
+
+Pair task:
+  task13_icu_daily_ltach is the exact complement: same rows,
+  label_ltach + label_mortality == 1.
+
+Label (label_mortality):
+  1 iff discharge_category in {"expired", "hospice"} (case-insensitive)
+  0 iff discharge_category matches r"ltach|long.?term"
+  (cohort filter guarantees one of the two)
 
 Cohort:
-  Adult hospitalizations with at least one ICU ADT record. One row per
+  Adult hospitalizations with at least one ICU ADT record AND a
+  discharge_category mapping to LTACH or in-hospital mortality. One row per
   local-07:00 timestamp that falls inside the first ICU stay, starting the
-  calendar day AFTER first ICU admission. Hospitalizations with a null
-  discharge_category are excluded (un-labelable).
+  calendar day AFTER first ICU admission.
 
 Row shape (one-per-timestep):
   prediction_dttm = 07:00 on day-of-admission + 1, +2, +3, ... while the
@@ -25,14 +35,9 @@ Row shape (one-per-timestep):
   The label is the eventual hospitalization outcome and is constant across
   all rows for a given hospitalization_id.
 
-Label rule (case-insensitive on discharge_category):
-  2 (dead_hospice) iff discharge_category in {"expired", "hospice"}
-  0 (ltach)        iff discharge_category matches r"ltach|long.?term"
-  1 (alive_other)  otherwise
-
 Pipeline:
   1. base_icu_cohort()        — adult ICU cohort + ADT (see _clif.py)
-  2. Drop null discharge_category
+  2. Cohort filter            — keep LTACH | mortality only; drop alive_other & null
   3. compute_icu_timing()     — first_icu_start_time, first_icu_end_time
   4. pred_start = (first_icu_start_time truncated to date) + 1 day + 7 hours
   5. pred_stop  = min(first_icu_end_time, discharge_dttm, death_dttm)
@@ -60,35 +65,37 @@ INPUT_WINDOW_HOURS = 24
 GRID_STEP = "24h"
 
 META = {
-    "name": "task13_icu_daily_disposition",
-    "display_name": "ICU Daily Disposition (7AM, multiclass)",
+    "name": "task14_icu_daily_mortality",
+    "display_name": "ICU Daily In-Hospital Mortality (7AM, binary)",
     "task_class": "outcome",
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-timestep",
-    "task_type": "multiclass",
-    "label_column": "label_disposition",
-    "class_names": ["ltach", "alive_other", "dead_hospice"],
+    "task_type": "binary",
+    "label_column": "label_mortality",
+    "positive_class": "in_hospital_mortality",
     "input_window_hours": INPUT_WINDOW_HOURS,
     "prediction_window": None,
     "cohort_description": (
-        "Adult ICU hospitalizations; one row per local-07:00 timestamp during "
-        "the first ICU stay, starting the calendar day after first ICU admission."
+        "Adult ICU hospitalizations whose eventual disposition is either LTACH "
+        "or in-hospital mortality (Expired/Hospice). Alive-other dispositions "
+        "excluded. One row per local-07:00 timestamp during the first ICU stay, "
+        "starting the calendar day after first ICU admission."
     ),
     "inclusion_criteria": [
         "age_at_admission >= 18",
         "valid admission_dttm and discharge_dttm",
         "at least one ICU ADT record (first_icu_start_time present)",
         "first ICU stay long enough to contain >= one 07:00 grid point after admission day",
-        "discharge_category is not null",
+        "discharge_category in {LTACH, Expired, Hospice} (case-insensitive)",
     ],
     "exclusion_criteria": [
         "discharge_category is null",
-        "first ICU stay ends before any 07:00 grid point falls inside it (drops naturally)",
+        "discharge_category is any alive disposition (home, SNF, rehab, AMA, "
+        "still admitted, other, ...)",
     ],
     "evaluation_metrics": [
-        "accuracy", "macro_f1", "weighted_f1",
-        "per_class_precision", "per_class_recall", "per_class_f1",
-        "confusion_matrix",
+        "auroc", "auprc", "accuracy", "precision",
+        "recall", "f1", "specificity", "npv",
     ],
 }
 
@@ -105,7 +112,14 @@ def build(clif_config: str, train_end: str | None,
     cfg = read_clif_config(clif_config)
 
     cohort, adt = base_icu_cohort(cfg)
-    cohort = cohort.filter(pl.col("discharge_category").is_not_null())
+
+    disp = pl.col("discharge_category").str.to_lowercase().str.strip_chars()
+    is_ltach = disp.str.contains(r"ltach|long.?term")
+    is_mortality = disp.is_in(["expired", "hospice"])
+    cohort = cohort.filter(
+        pl.col("discharge_category").is_not_null()
+        & (is_ltach | is_mortality)
+    )
 
     timing = compute_icu_timing(adt)
     cohort = cohort.join(timing, on="hospitalization_id", how="inner")
@@ -131,11 +145,8 @@ def build(clif_config: str, train_end: str | None,
         ).alias("prediction_dttm")
     ).explode("prediction_dttm").filter(pl.col("prediction_dttm").is_not_null())
 
-    disp = pl.col("discharge_category").str.to_lowercase().str.strip_chars()
     df = df.with_columns(
-        pl.when(disp.is_in(["expired", "hospice"])).then(pl.lit(2))
-        .when(disp.str.contains(r"ltach|long.?term")).then(pl.lit(0))
-        .otherwise(pl.lit(1))
+        disp.is_in(["expired", "hospice"])
         .cast(pl.Int32)
         .alias(META["label_column"])
     )
