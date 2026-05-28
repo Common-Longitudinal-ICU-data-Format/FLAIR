@@ -71,33 +71,25 @@ This approach ensures your code will work on consortium data without modificatio
 
 ## 📊 Benchmark Tasks
 
-FLAIR provides **10 clinically relevant prediction tasks** organised by a two-axis taxonomy: *task class* (what is predicted) × *temporal pattern* (when the prediction is made). A third practical axis — *prediction unit* — determines the shape of the prediction file each submission ships. The taxonomy is declared once on every task's `META` dict and mirrored in `paper/supplement.md §S0`.
+FLAIR provides **5 clinically relevant prediction tasks** organised by a two-axis taxonomy: *task class* (what is predicted) × *temporal pattern* (when the prediction is made). A third practical axis — *prediction unit* — determines the shape of the prediction file each submission ships. The taxonomy is declared once on every task's `META` dict and mirrored in `paper/supplement.md §S0`.
 
 ### Task design space
 
-|   | episode | fixed_horizon | continuous |
-|---------------|---------------|--------------------------|----------------|
-| **outcome** | T1, T2, T6 | — *(v2)* | — *(v2)* |
-| **deterioration** | — *(v2)* | T3, T4 | T10 (AKI, Koyner-style) |
-| **intervention** | — *(v2)* | T8 (intubation), T9 (reintubation) | — *(v2)* |
-| **operational** | T5, T7 | — *(v2)* | — *(v2)* |
-
-Cells marked *(v2)* are intentionally deferred — see supplement §S0.3 for the v2 roadmap.
+|   | episode | continuous |
+|------------------|------------------|----------------------------|
+| **outcome**      | — | T1 (daily mortality), T2 (daily LTACH) |
+| **deterioration**| — | T5 (AKI, Koyner-style) |
+| **intervention** | T3 (extubation failure) | T4 (sepsis, antibiotic-anchored) |
 
 ### v1 task list
 
 | \# | Name | task_class | temporal_pattern | prediction_unit | Type | Cohort filter |
 |-----------|-----------|-----------|-----------|-----------|-----------|-----------|
-| 1 | Discharged Home | outcome | episode | one-per-stay | Binary | All ICU adults |
-| 2 | Discharged to LTACH | outcome | episode | one-per-stay | Binary | All ICU adults |
-| 3 | 72-Hour Respiratory Outcome | deterioration | fixed_horizon | one-per-stay | Multiclass | On IMV at 24h |
-| 4 | Hypoxic Proportion | deterioration | fixed_horizon | one-per-stay | Regression | On IMV at 24h |
-| 5 | ICU Length of Stay | operational | episode | one-per-stay | Regression | 1st ICU stay ≥ 24h |
-| 6 | In-Hospital Mortality | outcome | episode | one-per-stay | Binary | 1st ICU stay ≥ 24h |
-| 7 | Unplanned ICU Readmission | operational | episode | one-per-stay | Binary | 1st ICU stay ≥ 1h, survives ICU |
-| 8 | Intubation within 6h | intervention | fixed_horizon | one-per-decision-point | Binary | Not on IMV at ICU admission |
-| 9 | Reintubation within 72h | intervention | fixed_horizon | one-per-decision-point | Binary | Extubated after ≥ 24h IMV |
-| 10 | AKI KDIGO-2 within 24h ([Koyner 2018](https://doi.org/10.1097/CCM.0000000000003123)) | deterioration | continuous | one-per-timestep | Binary | ≥ 1 SCr, first SCr \< 3.0 mg/dL, no RRT within 48h |
+| 1 | ICU Daily In-Hospital Mortality (7AM) | outcome | continuous | one-per-timestep | Binary | First ICU stay, discharge ∈ {LTACH, mortality} |
+| 2 | ICU Daily LTACH Discharge (7AM) | outcome | continuous | one-per-timestep | Binary | First ICU stay, discharge ∈ {LTACH, mortality} |
+| 3 | Extubation Failure within 24h | intervention | episode | one-per-stay | Binary | Confirmed first IMV extubation |
+| 4 | Sepsis (antibiotic-anchored) within 6h | intervention | continuous | one-per-timestep | Binary | Adults, no psych/rehab, not admitted-on-treatment |
+| 5 | AKI KDIGO-2 within 24h ([Koyner 2018](https://doi.org/10.1097/CCM.0000000000003123)) | deterioration | continuous | one-per-timestep | Binary | ≥ 1 SCr, first SCr \< 3.0 mg/dL, no RRT within 48h |
 
 ### Understanding Time Windows
 
@@ -108,7 +100,7 @@ Each task defines a **time window** for data extraction:
 
 **Critical**: You can use ALL data points within the window (`window_start` to `window_end`), but you **CANNOT** use any data after `window_end`. Using data beyond the prediction time would be data leakage.
 
-Window shape varies by `prediction_unit`: - **`one-per-stay`** (T1–T7): one window per hospitalization. For T1–T6 the window is `first_icu_start_time → +24h`; for T7 it is the full first ICU stay. - **`one-per-decision-point`** (T8, T9): each row carries its own `decision_point_dttm` (T8) or `extubation_dttm` (T9); `window_end = decision_point` and `window_start = decision_point − 24h`. - **`one-per-timestep`** (T10): each hourly row has its own `prediction_dttm`; `window_end = prediction_dttm` and `window_start = prediction_dttm − 24h`. Rows stop being emitted after the first KDIGO-2 onset (no label leakage).
+Window shape varies by `prediction_unit`: - **`one-per-stay`** (T3): one window per hospitalization, anchored at the first confirmed extubation; `window_end = first_extubation_dttm` and `window_start = first_extubation_dttm − 24h`. - **`one-per-timestep`** (T1, T2, T4, T5): each row carries its own `prediction_dttm`; `window_end = prediction_dttm` and `window_start = prediction_dttm − 24h`. T1/T2 anchor on local-07:00 daily; T4 is hourly until first qualifying antibiotic; T5 is hourly until first KDIGO-2 onset.
 
 > **Community-Driven**: These tasks are driven by community needs. Have a cool prediction task idea? Open a [PR](https://github.com/clif-consortium/FLAIR/pulls) or [Issue](https://github.com/clif-consortium/FLAIR/issues)! We're actively working on adding more tasks.
 
@@ -197,9 +189,9 @@ Edit `clif_config.json` to set your data path, filetype, and timezone.
 ``` bash
 flair list-tasks
 # Prints name + task_class + temporal_pattern + prediction_unit + task_type
-# for every discovered task (T1–T10).
+# for every discovered task (T1–T5).
 
-flair load-task task6_hospital_mortality \
+flair load-task task1_icu_daily_mortality \
     --clif-config clif_config.json \
     --train-end 2022-12-31 \
     --test-start 2023-01-01 \
@@ -248,7 +240,7 @@ preds.write_parquet("preds.parquet")
 
 ``` bash
 flair build-report preds.parquet \
-    --task task6_hospital_mortality \
+    --task task1_icu_daily_mortality \
     --out ./report/
 # → report/table1.json table1.json fairness.json curves.json
 ```
@@ -286,20 +278,15 @@ flair_benchmark/
 ├── _split.py                   # temporal date split / MIMIC 70-30 fallback
 ├── _icu_timing.py              # rank-based first/second ICU stay (shared default)
 ├── _hash.py                    # SHA-256 of a task .py for audit metadata
-├── _aki.py                     # KDIGO stage-2 logic + Koyner exclusions (used by task10)
-├── _ventilation_episodes.py    # consensus-window IMV episode detector (used by task8, task9)
+├── _aki.py                     # KDIGO stage-2 logic + Koyner exclusions (used by task5)
+├── _ventilation_episodes.py    # consensus-window IMV episode detector (used by task3)
 ├── tasks/                      # one polars script per task — add a new task = drop a .py
 │   ├── __init__.py             # importlib auto-discovery (no registry dict)
-│   ├── task1_discharged_home.py
-│   ├── task2_discharged_ltach.py
-│   ├── task3_outcome_72hr.py
-│   ├── task4_hypoxic_proportion.py
-│   ├── task5_icu_los.py
-│   ├── task6_hospital_mortality.py
-│   ├── task7_icu_readmission.py
-│   ├── task8_intubation_6h.py
-│   ├── task9_reintubation_72h.py
-│   └── task10_aki_kdigo2_24h.py
+│   ├── task1_icu_daily_mortality.py
+│   ├── task2_icu_daily_ltach.py
+│   ├── task3_extubation_failure_24h.py
+│   ├── task4_sepsis_abx_6h.py
+│   └── task5_aki_kdigo2_24h.py
 └── report/
     ├── __init__.py             # build_report() orchestrator
     ├── _suppress.py            # HIPAA cell suppression helper
@@ -329,7 +316,7 @@ def build(clif_config: str,
     race_category, ethnicity_category."""
 ```
 
-That is the entire contract. `flair list-tasks` auto-discovers it. See `task6_hospital_mortality.py` as the reference template.
+That is the entire contract. `flair list-tasks` auto-discovers it. See `task1_icu_daily_mortality.py` as the reference template.
 
 ------------------------------------------------------------------------
 

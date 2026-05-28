@@ -1,7 +1,7 @@
 """End-to-end FLAIR workflow on a single task.
 
 Runs:
-  1. flair load-task task6_hospital_mortality  -> cohort.parquet
+  1. flair load-task task1_icu_daily_mortality  -> cohort.parquet
   2. (toy) feature engineering directly from clifpy
   3. sklearn LogisticRegression baseline
   4. append y_pred / y_prob columns to a preds.parquet
@@ -9,7 +9,7 @@ Runs:
 
 Run:
   python examples/end_to_end.py --clif-config clif_config.json \
-                                --task task6_hospital_mortality \
+                                --task task1_icu_daily_mortality \
                                 --out ./flair_run/
 """
 
@@ -27,7 +27,7 @@ import polars as pl
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--clif-config", required=True)
-    ap.add_argument("--task", default="task6_hospital_mortality")
+    ap.add_argument("--task", default="task1_icu_daily_mortality")
     ap.add_argument("--out", default="./flair_run")
     ap.add_argument("--train-end", default=None,
                     help="YYYY-MM-DD (omit for MIMIC 70/30 split)")

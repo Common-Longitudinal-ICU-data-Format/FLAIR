@@ -1,7 +1,7 @@
 """Per-site cohort metadata extractor for the FLAIR leaderboard.
 
 Usage (CLI):
-  flair extract-metadata --clif-config <path> --out <dir> [--task task6_...]
+  flair extract-metadata --clif-config <path> --out <dir> [--task task1_...]
                          [--skip-sofa] [--skip-comorb]
 
 Output: one `<task_name>.json` per task in `<dir>`. Each file is a

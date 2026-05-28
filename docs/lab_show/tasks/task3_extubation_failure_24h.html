@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T3 · Extubation failure within 24h · FLAIR</title>
+<link rel="stylesheet" href="../shared.css">
+</head>
+<body>
+
+<nav class="top">
+  <a class="brand" href="../index.html">FLAIR</a>
+  <span><a href="../index.html">Index</a> · <a href="task2_icu_daily_ltach.html">← prev</a> · <a href="task4_sepsis_abx_6h.html">next →</a> · <a href="../components.html">components</a></span>
+</nav>
+
+<main>
+<span class="badge terra">Task 3 of 5</span>
+<h1>Extubation failure within 24h</h1>
+<p class="lead">At the moment of first confirmed extubation, will the patient accumulate less than 1 ventilator-free day in the next 24 hours — i.e., die or get reintubated? One prediction per ICU stay, anchored on the extubation event.</p>
+
+<div>
+  <span class="pill terra">intervention</span>
+  <span class="pill blue">episode</span>
+  <span class="pill sage">one-per-stay</span>
+  <span class="pill terra">binary</span>
+</div>
+
+<h2>Prediction timeline</h2>
+<div class="timeline">
+<svg viewBox="0 0 800 260" xmlns="http://www.w3.org/2000/svg" font-family="Georgia, serif">
+  <line x1="60" y1="160" x2="740" y2="160" stroke="#1a1a1a" stroke-width="1.5"/>
+
+  <!-- Anchor markers -->
+  <line x1="100" y1="140" x2="100" y2="180" stroke="#1a1a1a"/>
+  <text x="100" y="135" text-anchor="middle" font-size="12">ICU admit</text>
+
+  <line x1="240" y1="140" x2="240" y2="180" stroke="#1a1a1a"/>
+  <text x="240" y="135" text-anchor="middle" font-size="12">IMV start</text>
+  <text x="240" y="200" text-anchor="middle" font-size="10" fill="#666">(persists ≥ 15 min)</text>
+
+  <line x1="440" y1="120" x2="440" y2="200" stroke="#d6b5a3" stroke-width="3"/>
+  <text x="440" y="115" text-anchor="middle" font-size="12" fill="#6d4a3d">first extubation</text>
+  <text x="440" y="215" text-anchor="middle" font-size="10" fill="#666">= prediction_dttm</text>
+
+  <line x1="640" y1="140" x2="640" y2="180" stroke="#1a1a1a"/>
+  <text x="640" y="135" text-anchor="middle" font-size="12">+24h horizon</text>
+
+  <!-- Input window (24h before extubation) -->
+  <rect x="320" y="68" width="120" height="22" fill="#e3edf3" stroke="#a8c5d6"/>
+  <text x="380" y="84" text-anchor="middle" font-size="12">input · 24h prior</text>
+
+  <!-- Lookahead window (24h after) -->
+  <rect x="440" y="68" width="200" height="22" fill="#f0e3d8" stroke="#d6b5a3"/>
+  <text x="540" y="84" text-anchor="middle" font-size="12">label window · +24h</text>
+
+  <!-- Connecting drop lines -->
+  <line x1="320" y1="90" x2="320" y2="160" stroke="#a8c5d6" stroke-dasharray="2 2"/>
+  <line x1="640" y1="90" x2="640" y2="160" stroke="#d6b5a3" stroke-dasharray="2 2"/>
+
+  <!-- Label text -->
+  <text x="380" y="240" text-anchor="middle" font-size="11" fill="#666">label = 1 iff death OR reintubation within 24h post-extubation</text>
+  <text x="380" y="255" text-anchor="middle" font-size="10" fill="#666">(equivalent to ventilator-free days &lt; 1 in 24h)</text>
+</svg>
+</div>
+
+<h2>Cohort (consensus IMV episode detection)</h2>
+<table>
+<tr><th>Filter</th><td>Adults · ≥ 1 ICU ADT record · first IMV episode closed by extubation (not tracheostomy) · IMV persists ≥ 15 min · non-IMV closes episode after ≥ 30 min</td></tr>
+<tr><th>Exclusions</th><td>Pre-existing tracheostomy · trach sentinel within ±1 min of episode end · ambiguous censoring (discharged alive &lt; 24h post-extubation with no death &amp; no reintubation)</td></tr>
+<tr><th>Row generation</th><td>One row per hospitalization with a confirmed first extubation</td></tr>
+<tr><th>Input window</th><td>first_extubation_dttm − 24h → first_extubation_dttm</td></tr>
+<tr><th>Prediction horizon</th><td>(first_extubation_dttm, first_extubation_dttm + 24h]</td></tr>
+<tr><th>Label column</th><td><code>label_extubation_failure_24h</code></td></tr>
+</table>
+
+<p style="background: var(--c-blue-soft); border-left: 3px solid var(--c-blue); padding: 12px 16px; border-radius: 4px; margin: 20px 0; font-size: 14px; line-height: 1.55;">
+  <strong>Note on the input window.</strong> The window above is the <em>minimum guaranteed lookback</em>, not a cap. The model is free to use any data observed before the prediction time — including the full IMV episode and any prior hospitalizations. Only data at or after the prediction time would constitute leakage.
+</p>
+
+<h2>MIMIC-CLIF Table 1 (validated)</h2>
+<p style="color:var(--muted); font-size:13px; margin-top:-8px;">Numbers TBD — populated by <code>flair extract-metadata --task task3_extubation_failure_24h</code> against MIMIC-CLIF. Cell suppression: n &lt; 10 → <code>"&lt;10"</code>.</p>
+
+<table>
+<thead><tr><th>Cohort</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>n stays (one row each)</th><td>TBD</td></tr>
+<tr><th>Years observed</th><td>TBD</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Label</th><th>Value</th></tr></thead>
+<tbody>
+<tr><th>Extubation failure stays (positive)</th><td>TBD</td></tr>
+<tr><th>Successful extubation stays</th><td>TBD</td></tr>
+<tr><th>Positive rate</th><td>TBD</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Demographic (stay-level)</th><th>Distribution</th></tr></thead>
+<tbody>
+<tr><th>Sex</th><td>TBD</td></tr>
+<tr><th>Race</th><td>TBD</td></tr>
+<tr><th>Ethnicity</th><td>TBD</td></tr>
+<tr><th>Age band</th><td>TBD</td></tr>
+</tbody>
+</table>
+
+<h2>Clinical motivation</h2>
+<p>Premature extubation drives reintubation, prolonged ICU stay, and excess mortality; over-cautious extubation prolongs ventilation, sedation needs, and ICU-acquired complications. A reliable 24h failure-risk estimate at the moment the team is weighing extubation is one of the highest-yield CDSS targets in critical care. The consensus state-machine for IMV episodes filters the noisy transitions that confound naive end-of-IMV labels.</p>
+
+<h2>Why it's hard</h2>
+<ul>
+  <li>Single anchor per stay → small positive class, hard to learn temporal trends.</li>
+  <li>Selection bias: only patients the team thought ready get extubated, so the cohort is conditioned on a clinician judgment we can't see.</li>
+  <li>Trach trajectory and ambiguous early discharges need explicit censoring rules.</li>
+  <li>Site-to-site ventilator weaning protocols differ — reintubation rates carry institutional signal.</li>
+</ul>
+
+<h2>Baseline result (placeholder)</h2>
+<p style="color:var(--muted)">XGBoost on mCIDE count vector · MIMIC-CLIF · AUROC TBD · positive rate TBD · once baseline run lands.</p>
+
+</main>
+
+<footer><div><a href="../index.html">← back to index</a> · <a href="../components.html">back to components</a></div></footer>
+</body>
+</html>

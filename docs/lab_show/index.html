@@ -37,12 +37,8 @@
     <span class="label">Summary</span>
     <span class="sub">Longitudinal metadata</span>
   </a>
-  <a class="tile terra" href="baseline.html">
-    <span class="label">Baseline</span>
-    <span class="sub">mCIDE · XGBoost</span>
-  </a>
 </div>
-<div class="tiles-caption">Four building blocks — one federated benchmark.</div>
+<div class="tiles-caption">Three building blocks — one federated benchmark.</div>
 
 <div class="features">
   <div class="feature b">
@@ -72,45 +68,15 @@
 <h2>Browse the pages</h2>
 
 <div class="pages">
-  <a class="page-card" href="overview.html">
-    <span class="num">01</span>
-    <span class="title">Overview</span>
-    <span class="hook">Why federated, what CLIF + mCIDE buy us, and the MIMIC-CLIF entry path.</span>
-  </a>
   <a class="page-card" href="components.html">
-    <span class="num">02</span>
+    <span class="num">01</span>
     <span class="title">Components</span>
     <span class="hook">Three FLAIR CLI primitives: task generation, build-report, and longitudinal summary.</span>
   </a>
-  <a class="page-card" href="baseline.html">
-    <span class="num">03</span>
-    <span class="title">Baseline (NEJM AI)</span>
-    <span class="hook">mCIDE count-vector + XGBoost. The scoreboard anchor: beat it or explain why.</span>
-  </a>
-  <a class="page-card" href="workflow.html">
-    <span class="num">04</span>
-    <span class="title">Submission workflow</span>
-    <span class="hook">From ship-to-portal through site opt-in to results return.</span>
-  </a>
-  <a class="page-card" href="compliance.html">
-    <span class="num">05</span>
-    <span class="title">Compliance &amp; infra</span>
-    <span class="hook">Immutable containers, FLAIR compliance test, Rush Azure Blob, PHI guarantees.</span>
-  </a>
-  <a class="page-card" href="reports.html">
-    <span class="num">06</span>
-    <span class="title">Reports</span>
-    <span class="hook">TRIPOD-AI + FairCareAI: what gets published per task once results land.</span>
-  </a>
-  <a class="page-card" href="tasks/task1_discharged_home.html">
-    <span class="num">07</span>
-    <span class="title">10 prediction tasks</span>
+  <a class="page-card" href="tasks/task1_icu_daily_mortality.html">
+    <span class="num">02</span>
+    <span class="title">5 prediction tasks</span>
     <span class="hook">Each task has its own page with cohort filter, label, and a prediction-timeline diagram.</span>
-  </a>
-  <a class="page-card" href="action_items.html">
-    <span class="num">08</span>
-    <span class="title">Study plan &amp; action items</span>
-    <span class="hook">Milestones, parking-lot ideas, owners, and ETAs. Living document.</span>
   </a>
 </div>
 
@@ -118,16 +84,11 @@
 <table>
 <thead><tr><th>#</th><th>Task</th><th>Class</th><th>Temporal</th><th>Prediction unit</th><th>Type</th><th>Page</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>Discharged Home</td><td>outcome</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task1_discharged_home.html">open</a></td></tr>
-<tr><td>2</td><td>Discharged to LTACH</td><td>outcome</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task2_discharged_ltach.html">open</a></td></tr>
-<tr><td>3</td><td>72-Hour Respiratory Outcome</td><td>deterioration</td><td>fixed_horizon</td><td>one-per-stay</td><td>multiclass</td><td><a href="tasks/task3_outcome_72hr.html">open</a></td></tr>
-<tr><td>4</td><td>Hypoxic Proportion</td><td>deterioration</td><td>fixed_horizon</td><td>one-per-stay</td><td>regression</td><td><a href="tasks/task4_hypoxic_proportion.html">open</a></td></tr>
-<tr><td>5</td><td>ICU Length of Stay</td><td>operational</td><td>episode</td><td>one-per-stay</td><td>regression</td><td><a href="tasks/task5_icu_los.html">open</a></td></tr>
-<tr><td>6</td><td>In-Hospital Mortality</td><td>outcome</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task6_hospital_mortality.html">open</a></td></tr>
-<tr><td>7</td><td>Unplanned ICU Readmission</td><td>operational</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task7_icu_readmission.html">open</a></td></tr>
-<tr><td>8</td><td>Intubation within 6h</td><td>intervention</td><td>fixed_horizon</td><td>one-per-decision-point</td><td>binary</td><td><a href="tasks/task8_intubation_6h.html">open</a></td></tr>
-<tr><td>9</td><td>Reintubation within 72h</td><td>intervention</td><td>fixed_horizon</td><td>one-per-decision-point</td><td>binary</td><td><a href="tasks/task9_reintubation_72h.html">open</a></td></tr>
-<tr><td>10</td><td>AKI KDIGO-2 within 24h</td><td>deterioration</td><td>continuous</td><td>one-per-timestep</td><td>binary</td><td><a href="tasks/task10_aki_kdigo2_24h.html">open</a></td></tr>
+<tr><td>1</td><td>ICU Daily In-Hospital Mortality</td><td>outcome</td><td>continuous</td><td>one-per-timestep</td><td>binary</td><td><a href="tasks/task1_icu_daily_mortality.html">open</a></td></tr>
+<tr><td>2</td><td>ICU Daily LTACH Discharge</td><td>outcome</td><td>continuous</td><td>one-per-timestep</td><td>binary</td><td><a href="tasks/task2_icu_daily_ltach.html">open</a></td></tr>
+<tr><td>3</td><td>Extubation failure within 24h</td><td>intervention</td><td>episode</td><td>one-per-stay</td><td>binary</td><td><a href="tasks/task3_extubation_failure_24h.html">open</a></td></tr>
+<tr><td>4</td><td>Sepsis (antibiotic-anchored) within 6h</td><td>intervention</td><td>continuous</td><td>one-per-timestep</td><td>binary</td><td><a href="tasks/task4_sepsis_abx_6h.html">open</a></td></tr>
+<tr><td>5</td><td>AKI KDIGO-2 within 24h</td><td>deterioration</td><td>continuous</td><td>one-per-timestep</td><td>binary</td><td><a href="tasks/task5_aki_kdigo2_24h.html">open</a></td></tr>
 </tbody>
 </table>
 

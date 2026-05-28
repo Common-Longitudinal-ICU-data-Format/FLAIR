@@ -1,26 +1,25 @@
 """
-Task 14: ICU Daily In-Hospital Mortality (binary, one-per-timestep at 07:00 local).
+Task 2: ICU Daily LTACH Discharge (binary, one-per-timestep at 07:00 local).
 
 Clinical question:
   Given everything we know about this ICU patient up to today's 07:00 rounds,
-  will this hospitalization end with the patient dying in hospital — either
-  by death (Expired) or transition to Hospice — rather than transferring out
-  to a Long-Term Acute Care Hospital (LTACH)?
+  will the eventual disposition of this hospitalization be transfer to a
+  Long-Term Acute Care Hospital (LTACH)?
 
 Cohort framing (conditional on non-survival):
   The cohort includes only hospitalizations whose eventual discharge_category
   maps to either LTACH or in-hospital mortality (Expired/Hospice). Patients
   who survive to ordinary disposition (home/SNF/rehab/AMA/...) are EXCLUDED.
   The task therefore predicts a binary terminal-trajectory question:
-  in-hospital mortality (1) vs LTACH (0).
+  LTACH (1) vs in-hospital mortality (0).
 
 Pair task:
-  task13_icu_daily_ltach is the exact complement: same rows,
+  task1_icu_daily_mortality is the exact complement: same rows,
   label_ltach + label_mortality == 1.
 
-Label (label_mortality):
-  1 iff discharge_category in {"expired", "hospice"} (case-insensitive)
-  0 iff discharge_category matches r"ltach|long.?term"
+Label (label_ltach):
+  1 iff discharge_category matches r"ltach|long.?term" (case-insensitive)
+  0 iff discharge_category in {"expired", "hospice"}
   (cohort filter guarantees one of the two)
 
 Cohort:
@@ -44,7 +43,7 @@ Pipeline:
   6. Daily 07:00 grid via pl.datetime_ranges(..., interval="24h", closed="left")
   7. Broadcast label from hospitalization-level discharge_category
   8. window_end = prediction_dttm; window_start = prediction_dttm - 24h
-  9. assign_split() per-row by prediction_dttm (matches task11)
+  9. assign_split() per-row by prediction_dttm (matches task4)
 
 Timezone note:
   clifpy returns tz-aware datetimes typed to cfg["timezone"]; flair_benchmark._clif
@@ -65,14 +64,14 @@ INPUT_WINDOW_HOURS = 24
 GRID_STEP = "24h"
 
 META = {
-    "name": "task14_icu_daily_mortality",
-    "display_name": "ICU Daily In-Hospital Mortality (7AM, binary)",
+    "name": "task2_icu_daily_ltach",
+    "display_name": "ICU Daily LTACH Discharge (7AM, binary)",
     "task_class": "outcome",
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-timestep",
     "task_type": "binary",
-    "label_column": "label_mortality",
-    "positive_class": "in_hospital_mortality",
+    "label_column": "label_ltach",
+    "positive_class": "ltach_discharge",
     "input_window_hours": INPUT_WINDOW_HOURS,
     "prediction_window": None,
     "cohort_description": (
@@ -146,7 +145,7 @@ def build(clif_config: str, train_end: str | None,
     ).explode("prediction_dttm").filter(pl.col("prediction_dttm").is_not_null())
 
     df = df.with_columns(
-        disp.is_in(["expired", "hospice"])
+        disp.str.contains(r"ltach|long.?term")
         .cast(pl.Int32)
         .alias(META["label_column"])
     )

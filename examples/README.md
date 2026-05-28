@@ -5,7 +5,7 @@
 ```bash
 python examples/end_to_end.py \
     --clif-config clif_config.json \
-    --task task6_hospital_mortality \
+    --task task1_icu_daily_mortality \
     --out ./flair_run/
 ```
 
@@ -16,7 +16,7 @@ This:
 3. writes `./flair_run/preds.parquet` with `y_true` / `y_pred` / `y_prob`,
 4. calls `flair build-report` to write the four JSONs into `./flair_run/report/`.
 
-Tasks 1, 2, 6, 7 are binary; task 3 is multiclass; tasks 4, 5 are regression. The script switches on `META['task_type']` automatically.
+All five tasks are binary. The script still switches on `META['task_type']` to support multiclass/regression tasks added later.
 
 ## What you actually do
 

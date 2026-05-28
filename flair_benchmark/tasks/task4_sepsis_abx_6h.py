@@ -1,5 +1,5 @@
 """
-Task 11: Sepsis prediction with antibiotic-anchored time-zero
+Task 4: Sepsis prediction with antibiotic-anchored time-zero
 (binary classification, one-per-timestep).
 
 Clinical question:
@@ -69,7 +69,7 @@ ADMINISTERED_GROUP = "administered"
 EXCLUDE_LOCATION_CATEGORIES = ["psychiatric", "rehabilitation"]
 
 META = {
-    "name": "task11_sepsis_abx_6h",
+    "name": "task4_sepsis_abx_6h",
     "display_name": "Sepsis (antibiotic-anchored) within 6h",
     "task_class": "intervention",
     "temporal_pattern": "continuous",

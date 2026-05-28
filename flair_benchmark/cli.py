@@ -29,7 +29,7 @@ app = typer.Typer(add_completion=False, no_args_is_help=True,
 
 @app.command("load-task")
 def load_task(
-    task: str = typer.Argument(..., help="Task name, e.g. task6_hospital_mortality"),
+    task: str = typer.Argument(..., help="Task name, e.g. task1_icu_daily_mortality"),
     clif_config: str = typer.Option(..., "--clif-config",
                                     help="Path to clif_config.json"),
     out: str = typer.Option(..., "--out", help="Output parquet path"),
@@ -75,7 +75,7 @@ def extract_metadata_cmd(
                             help="Output directory for per-task JSONs"),
     tasks: Optional[list[str]] = typer.Option(
         None, "--task",
-        help="Restrict to one or more tasks (repeat the flag). Default: all 10."),
+        help="Restrict to one or more tasks (repeat the flag). Default: all 5."),
     skip_sofa: bool = typer.Option(False, "--skip-sofa",
                                    help="Skip SOFA (clifpy ClifOrchestrator is heavy)."),
     skip_comorb: bool = typer.Option(False, "--skip-comorb",

@@ -1,5 +1,5 @@
 """
-Task 10: Continuous AKI prediction — KDIGO stage 2 within next 24h
+Task 5: Continuous AKI prediction — KDIGO stage 2 within next 24h
 (binary classification, one-per-timestep).
 
 Clinical question:
@@ -58,7 +58,7 @@ GRID_STEP_HOURS = 1
 INPUT_WINDOW_HOURS = 24
 
 META = {
-    "name": "task10_aki_kdigo2_24h",
+    "name": "task5_aki_kdigo2_24h",
     "display_name": "AKI KDIGO stage 2 within 24h (continuous)",
     "task_class": "deterioration",
     "temporal_pattern": "continuous",

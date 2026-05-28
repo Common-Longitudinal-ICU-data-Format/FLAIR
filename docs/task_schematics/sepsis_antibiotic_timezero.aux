@@ -1,0 +1,83 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{kamran2024sepsis}
+\citation{singer2016sepsis3,rhee2019sepsis}
+\citation{kamran2024sepsis}
+\citation{kamran2024sepsis}
+\citation{seymour2016assessment}
+\citation{reyna2020physionet}
+\citation{desautels2016insight}
+\citation{shashikumar2021aise}
+\citation{shashikumar2021composer}
+\citation{wong2021external}
+\citation{adams2022trews}
+\citation{kamran2024sepsis}
+\citation{rhee2019sepsis}
+\citation{cms2015sep1}
+\citation{rhee2019sepsis}
+\citation{cms2015sep1}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Survey of prior time-zero definitions}{1}{section.2}\protected@file@percent }
+\newlabel{sec:survey}{{2}{1}{Survey of prior time-zero definitions}{section.2}{}}
+\gdef \LT@i {\LT@entry 
+    {1}{91.6678pt}\LT@entry 
+    {1}{194.09746pt}\LT@entry 
+    {1}{85.97733pt}\LT@entry 
+    {1}{97.35826pt}}
+\citation{desautels2016insight,shashikumar2021aise}
+\citation{kamran2024sepsis,wong2021external}
+\citation{henry2022trews}
+\citation{kamran2024sepsis}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Operational time-zero definitions across major sepsis-prediction studies.}}{2}{table.1}\protected@file@percent }
+\newlabel{tab:lit}{{1}{2}{Operational time-zero definitions across major sepsis-prediction studies}{table.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Implications for FLAIR.}{2}{section*.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}FLAIR operational definition}{2}{section.3}\protected@file@percent }
+\newlabel{sec:def}{{3}{2}{FLAIR operational definition}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Anchors and windows}{2}{subsection.3.1}\protected@file@percent }
+\citation{kamran2024sepsis}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Cohort}{3}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Sensitivity arms (documentation only, not primary output)}{3}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}Algorithmic flow}{4}{section.4}\protected@file@percent }
+\newlabel{sec:flow}{{4}{4}{Algorithmic flow}{section.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Build pipeline. Solid arrows: main flow. Dashed red arrows: exclusions. The diamond enforces the label-leakage gate: any hospitalization whose qualifying antibiotic precedes its first vital sign is dropped, since by Kamran et al.'s argument no decision point in that stay can produce a recognition-free prediction.}}{4}{figure.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:flow}{{1}{4}{Build pipeline. Solid arrows: main flow. Dashed red arrows: exclusions. The diamond enforces the label-leakage gate: any hospitalization whose qualifying antibiotic precedes its first vital sign is dropped, since by Kamran et al.'s argument no decision point in that stay can produce a recognition-free prediction}{figure.caption.2}{}}
+\citation{kamran2024sepsis}
+\citation{kamran2024sepsis}
+\citation{singer2016sepsis3,reyna2020physionet}
+\@writefile{toc}{\contentsline {section}{\numberline {5}Timeline diagram}{5}{section.5}\protected@file@percent }
+\newlabel{sec:timeline}{{5}{5}{Timeline diagram}{section.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Hospitalization timeline. The blue ``lookback'' bar shows the 24h rolling feature window terminating at one example decision point. The red ``dropped rows'' zone covers $[t_{\text  {zero}}, \text  {discharge})$ --- any prediction made at or after the antibiotic order is removed from training and evaluation, eliminating the label-leakage channel identified by \citet  {kamran2024sepsis}.}}{5}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:timeline}{{2}{5}{Hospitalization timeline. The blue ``lookback'' bar shows the 24h rolling feature window terminating at one example decision point. The red ``dropped rows'' zone covers $[\tzero , \text {discharge})$ --- any prediction made at or after the antibiotic order is removed from training and evaluation, eliminating the label-leakage channel identified by \citet {kamran2024sepsis}}{figure.caption.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Design choices and rationale}{5}{section.6}\protected@file@percent }
+\newlabel{sec:rationale}{{6}{5}{Design choices and rationale}{section.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Why antibiotic-as-anchor (not SOFA $\Delta \!\ge \!2$).}{5}{section*.4}\protected@file@percent }
+\citation{kamran2024sepsis}
+\citation{kamran2024sepsis}
+\citation{shashikumar2021aise}
+\citation{desautels2016insight}
+\citation{wong2021external,kamran2024sepsis}
+\citation{rhee2019sepsis}
+\bibstyle{plainnat}
+\bibdata{references}
+\bibcite{adams2022trews}{{1}{2022}{{Adams et~al.}}{{Adams, Henry, Sridharan, Soleimani, Zhan, Rawat, Johnson, Hager, Cosgrove, Markowski, et~al.}}}
+\bibcite{cms2015sep1}{{2}{2015}{{Centers for Medicare and Medicaid Services}}{{}}}
+\@writefile{toc}{\contentsline {paragraph}{Why strictly $\text  {pred\_stop}= t_{\text  {zero}}$ with no $\Delta $-gate.}{6}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Why hospital-wide (not ICU-only).}{6}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Why hourly grid.}{6}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Prevalence implications.}{6}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Drug list.}{6}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7}Out of scope}{6}{section.7}\protected@file@percent }
+\bibcite{desautels2016insight}{{3}{2016}{{Desautels et~al.}}{{Desautels, Calvert, Hoffman, Jay, Kerem, Shieh, Shimabukuro, Chettipally, Feldman, Barton, et~al.}}}
+\bibcite{henry2022trews}{{4}{2022}{{Henry et~al.}}{{Henry, Adams, Parent, Soleimani, Sridharan, Johnson, Hager, Cosgrove, Markowski, Klein, et~al.}}}
+\bibcite{kamran2024sepsis}{{5}{2024}{{Kamran et~al.}}{{Kamran, Tjandra, Heiler, Virzi, Singh, King, Valley, and Wiens}}}
+\bibcite{reyna2020physionet}{{6}{2020}{{Reyna et~al.}}{{Reyna, Josef, Jeter, Shashikumar, Westover, Nemati, Clifford, and Sharma}}}
+\bibcite{rhee2019sepsis}{{7}{2019}{{Rhee et~al.}}{{Rhee, Zhang, Kadri, Murphy, Martin, Overton, Seymour, Angus, Dantes, Epstein, et~al.}}}
+\bibcite{seymour2016assessment}{{8}{2016}{{Seymour et~al.}}{{Seymour, Liu, Iwashyna, Brunkhorst, Rea, Scherag, Rubenfeld, Kahn, Shankar-Hari, Singer, et~al.}}}
+\bibcite{shashikumar2021aise}{{9}{2021{a}}{{Shashikumar et~al.}}{{Shashikumar, Josef, Sharma, and Nemati}}}
+\bibcite{shashikumar2021composer}{{10}{2021{b}}{{Shashikumar et~al.}}{{Shashikumar, Wardi, Paul, Carlile, Brenner, Hibbert, North, Diaz-Mendoza, and Nemati}}}
+\bibcite{singer2016sepsis3}{{11}{2016}{{Singer et~al.}}{{Singer, Deutschman, Seymour, Shankar-Hari, Annane, Bauer, Bellomo, Bernard, Chiche, Coopersmith, et~al.}}}
+\bibcite{wong2021external}{{12}{2021}{{Wong et~al.}}{{Wong, Otles, Donnelly, Krumm, McCullough, DeTroyer-Cooley, Pestrue, Phillips, Konye, Penoza, et~al.}}}
+\gdef \@abspage@last{7}

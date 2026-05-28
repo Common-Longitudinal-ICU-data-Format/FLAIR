@@ -282,7 +282,7 @@ Step-by-step prose:
   \item Assign $y_i(d)$ per the label rule.
   \item Assign \texttt{window\_start} $= d - 24\text{h}$,
         \texttt{window\_end} $= d$ (lookback window, fixed 24h to
-        match task8 / task10 convention).
+        match the FLAIR convention).
   \item Apply temporal train/test split per
         \texttt{flair\_benchmark.\_split.assign\_split}.
   \item Select \texttt{OUTPUT\_COLS} and persist as parquet.
@@ -330,7 +330,7 @@ preserved as a sensitivity arm for comparability with
 \citet{shashikumar2021aise} and \citet{desautels2016insight}.
 
 \paragraph{Why hourly grid.}
-Matches the FLAIR convention (task8 intubation-6h, task10 AKI-24h) and
+Matches the FLAIR convention (task5 AKI-24h uses the same hourly grid) and
 the PhysioNet/CinC 2019 standard. ESM's native 20-minute cadence
 \citep{wong2021external, kamran2024sepsis} is finer than necessary for
 benchmarking and would inflate row counts $\sim$3$\times$ without
@@ -354,7 +354,7 @@ definition (CDC ASE Appendix).
 
 \begin{itemize}[leftmargin=2em]
   \item Implementation of
-        \texttt{flair\_benchmark/tasks/task11\_sepsis\_abx\_6h.py}.
+        \texttt{flair\_benchmark/tasks/task4\_sepsis\_abx\_6h.py}.
   \item Curated antibiotic drug list and \texttt{med\_category}
         mapping.
   \item Choice of input features and feature engineering.

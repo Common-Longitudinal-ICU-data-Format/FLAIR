@@ -1,5 +1,5 @@
 """
-Task 12: Extubation failure within 24h of first extubation (binary, one-per-stay).
+Task 3: Extubation failure within 24h of first extubation (binary, one-per-stay).
 
 Clinical question:
   After the first confirmed extubation, will the patient accumulate < 1
@@ -28,11 +28,6 @@ Pipeline:
   8. drop ambiguous censoring (discharged alive < 24h post-extubation,
      no death, no reintubation)
   9. assign_split()
-
-Divergence from task9_reintubation_72h:
-  - 24h horizon (vs 72h)
-  - Death without re-intubation in window is LABELED FAILURE
-    (task9 drops these as ambiguous at the longer 72h horizon).
 """
 
 from __future__ import annotations
@@ -49,7 +44,7 @@ INPUT_WINDOW_HOURS = 24
 TRACH_CLOSURE_TOLERANCE_MIN = 1
 
 META = {
-    "name": "task12_extubation_failure_24h",
+    "name": "task3_extubation_failure_24h",
     "display_name": "Extubation failure within 24h (one-per-stay)",
     "task_class": "intervention",
     "temporal_pattern": "episode",
