@@ -1,0 +1,42 @@
+% ~300 words.
+\section{Discussion}
+
+FLAIR combines three properties that, individually, have appeared
+elsewhere but together have not been operationalized at the scale ICU
+CDS development requires: federation across many heterogeneous sites
+without patient-data movement, a clinically scoped data schema (CLIF)
+that makes the analytic code portable, and an extension protocol that
+lets the task catalog grow by community pull request rather than by
+single-author fiat.
+
+\paragraph{Saturation resistance through siloed data.} A side effect of
+the model-to-data design is that the data underlying FLAIR's leaderboard
+never enters public hands. Test-set contamination of pretraining
+corpora --- now a recurring problem for open benchmarks
+\citep{recht2019imagenet,chekroud2024illusory} --- is structurally
+limited, and the incentive for a single developer to overfit the
+leaderboard is weak because the data they would overfit to are not
+accessible to them. We view this not as a feature of FLAIR per se but
+as an emergent property of the access model.
+
+\paragraph{Limitations.} Adoption is bounded by the institutions that
+have implemented CLIF; non-CLIF sites cannot currently participate
+without an ETL effort. The current task suite is restricted to binary
+classification on structured EHR variables and excludes notes,
+waveforms, and images. Aggregate-only outputs constrain some
+fine-grained bias analyses; subgroups below the suppression threshold
+are not visible. T5 currently uses serum-creatinine-only KDIGO, and
+T4's antibiotic vocabulary is an open dependency.
+
+\paragraph{Roadmap.} Near-term work extends the suite to opt-in
+prospective silent-trial evaluation \citep{joshi2025silenttrials},
+longitudinal calibration drift monitoring against site reference
+periods, and integration of additional CLIF tables (diagnoses,
+procedures) as the schema matures. The model-to-data primitive
+underpinning FLAIR is data-modality-agnostic; once CLIF stabilizes
+multimodal extensions, the same submission and aggregation contract
+will apply to notes and waveforms.
+
+\paragraph{Conclusion.} FLAIR makes privacy-preserving multi-site
+external validation of EHR-based clinical decision support a routine,
+reproducible operation. We invite the community to extend it.

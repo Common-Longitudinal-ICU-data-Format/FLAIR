@@ -1,0 +1,93 @@
+% =====================================================================
+% FLAIR --- NEJM AI Datasets, Benchmarks, and Protocols
+% First-draft manuscript.
+%
+% Target venue:  NEJM AI, "Datasets, Benchmarks, and Protocols" (AIdbp)
+% Envelope:      <= 3000 main-text words; <= 5 figures+tables combined;
+%                <= 40 references; <= 10 authors; structured abstract.
+%
+% Sections live under sections/. Edit them independently; main.tex only
+% sets the envelope.
+% =====================================================================
+
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage[round]{natbib}
+
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+
+% Drafting macros (kept from outline.tex):
+\definecolor{notecolor}{RGB}{120,120,120}
+\newcommand{\note}[1]{{\color{notecolor}\textit{[#1]}}}
+\newcommand{\todo}[1]{{\color{red}\textbf{TODO:} #1}}
+% Bracketed estimates the user pre-approved; resolved to real numbers
+% once the federated run completes. % TODO-NUMBERS markers tag each.
+\newcommand{\est}[1]{{\color{blue!60!black}#1}}
+
+\title{\textbf{FLAIR: A Federated Benchmark for ICU Clinical Decision
+Support Across 12+ Academic Medical Centers Using the Common Longitudinal
+ICU Format}}
+\author{CLIF Consortium \\ FLAIR Working Group}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{sections/00_abstract.tex}
+
+\input{sections/01_introduction.tex}
+
+\input{sections/02_methods.tex}
+
+\input{sections/03_datasets.tex}
+
+\input{sections/04_benchmarks.tex}
+
+\input{sections/05_protocols.tex}
+
+\input{sections/06_fda_alignment.tex}
+
+\input{sections/07_discussion.tex}
+
+% ---------------------------------------------------------------------
+\section*{Required statements}
+% ---------------------------------------------------------------------
+\noindent\textbf{Data and Code Availability.} Source code, task
+definitions, and report-generation library are released under Apache
+2.0 at \texttt{github.com/clif-consortium/FLAIR}. MIMIC-CLIF is
+distributed via PhysioNet; consortium data are accessible only by
+running submitted code at each site through the FLAIR portal.
+Baseline model weights are deposited on Zenodo (\todo{DOI}); the
+CLIF-WorkBench Singularity image is published on GHCR (\todo{tag}).
+
+\noindent\textbf{IRB.} Each consortium site obtained independent
+institutional review board approval; central protocol coordination is
+provided by the University of Chicago.
+
+\noindent\textbf{Funding.} \todo{grants}.
+
+\noindent\textbf{Author Contributions.} CRediT taxonomy slots \todo{fill}.
+
+\noindent\textbf{Conflicts of Interest.} \todo{disclosures}.
+
+\noindent\textbf{AI-Use Disclosure.} \todo{name LLM(s) and the sections
+or artifacts they helped produce}.
+
+% ---------------------------------------------------------------------
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

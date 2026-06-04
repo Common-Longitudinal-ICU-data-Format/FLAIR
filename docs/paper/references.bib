@@ -1,0 +1,420 @@
+% =====================================================================
+% FLAIR paper --- references
+% Seeded from docs/task_schematics/references.bib + anchor refs for the
+% NEJM AI DBP outline. Add entries as drafting progresses; keep under 40
+% by submission (NEJM AI DBP envelope).
+% =====================================================================
+
+% --- Task-anchored sepsis literature (lifted from task_schematics/) ---
+
+@article{kamran2024sepsis,
+  title   = {Evaluation of Sepsis Prediction Models before Onset of Treatment},
+  author  = {Kamran, Fahad and Tjandra, Donna and Heiler, Andrew and Virzi, Jessica and Singh, Karandeep and King, Jessie E. and Valley, Thomas S. and Wiens, Jenna},
+  journal = {NEJM AI},
+  volume  = {1},
+  number  = {3},
+  year    = {2024},
+  doi     = {10.1056/AIoa2300032}
+}
+
+@article{seymour2016assessment,
+  title   = {Assessment of Clinical Criteria for Sepsis: For the Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3)},
+  author  = {Seymour, Christopher W. and Liu, Vincent X. and Iwashyna, Theodore J. and Brunkhorst, Frank M. and Rea, Thomas D. and Scherag, Andre and Rubenfeld, Gordon and Kahn, Jeremy M. and Shankar-Hari, Manu and Singer, Mervyn and others},
+  journal = {JAMA},
+  volume  = {315},
+  number  = {8},
+  pages   = {762--774},
+  year    = {2016},
+  doi     = {10.1001/jama.2016.0288}
+}
+
+@article{singer2016sepsis3,
+  title   = {The Third International Consensus Definitions for Sepsis and Septic Shock (Sepsis-3)},
+  author  = {Singer, Mervyn and Deutschman, Clifford S. and Seymour, Christopher W. and Shankar-Hari, Manu and Annane, Djillali and Bauer, Michael and Bellomo, Rinaldo and Bernard, Gordon R. and Chiche, Jean-Daniel and Coopersmith, Craig M. and others},
+  journal = {JAMA},
+  volume  = {315},
+  number  = {8},
+  pages   = {801--810},
+  year    = {2016},
+  doi     = {10.1001/jama.2016.0287}
+}
+
+@article{rhee2019sepsis,
+  title   = {Sepsis Surveillance Using Adult Sepsis Events Simplified {eSOFA} Criteria Versus {Sepsis-3} Sequential Organ Failure Assessment Criteria},
+  author  = {Rhee, Chanu and Zhang, Zilu and Kadri, Sameer S. and Murphy, David J. and Martin, Greg S. and Overton, Elizabeth and Seymour, Christopher W. and Angus, Derek C. and Dantes, Raymund and Epstein, Lauren and others},
+  journal = {Critical Care Medicine},
+  volume  = {47},
+  number  = {3},
+  pages   = {307--314},
+  year    = {2019},
+  doi     = {10.1097/CCM.0000000000003521}
+}
+
+@article{wong2021external,
+  title   = {External Validation of a Widely Implemented Proprietary Sepsis Prediction Model in Hospitalized Patients},
+  author  = {Wong, Andrew and Otles, Erkin and Donnelly, John P. and Krumm, Andrew and McCullough, Jeffrey and DeTroyer-Cooley, Olivia and Pestrue, Justin and Phillips, Marie and Konye, Judy and Penoza, Carleen and others},
+  journal = {JAMA Internal Medicine},
+  volume  = {181},
+  number  = {8},
+  pages   = {1065--1070},
+  year    = {2021},
+  doi     = {10.1001/jamainternmed.2021.2626}
+}
+
+% --- Task-anchored AKI literature ---
+
+@article{koyner2018aki,
+  title   = {The Development of a Machine Learning Inpatient Acute Kidney Injury Prediction Model},
+  author  = {Koyner, Jay L. and Carey, Kyle A. and Edelson, Dana P. and Churpek, Matthew M.},
+  journal = {Critical Care Medicine},
+  volume  = {46},
+  number  = {7},
+  pages   = {1070--1077},
+  year    = {2018},
+  doi     = {10.1097/CCM.0000000000003123}
+}
+
+% --- ICU benchmark prior art ---
+
+@article{vandewater2023yaib,
+  title   = {Yet Another {ICU} Benchmark: A Flexible Multi-Center Framework for Clinical {ML}},
+  author  = {van de Water, Robin and Schmidt, Hendrik Nils Aurel and Elbers, Paul and Thoral, Patrick and Arnrich, Bert and Rockenschaub, Patrick},
+  journal = {arXiv preprint arXiv:2306.05109},
+  year    = {2023},
+  doi     = {10.48550/arXiv.2306.05109}
+}
+
+@inproceedings{yeche2021hirid,
+  title     = {{HiRID-ICU-Benchmark} --- A Comprehensive Machine Learning Benchmark on High-Resolution {ICU} Data},
+  author    = {Y{\`e}che, Hugo and Kuznetsova, Rita and Zimmermann, Marc and H{\"u}ser, Matthias and Lyu, Xinrui and Faltys, Martin and R{\"a}tsch, Gunnar},
+  booktitle = {Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks},
+  year      = {2021}
+}
+
+% --- Public ICU datasets ---
+
+@article{johnson2023mimiciv,
+  title   = {{MIMIC-IV}, a freely accessible electronic health record dataset},
+  author  = {Johnson, Alistair E. W. and Bulgarelli, Lucas and Shen, Leo and Gayles, Alvin and Shammout, Ayad and Horng, Steven and Pollard, Tom J. and Hao, Sicheng and Moody, Benjamin and Gow, Brian and others},
+  journal = {Scientific Data},
+  volume  = {10},
+  pages   = {1},
+  year    = {2023},
+  doi     = {10.1038/s41597-022-01899-x}
+}
+
+@article{johnson2016mimiciii,
+  title   = {{MIMIC-III}, a freely accessible critical care database},
+  author  = {Johnson, Alistair E. W. and Pollard, Tom J. and Shen, Lu and Lehman, Li-wei H. and Feng, Mengling and Ghassemi, Mohammad and Moody, Benjamin and Szolovits, Peter and Celi, Leo Anthony and Mark, Roger G.},
+  journal = {Scientific Data},
+  volume  = {3},
+  pages   = {160035},
+  year    = {2016},
+  doi     = {10.1038/sdata.2016.35}
+}
+
+@article{pollard2018eicu,
+  title   = {The {eICU} Collaborative Research Database, a freely available multi-center database for critical care research},
+  author  = {Pollard, Tom J. and Johnson, Alistair E. W. and Raffa, Jesse D. and Celi, Leo A. and Mark, Roger G. and Badawi, Omar},
+  journal = {Scientific Data},
+  volume  = {5},
+  pages   = {180178},
+  year    = {2018},
+  doi     = {10.1038/sdata.2018.178}
+}
+
+% --- Reporting guidelines ---
+
+@article{collins2024tripodai,
+  title   = {{TRIPOD+AI} statement: updated guidance for reporting clinical prediction models that use regression or machine learning methods},
+  author  = {Collins, Gary S. and Moons, Karel G. M. and Dhiman, Paula and Riley, Richard D. and Beam, Andrew L. and Van Calster, Ben and Ghassemi, Marzyeh and Liu, Xiaoxuan and Reitsma, Johannes B. and van Smeden, Maarten and others},
+  journal = {BMJ},
+  volume  = {385},
+  pages   = {e078378},
+  year    = {2024},
+  doi     = {10.1136/bmj-2023-078378}
+}
+
+% --- NEJM AI DBP exemplars (templates we are mirroring) ---
+
+@article{verifact2025,
+  title   = {Verifying Facts in Patient Care Documents Generated by Large Language Models Using Electronic Health Records},
+  author  = {Chung, Philip and Swaminathan, Akshay and Goodell, Alex J. and Kim, Yeasul and Reincke, S. Momsen and Han, Lichy and Deverett, Ben and Sadeghi, Mohammad Amin and Ariss, Abdel-Badih and Seong, David and others},
+  journal = {NEJM AI},
+  volume  = {3},
+  number  = {1},
+  year    = {2025},
+  doi     = {10.1056/AIdbp2500418}
+}
+
+@article{hughes2026echonextmini,
+  title   = {{EchoNext-Mini}: A Dataset and Baseline {AI} Model for Detecting Structural Heart Disease from Electrocardiograms},
+  author  = {Hughes, John Weston and Jing, Linyuan and Finer, Joshua and Hartzel, Dustin and Kelsey, Christopher and Long, Aaron and Rocha, Daniel and Ruhl, Jeffrey and Poterucha, Timothy and Elias, Pierre},
+  journal = {NEJM AI},
+  volume  = {3},
+  number  = {5},
+  year    = {2026},
+  doi     = {10.1056/AIdbp2500516}
+}
+
+@article{pragmaticplaybook2024,
+  title   = {A Novel Playbook for Pragmatic Trial Operations to Monitor and Evaluate Ambient Artificial Intelligence in Clinical Practice},
+  author  = {{NEJM AI Pragmatic Trial Authors}},
+  journal = {NEJM AI},
+  year    = {2024},
+  note    = {Manuscript ID AIdbp2401267},
+  doi     = {10.1056/AIdbp2401267}
+}
+
+% --- Regulatory ---
+
+@misc{fda2022cds,
+  title        = {Clinical Decision Support Software --- Guidance for Industry and Food and Drug Administration Staff},
+  author       = {{U.S. Food and Drug Administration}},
+  year         = {2022},
+  howpublished = {FDA Guidance Document}
+}
+
+@misc{imdrf2017samd,
+  title        = {Software as a Medical Device (SaMD): Clinical Evaluation},
+  author       = {{International Medical Device Regulators Forum}},
+  year         = {2017},
+  howpublished = {IMDRF/SaMD WG/N41 FINAL:2017}
+}
+
+% --- Data sharing and model card / datasheet templates ---
+
+@article{gebru2021datasheets,
+  title   = {Datasheets for Datasets},
+  author  = {Gebru, Timnit and Morgenstern, Jamie and Vecchione, Briana and Vaughan, Jennifer Wortman and Wallach, Hanna and Daum{\'e} III, Hal and Crawford, Kate},
+  journal = {Communications of the ACM},
+  volume  = {64},
+  number  = {12},
+  pages   = {86--92},
+  year    = {2021},
+  doi     = {10.1145/3458723}
+}
+
+@inproceedings{mitchell2019modelcards,
+  title     = {Model Cards for Model Reporting},
+  author    = {Mitchell, Margaret and Wu, Simone and Zaldivar, Andrew and Barnes, Parker and Vasserman, Lucy and Hutchinson, Ben and Spitzer, Elena and Raji, Inioluwa Deborah and Gebru, Timnit},
+  booktitle = {Proceedings of the Conference on Fairness, Accountability, and Transparency},
+  pages     = {220--229},
+  year      = {2019},
+  doi       = {10.1145/3287560.3287596}
+}
+
+% =====================================================================
+% Added for first-draft manuscript (sections/*.tex).
+% =====================================================================
+
+% --- Multi-site CDSS prior art ---
+@article{habib2021jamaeditorial,
+  title   = {The Epic Sepsis Model Falls Short --- The Importance of External Validation},
+  author  = {Habib, Anand R. and Lin, Anthony L. and Grant, Richard W.},
+  journal = {JAMA Internal Medicine},
+  volume  = {181},
+  number  = {8},
+  pages   = {1040--1041},
+  year    = {2021},
+  doi     = {10.1001/jamainternmed.2021.3333}
+}
+
+@article{sendak2025sepsiswatchportability,
+  title   = {Portability of a Sepsis Risk Stratification Model Across Health Systems},
+  author  = {Sendak, Mark P. and Bedoya, Armando D. and others},
+  journal = {npj Digital Medicine},
+  year    = {2025},
+  note    = {Sepsis Watch external evaluation at Summa Health}
+}
+
+@article{adams2022trews,
+  title   = {Prospective, Multi-Site Study of Patient Outcomes after Implementation of the {TREWS} Machine Learning-Based Early Warning System for Sepsis},
+  author  = {Adams, Roy and Henry, Katharine E. and Sridharan, Anirudh and Soleimani, Hossein and Zhan, Andong and Rawat, Nishi and Johnson, Lauren and Hager, David N. and Cosgrove, Sara E. and Markowski, Andrew and others},
+  journal = {Nature Medicine},
+  volume  = {28},
+  pages   = {1455--1460},
+  year    = {2022},
+  doi     = {10.1038/s41591-022-01894-0}
+}
+
+@article{carter2025mayoecgai,
+  title   = {Multi-Site External Validation of an Artificial-Intelligence Electrocardiogram Algorithm for the Detection of Reduced Left Ventricular Ejection Fraction},
+  author  = {Carter, Rickey E. and others},
+  journal = {JACC Advances},
+  year    = {2025},
+  doi     = {10.1016/j.jacadv.2025.102537}
+}
+
+@article{tomasev2019aki,
+  title   = {A Clinically Applicable Approach to Continuous Prediction of Future Acute Kidney Injury},
+  author  = {Toma{\v{s}}ev, Nenad and Glorot, Xavier and Rae, Jack W. and Zielinski, Michal and Askham, Harry and Saraiva, Andre and Mottram, Anne and Meyer, Clemens and Ravuri, Suman and Protsyuk, Ivan and others},
+  journal = {Nature},
+  volume  = {572},
+  pages   = {116--119},
+  year    = {2019},
+  doi     = {10.1038/s41586-019-1390-1}
+}
+
+@article{thille2011extubation,
+  title   = {Outcomes of Extubation Failure in Medical Intensive Care Unit Patients},
+  author  = {Thille, Arnaud W. and Harrois, Anatole and Schortgen, Fr{\'e}d{\'e}rique and Brun-Buisson, Christian and Brochard, Laurent},
+  journal = {American Journal of Respiratory and Critical Care Medicine},
+  volume  = {183},
+  number  = {12},
+  pages   = {1727--1733},
+  year    = {2011},
+  doi     = {10.1164/rccm.201010-1715OC}
+}
+
+% --- Federated comparators ---
+@article{reps2020ohdsistroke,
+  title   = {Feasibility and Evaluation of a Large-Scale External Validation Approach for Patient-Level Prediction in an International Data Network: Validation of Models Predicting Stroke in Female Patients Newly Diagnosed with Atrial Fibrillation},
+  author  = {Reps, Jenna M. and Williams, Ross D. and You, Seng Chan and Falconer, Thomas and Minty, Evan and Callahan, Alison and Ryan, Patrick B. and Park, Rae Woong and Lim, Hong-Seok and Rijnbeek, Peter},
+  journal = {BMC Medical Research Methodology},
+  volume  = {20},
+  pages   = {102},
+  year    = {2020},
+  doi     = {10.1186/s12874-020-00991-3}
+}
+
+@article{karargyris2023medperf,
+  title   = {{MedPerf}: Open Benchmarking Platform for Medical Artificial Intelligence Using Federated Evaluation},
+  author  = {Karargyris, Alexandros and Umeton, Renato and Sheller, Micah J. and Aristizabal, Alejandro and George, Johnu and Wuest, Anna and Pati, Sarthak and Kassem, Hasan and Zenk, Maximilian and Baid, Ujjwal and others},
+  journal = {Nature Machine Intelligence},
+  volume  = {5},
+  pages   = {799--810},
+  year    = {2023},
+  doi     = {10.1038/s42256-023-00652-2}
+}
+
+@article{pati2022fets,
+  title   = {Federated Learning Enables Big Data for Rare Cancer Boundary Detection},
+  author  = {Pati, Sarthak and Baid, Ujjwal and Edwards, Brandon and Sheller, Micah and Wang, Shih-Han and Reina, G. Anthony and Foley, Patrick and Gruzdev, Alexey and Karkada, Deepthi and Davatzikos, Christos and others},
+  journal = {Nature Communications},
+  volume  = {13},
+  pages   = {7346},
+  year    = {2022},
+  doi     = {10.1038/s41467-022-33407-5}
+}
+
+@article{opensafely2021naturemedicine,
+  title   = {{OpenSAFELY}: A Platform for Analysing Electronic Health Records Securely},
+  author  = {The OpenSAFELY Collaborative},
+  journal = {Nature Medicine},
+  year    = {2021},
+  note    = {Code-travels-not-data analytic platform for English primary-care EHRs}
+}
+
+% --- DREAM / model-to-data ---
+@article{guinney2018dream,
+  title   = {Alternative Models for Sharing Confidential Biomedical Data},
+  author  = {Guinney, Justin and Saez-Rodriguez, Julio},
+  journal = {Nature Biotechnology},
+  volume  = {36},
+  pages   = {391--392},
+  year    = {2018},
+  doi     = {10.1038/nbt.4128}
+}
+
+@article{bergquist2024ehrdream,
+  title   = {Crowdsourcing Generalizable Mortality Prediction Models in the {EHR DREAM} Challenge},
+  author  = {Bergquist, Timothy and Schaffter, Thomas and Yan, Yao and Yu, Thomas and Prosser, Justin and Gao, Jifan and Chen, Guanhua and Charzewski, Lukasz and Nabian, Zahra and Husain, Ibtihal and others},
+  journal = {Journal of the American Medical Informatics Association},
+  year    = {2024},
+  note    = {PMC10746301},
+  doi     = {10.1093/jamia/ocad215}
+}
+
+% --- CLIF and adjacent data standards ---
+@article{rojas2025clif,
+  title   = {The {Common Longitudinal ICU Data Format (CLIF)}: A Standardized Critical Care Data Schema for Multi-Center Research},
+  author  = {Rojas, Juan C. and Lyons, Patrick G. and others},
+  journal = {Intensive Care Medicine},
+  year    = {2025},
+  note    = {medRxiv 2024.09.04.24313058; consortium spans 9 systems, 39 hospitals, $\sim$111{,}000 admissions at founding}
+}
+
+@article{arnrich2025meds,
+  title   = {The Medical Event Data Standard ({MEDS}): A Common Data Model for Machine Learning on Electronic Health Records},
+  author  = {Arnrich, Bert and Hyland, Stephanie L. and others},
+  journal = {NEJM AI},
+  year    = {2025},
+  doi     = {10.1056/AIra2501253}
+}
+
+@misc{mcode2024hl7,
+  title        = {{mCODE}: Minimal Common Oncology Data Elements --- {HL7} Implementation Guide},
+  author       = {{HL7 International}},
+  year         = {2024},
+  howpublished = {HL7 FHIR Implementation Guide STU4}
+}
+
+% --- Saturation / contamination / generalization ---
+@inproceedings{recht2019imagenet,
+  title     = {Do {ImageNet} Classifiers Generalize to {ImageNet}?},
+  author    = {Recht, Benjamin and Roelofs, Rebecca and Schmidt, Ludwig and Shankar, Vaishaal},
+  booktitle = {Proceedings of the 36th International Conference on Machine Learning ({ICML})},
+  year      = {2019},
+  pages     = {5389--5400}
+}
+
+@article{chekroud2024illusory,
+  title   = {Illusory Generalizability of Clinical Prediction Models},
+  author  = {Chekroud, Adam M. and others},
+  journal = {Science},
+  year    = {2024},
+  doi     = {10.1126/science.adg8538}
+}
+
+@article{roosli2022mimicfairness,
+  title   = {Bias at Warp Speed: How {AI} May Contribute to the Disparities Gap in the Time of {COVID-19}},
+  author  = {R{\"o}{\"o}sli, Eliane and Bozkurt, Selen and Hernandez-Boussard, Tina},
+  journal = {Scientific Data},
+  year    = {2022},
+  doi     = {10.1038/s41597-021-01110-7}
+}
+
+% --- Regulatory / shift / lifecycle ---
+@article{finlayson2021clinicianshift,
+  title   = {The Clinician and Dataset Shift in Artificial Intelligence},
+  author  = {Finlayson, Samuel G. and Subbaswamy, Adarsh and Singh, Karandeep and Bowers, John and Kupke, Annabel and Zittrain, Jonathan and Kohane, Isaac S. and Saria, Suchi},
+  journal = {New England Journal of Medicine},
+  volume  = {385},
+  number  = {3},
+  pages   = {283--286},
+  year    = {2021},
+  doi     = {10.1056/NEJMc2104626}
+}
+
+@article{koch2024distributionshift,
+  title   = {A Generalizable Approach for Distribution Shift Monitoring in Clinical Machine Learning Models},
+  author  = {Koch, Bryan and others},
+  journal = {npj Digital Medicine},
+  year    = {2024},
+  note    = {PMC11082139}
+}
+
+@article{soin2025shiftremediation,
+  title   = {Multi-Hospital Evaluation of Strategies to Mitigate Performance Degradation of a Clinical Prediction Model under Data Shift},
+  author  = {Soin, Arjun and others},
+  journal = {JAMA Network Open},
+  year    = {2025},
+  note    = {PMC12138723}
+}
+
+@article{goodman2025preregistration,
+  title   = {Preregistration of Clinical Artificial Intelligence Studies},
+  author  = {Goodman, Steven N. and others},
+  journal = {NEJM AI},
+  year    = {2025},
+  doi     = {10.1056/AIe2400146}
+}
+
+@article{joshi2025silenttrials,
+  title   = {Silent Trials of Clinical Artificial Intelligence: A Scoping Review},
+  author  = {Joshi, Shalmali and others},
+  journal = {Nature Health},
+  year    = {2025},
+  doi     = {10.1038/s44360-025-00048-z}
+}

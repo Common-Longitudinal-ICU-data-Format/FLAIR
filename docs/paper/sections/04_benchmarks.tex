@@ -1,0 +1,93 @@
+% ~700 words. Task taxonomy, five-task descriptions, leaderboard
+% mechanics, PR-extension protocol.
+\section{Benchmarks}
+\label{sec:benchmarks}
+
+\subsection*{Task taxonomy}
+
+Every FLAIR task is declared on three axes in a single \texttt{META}
+dictionary: \emph{task class} (\textit{outcome}, \textit{deterioration},
+\textit{intervention}, or \textit{operational}); \emph{temporal
+pattern} (\textit{episode}, \textit{continuous}, or \textit{fixed
+horizon}); and \emph{prediction unit} (\textit{one-per-stay},
+\textit{one-per-decision-point}, or \textit{one-per-timestep}). The
+triple determines the shape of the cohort and prediction parquets,
+which fields are mandatory, and which evaluation primitives the report
+builder invokes. New task authors fill the triple before writing any
+SQL or feature code; reviewers consume it before opening a single line
+of the implementation. The taxonomy is deliberately small so that the
+boundary between ``new task'' and ``existing task'' is unambiguous.
+
+\subsection*{Initial five-task suite}
+
+The v1 release covers two outcome targets, one deterioration target,
+and two intervention-anchored targets spanning ICU operations, kidney,
+and infectious physiology.
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{T1 --- ICU Daily In-Hospital Mortality (07:00 local).}
+        One-per-timestep, 24-hour input window anchored at daily 07:00.
+        Cohort: first ICU stay with discharge in
+        \{long-term acute care, mortality\}. Label: in-hospital death
+        or transfer to hospice during that ICU stay.
+  \item \textbf{T2 --- ICU Daily Long-Term Acute Care Discharge
+        (07:00 local).} Complementary label to T1 on the same daily
+        grid: prediction that the patient will be discharged to
+        long-term acute care rather than dying or being discharged
+        home. Together T1 and T2 capture the disposition decision
+        that anchors much downstream ICU planning.
+  \item \textbf{T3 --- Extubation Failure within 24~h.} One-per-stay,
+        anchored at the first confirmed invasive-mechanical-ventilation
+        extubation event identified by the consensus-window episode
+        detector. Label: death or reintubation within 24~hours.
+        Benchmark targets the classic respiratory liberation question
+        \citep{thille2011extubation}.
+  \item \textbf{T4 --- Sepsis (antibiotic-anchored) within 6~h.}
+        One-per-timestep on an hourly grid; $t_{\mathrm{zero}}$ is the
+        first qualifying systemic intravenous antibiotic. Cohort follows
+        the Sepsis-3 hospital-wide pattern \citep{singer2016sepsis3,seymour2016assessment,rhee2019sepsis};
+        leakage prevention drops decision points at or after
+        $t_{\mathrm{zero}}$. The implementation mirrors the
+        antibiotic-anchored evaluation framing of
+        \citet{kamran2024sepsis}.
+  \item \textbf{T5 --- Acute Kidney Injury, KDIGO stage 2 within
+        24~h.} One-per-timestep on an hourly grid; KDIGO stage 2 is
+        defined on serum creatinine with Koyner-style exclusions
+        \citep{koyner2018aki}, complementing the broader signature of
+        in-patient AKI prediction
+        \citep{tomasev2019aki}.
+\end{itemize}
+
+Each cohort parquet carries a fixed ten-column schema --- identifiers,
+window endpoints, label, split, age, sex, race, and ethnicity --- so
+that downstream feature engineering and evaluation code is shared
+across tasks.
+
+\subsection*{Leaderboard mechanics}
+
+For each task and site, FLAIR reports area under the receiver-operating
+characteristic curve (AUROC), area under the precision--recall curve
+(AUPRC), and F$_1$ at the operating threshold, each with 1{,}000-iteration
+bootstrap 95\% confidence intervals. Calibration is summarized by
+slope, intercept, and Brier score, with raw reliability points
+downsampled into \texttt{curves.json} so that the central dashboard can
+render reliability and ROC/PR curves without re-touching patient
+data. Fairness is reported as per-subgroup AUROC across sex, race,
+ethnicity, and age bins together with explicit parity gaps. The
+leaderboard ranks submissions on the primary metric for each task and
+displays per-site variance prominently: a single high pooled AUROC
+hides exactly the failure mode FLAIR exists to surface.
+
+\subsection*{Extension by community pull request}
+
+A new benchmark task is proposed as a single Python module under
+\texttt{flair\_benchmark/tasks/} containing the \texttt{META} dictionary
+and a \texttt{build} function returning the canonical cohort frame; no
+registry edits or library changes are required. Acceptance review
+verifies (i) reproducibility against MIMIC-CLIF, (ii) clinical face
+validity through a clinician-led review, and (iii) site-governance
+acceptance at a minimum of two consortium sites before the task enters
+the federated suite. This is the structural counter to benchmark
+saturation: the catalog grows with community need, distributed across
+many proposers, rather than ossifying around the priors of any single
+author group \citep{recht2019imagenet,chekroud2024illusory}.

@@ -1,0 +1,66 @@
+% ~500 words. CLIF schema, MIMIC-CLIF entry point, consortium cohort,
+% privacy-preserving access mechanisms.
+\section{Datasets}
+\label{sec:datasets}
+
+\subsection*{The Common Longitudinal ICU Format}
+
+CLIF is a critical-care minimum dataset that harmonizes ICU
+electronic health record content into a small set of relational tables
+with standardized vocabularies for vital sign and laboratory
+categories, medication routes, and respiratory support modes
+\citep{rojas2025clif}. As of the founding paper, CLIF spanned
+\est{$\sim$9} health systems, \est{$\sim$39} hospitals, and
+\est{$\sim$111{,}000} ICU admissions; the consortium has since grown
+to 12+ academic medical centers covering \est{$\sim$2{,}000} ICU beds.
+The schema is intentionally narrow --- vitals, labs, medications,
+respiratory support, admission--discharge--transfer, and patient
+demographics --- so that contributing sites can map their EHR exports
+once and reuse the mapping across studies. In spirit, CLIF is to
+critical care what mCODE \citep{mcode2024hl7} is to oncology: a
+clinically scoped common-data-element layer that makes downstream
+analytic code portable. CLIF is complementary to broader EHR standards
+such as the Medical Event Data Standard \citep{arnrich2025meds} and
+OMOP; ETL adapters between CLIF and these formats are maintained so
+that adoption does not require schema lock-in.
+
+\subsection*{MIMIC-CLIF as the public development entry point}
+
+To support open development, the consortium distributes MIMIC-CLIF:
+the MIMIC-IV critical-care dataset \citep{johnson2023mimiciv,johnson2016mimiciii}
+re-expressed in the CLIF v2.1 schema, with \est{$\sim$70{,}000} ICU
+stays. Method developers train and self-evaluate against MIMIC-CLIF;
+because the schema is identical to consortium-side data, the same code
+runs unmodified when later executed federated. This mirrors the
+``develop-on-public, validate-on-private'' pattern that has become
+canonical in clinical AI but is rarely operationalized end-to-end.
+
+\subsection*{Consortium cohort}
+
+\paragraph{Coverage.} Across the 12+ sites currently in CLIF, FLAIR
+operates on an aggregate cohort of \est{$\sim$500{,}000} ICU stays
+spanning urban academic medical centers, large community hospitals, and
+health systems with mixed payer populations. Demographic distribution
+(sex, race, ethnicity, age), admission SOFA, and Charlson and
+Elixhauser comorbidity indices are summarized per task in the cohort
+report (\texttt{table1.json}); a pooled Table~1 with HIPAA-compliant
+cell suppression accompanies the manuscript. % TODO-NUMBERS
+
+\paragraph{Privacy-preserving access.} Three properties together
+constitute FLAIR's access model. \emph{No patient-level data leaves
+any site}: outputs are JSON aggregates produced by the FLAIR library
+inside the container. \emph{Library-enforced suppression}: counts
+below 10 in cohort tables become \texttt{"<10"} in
+\texttt{table1.json}; demographic subgroups with $n<10$ are dropped
+entirely from \texttt{fairness.json}; calibration bins with fewer than
+10 observations report a null event rate in \texttt{curves.json}.
+\emph{Verifiable execution}: a SHA-256 digest of the task script and
+the FLAIR library version are stamped into every output JSON, so the
+central aggregator can confirm that the same code ran byte-for-byte at
+each site. Network isolation is enforced one layer below, by the
+CLIF-WorkBench container in which the library runs --- no internet,
+no root, immutable read-only image --- consistent with the spirit of
+analysis platforms such as OpenSAFELY \citep{opensafely2021naturemedicine}
+in which the code travels and the data does not. Together these
+properties move evidence generation from the slow, bilateral DUA path
+to a routine, repeatable operation.

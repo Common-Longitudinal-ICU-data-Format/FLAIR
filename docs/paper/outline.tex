@@ -1,0 +1,480 @@
+% =====================================================================
+% FLAIR --- NEJM AI Datasets, Benchmarks, and Protocols
+% Manuscript outline (working document, not the submission template)
+%
+% Target venue:  NEJM AI, "Datasets, Benchmarks, and Protocols" (AIdbp)
+% Envelope:      <= 3000 main-text words; <= 5 figures+tables combined;
+%                <= 40 references; <= 10 authors; structured abstract.
+% Exemplars (in docs/paper/lit/):
+%   - AIdbp2500418  Verifying Facts in Patient Care Documents (VeriFact)
+%   - AIdbp2500516  EchoNext-Mini Dataset and Baseline AI Model
+%   - AIdbp2401267  Pragmatic Trial Operations Playbook (protocol-flavored)
+% =====================================================================
+
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage[round]{natbib}
+
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+
+% Editorial-note macro: word/figure budgets, drafting prompts, TODOs
+\definecolor{notecolor}{RGB}{120,120,120}
+\newcommand{\note}[1]{{\color{notecolor}\textit{[#1]}}}
+\newcommand{\todo}[1]{{\color{red}\textbf{TODO:} #1}}
+
+\title{\textbf{FLAIR: A Federated Benchmark and Baseline Repository for
+ICU Prediction Across 12+ Academic Medical Centers Using the Common
+Longitudinal ICU Format} \\[0.4em]
+\large Manuscript outline --- NEJM AI Datasets, Benchmarks, and Protocols}
+\author{CLIF Consortium \\ FLAIR Working Group}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\note{Working outline. Bulleted content cues sit under every section so
+drafting prose is paint-by-numbers. Hard envelope: 3000 main-text words,
+5 figures+tables combined, 40 references, structured abstract.}
+
+% ---------------------------------------------------------------------
+\section*{Front matter}
+% ---------------------------------------------------------------------
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Title (working):} FLAIR: A Federated Benchmark for ICU
+        Prediction Across 12+ Academic Medical Centers Using the Common
+        Longitudinal ICU Format.
+  \item \textbf{Short title} ($\le$ 50 char): FLAIR: Federated ICU Benchmark.
+  \item \textbf{Authors / affiliations:} \todo{populate; up to 10 authors;
+        flag equal-contribution and co-senior authorship in a title-page
+        footnote. ORCIDs required.}
+  \item \textbf{Corresponding author:} \todo{name, email, institution.}
+  \item \textbf{Funding:} \todo{grant numbers; restated as a "Funded by"
+        line at the end of the abstract.}
+  \item \textbf{Conflicts of interest:} \todo{ICMJE + Convey forms within
+        12 months for every author.}
+  \item \textbf{AI-use disclosure:} \todo{name LLM(s); state which sections
+        or artifacts they helped produce. Restate in cover letter.}
+  \item \textbf{Word / figure / table / reference counts:}
+        Main text \note{$\le$ 3000}; figures+tables \note{$\le$ 5};
+        references \note{$\le$ 40}.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section*{Structured abstract \note{$\approx$ 250 words}}
+% ---------------------------------------------------------------------
+
+\subsubsection*{Background}
+\begin{itemize}[leftmargin=1.5em]
+  \item ICU prediction models trained on public datasets (MIMIC, eICU,
+        HiRID) routinely fail to generalize beyond the institutions that
+        produced their training data.
+  \item Patient-level data cannot be centralized under HIPAA / IRB
+        constraints, so multi-institutional external validation requires
+        a federated evaluation framework.
+  \item No prior ICU benchmark combines a shared data schema, auditable
+        per-task code, aggregate-only outputs, and TRIPOD-AI reporting.
+\end{itemize}
+
+\subsubsection*{Methods}
+\begin{itemize}[leftmargin=1.5em]
+  \item Federated benchmark built atop CLIF v2.1 across N CLIF-consortium
+        sites \note{fill N at submission}.
+  \item Five clinically grounded tasks: T1 ICU daily mortality, T2 ICU
+        daily LTACH discharge, T3 extubation failure $<$24h, T4 sepsis
+        (antibiotic-anchored) $<$6h, T5 AKI KDIGO-2 $<$24h.
+  \item Reference baseline kit: (i) a generic CLIF event tokenizer that
+        maps every clinical event into a token and emits per-window
+        count features, and (ii) two reference models --- L2-penalized
+        logistic regression and XGBoost --- trained on MIMIC-CLIF and
+        shipped inside the CLIF-WorkBench container for federated
+        evaluation. Sites emit four aggregated JSON reports
+        (\texttt{table1}, \texttt{tripod\_ai}, \texttt{fairness},
+        \texttt{curves}).
+\end{itemize}
+
+\subsubsection*{Results}
+\begin{itemize}[leftmargin=1.5em]
+  \item Combined cohort: \todo{n hospitalizations, n ICU stays, n sites
+        across the consortium}. MIMIC-CLIF baseline cohort (development
+        entry point): 84{,}854 ICU stays at the broadest task (T4 sepsis);
+        12{,}438--65{,}577 stays for the four task-specific cohorts
+        (T1/T2 daily disposition, T3 extubation, T5 AKI); per-task
+        positive-rate range 1.7\%--57.4\% at decision-row granularity
+        (see Table~\ref{tab:mimic-snapshot}).
+  \item Per-task AUROC / AUPRC (median, IQR across sites) \todo{fill from
+        federated runs}; calibration drift quantified between MIMIC-CLIF
+        and consortium sites.
+  \item Fairness deltas across sex, race, ethnicity, and age bins; bit-
+        identical SHA-256 hashes across sites confirm protocol fidelity.
+\end{itemize}
+
+\subsubsection*{Conclusions}
+\begin{itemize}[leftmargin=1.5em]
+  \item FLAIR enables external validation of ICU AI models without data
+        sharing. Code, container, and per-task schematics released openly.
+        (Funded by \todo{...}.)
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section{Introduction \note{$\approx$ 600 words}}
+% ---------------------------------------------------------------------
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{P1 --- Clinical stakes.} ICU decisions are real-time and
+        high-consequence; rich EHR signal is available but underused.
+  \item \textbf{P2 --- The saturation problem in public benchmarks.}
+        YAIB~\citep{vandewater2023yaib} and HiRID-ICU-Benchmark
+        \citep{yeche2021hirid} harmonize public datasets (MIMIC, eICU,
+        HiRID, AUMCdb); strong internal performance does not imply
+        external generalization.
+  \item \textbf{P3 --- The privacy barrier.} HIPAA / IRB rules block
+        centralization of PHI; multi-site validation must therefore be
+        federated.
+  \item \textbf{P4 --- Why prior federated ICU efforts fall short.} Most
+        rely on ad-hoc schemas, lack auditable per-task code, and do not
+        emit TRIPOD-AI-aligned reports.
+  \item \textbf{P5 --- FLAIR's contribution.} Five clinically grounded
+        tasks; CLIF v2.1 schema-locked code; single-file polars task
+        scripts stamped with SHA-256; \textbf{a generic event-tokenizer
+        ETL plus two reference baselines (logistic regression, XGBoost)
+        released as the FLAIR baseline kit}; aggregate-only report
+        bundle; baseline + federated results across the CLIF consortium.
+  \item \textbf{Figure 1 callout} \note{counts toward 5-item budget}:
+        \emph{Summary of Contributions} panel modeled on EchoNext-Mini
+        Fig.\ 1 \citep{hughes2026echonextmini} --- one side shows the
+        federated workflow (MIMIC-CLIF $\to$ event tokenizer $\to$
+        count features $\to$ \{logistic regression, XGBoost\} $\to$
+        frozen baseline kit (Singularity) $\to$ consortium sites $\to$
+        aggregate JSONs); the other shows the five-task taxonomy.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section{Methods \note{$\approx$ 1200 words --- heaviest section}}
+% ---------------------------------------------------------------------
+
+\subsection*{Dataset curation}
+\begin{itemize}[leftmargin=1.5em]
+  \item CLIF v2.1 data standard maintained by 12+ US academic medical
+        centers; combined coverage $\sim$2{,}000 ICU beds nationwide.
+  \item MIMIC-CLIF as public development entry point ($\sim$70k ICU stays;
+        PhysioNet); identical schema guarantees code runs unmodified on
+        consortium data.
+  \item Site enrollment and IRB framework: each site IRB-approved
+        independently; central protocol coordination at the University
+        of Chicago \todo{confirm}.
+  \item CLIF tables exposed by \texttt{flair\_benchmark/\_clif.py}:
+        \texttt{hospitalization}, \texttt{adt}, \texttt{patient},
+        \texttt{vitals}, \texttt{labs}, \texttt{respiratory\_support},
+        \texttt{medication\_admin\_intermittent},
+        \texttt{medication\_admin\_continuous}.
+  \item Data-quality gates inherited from \texttt{clifpy} validators;
+        timezone handling per site \texttt{clif\_config.json}.
+\end{itemize}
+
+\subsection*{Task definitions}
+
+\paragraph{Taxonomy.}
+Each task is declared on three axes in its \texttt{META} dict:
+\emph{task class} (outcome / deterioration / intervention),
+\emph{temporal pattern} (episode / continuous), and
+\emph{prediction unit} (one-per-stay / one-per-timestep).
+Full algorithmic specs sit in \texttt{docs/task\_schematics/} and are
+included by reference in the Supplement.
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{T1 --- ICU Daily In-Hospital Mortality (7\,AM).}
+        one-per-timestep, 24\,h lookback, daily 07:00 local anchor.
+        Cohort: first ICU stay; discharge $\in$ \{LTACH, mortality\}.
+        \emph{MIMIC-CLIF:} 12{,}438 stays / 65{,}989 daily rows;
+        per-row positive rate 57.4\%; stays-ever-positive 67.1\%.
+  \item \textbf{T2 --- ICU Daily LTACH Discharge (7\,AM).} Complementary
+        label to T1; same cohort and grid.
+        \emph{MIMIC-CLIF:} same 12{,}438 stays / 65{,}989 rows;
+        per-row positive rate 42.6\%; stays-ever-positive 32.9\%
+        (mortality-vs-LTACH disposition is asymmetric).
+  \item \textbf{T3 --- Extubation Failure within 24\,h.} one-per-stay,
+        anchored at the first confirmed extubation event; consensus-window
+        IMV episode detector in \texttt{\_ventilation\_episodes.py}.
+        Label = death OR reintubation within 24\,h post-extubation.
+        \emph{MIMIC-CLIF:} 26{,}771 extubation episodes;
+        prevalence 5.4\% (1{,}456 / 26{,}771).
+  \item \textbf{T4 --- Sepsis (antibiotic-anchored) within 6\,h.}
+        one-per-timestep, hourly grid; $t_{\text{zero}}$ = first qualifying
+        systemic IV antibiotic; label-leakage gate drops decision points
+        $\ge t_{\text{zero}}$ \citep{kamran2024sepsis}.
+        \emph{MIMIC-CLIF:} 84{,}854 stays / 7{,}093{,}633 hourly rows;
+        per-row positive rate 3.3\%; stays-ever-positive 54.9\%.
+  \item \textbf{T5 --- AKI KDIGO-2 within 24\,h.} one-per-timestep, hourly
+        grid; SCr-only criterion; Koyner-2018 exclusions
+        \citep{koyner2018aki}.
+        \emph{MIMIC-CLIF:} 65{,}577 stays / 4{,}135{,}079 hourly rows;
+        per-row positive rate 1.7\%; stays-ever-positive 4.8\%.
+\end{itemize}
+
+\paragraph{MIMIC-CLIF cohort snapshot.} The numbers below come from
+\texttt{flair extract-metadata --clif-config clif\_config\_mimic.json}
+(\texttt{flair\_benchmark} v2.0.0; HIPAA cell-suppression at $n{<}10$;
+SOFA computed over the first 24\,h of the first ICU stay via
+\texttt{clifpy}; Charlson and Elixhauser computed from
+\texttt{HospitalDiagnosis} where available --- \emph{note: 49--54\% of
+stays are missing comorbidity scores in the MIMIC-CLIF export, a known
+data-quality gap to flag in the Limitations}).
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
+\toprule
+                       & \textbf{T1 mort.} & \textbf{T2 LTACH} & \textbf{T3 ext-fail} & \textbf{T4 sepsis} & \textbf{T5 AKI} \\
+\midrule
+ICU stays              & 12{,}438        & 12{,}438         & 26{,}771           & 84{,}854         & 65{,}577        \\
+Decision rows          & 65{,}989        & 65{,}989         & 26{,}771           & 7{,}093{,}633   & 4{,}135{,}079   \\
+Positive rate (row)    & 57.4\%          & 42.6\%           & 5.4\%              & 3.3\%            & 1.7\%           \\
+Stays ever positive    & 67.1\%          & 32.9\%           & ---                & 54.9\%           & 4.8\%           \\
+\midrule
+Sex: Female / Male     & 5{,}546 / 6{,}892 & 5{,}546 / 6{,}892 & 10{,}033 / 16{,}738 & 37{,}552 / 47{,}302 & 28{,}867 / 36{,}710 \\
+Age 65+ share          & 66.6\%          & 66.6\%           & 54.1\%             & 54.6\%           & 55.1\%          \\
+SOFA 24h (median, IQR) & 5 (2--8)        & 5 (2--8)         & 5 (4--8)           & 3 (1--6)         & 3 (1--5)        \\
+Charlson (median, IQR) & 4 (2--5)        & 4 (2--5)         & 2 (0--4)           & 2 (0--4)         & 2 (0--4)        \\
+\bottomrule
+\end{tabular}
+\caption{MIMIC-CLIF cohort snapshot per task, generated by
+\texttt{flair extract-metadata}. \emph{Decision rows} = one-per-stay for
+T3 (extubation episode), one-per-timestep otherwise (daily at 07:00 for
+T1/T2; hourly for T4/T5). \emph{Age 65+} share is over distinct ICU
+stays. \emph{Stays ever positive} is omitted for T3 because the task is
+one-per-stay (the row-level rate is the stay-level rate).}
+\label{tab:mimic-snapshot}
+\end{table}
+
+\note{This table is a drafting hook for Results---Table~1
+and Methods---Cohort. It is not part of the 5-item NEJM AI
+figure/table budget; the submission Table~1 will mirror this layout
+across consortium sites with site-level median/IQR.}
+
+\paragraph{Splits.} Temporal date-based train/test split; MIMIC fallback
+70/30 when split dates not specified.
+
+\paragraph{Cohort parquet schema.} Ten columns:
+\texttt{hospitalization\_id}, \texttt{window\_start}, \texttt{window\_end},
+\texttt{<label>}, \texttt{split}, \texttt{age\_at\_admission},
+\texttt{sex\_category}, \texttt{race\_category},
+\texttt{ethnicity\_category}, and the task-specific \texttt{label\_*} column.
+
+\subsection*{Federated protocol}
+\begin{itemize}[leftmargin=1.5em]
+  \item Two-layer privacy model: (i) CLIF-WorkBench Singularity container
+        --- no internet, no root, immutable read-only image; (ii)
+        aggregate-only outputs from \texttt{flair build-report}.
+  \item Library-enforced HIPAA safeguards: cell suppression in
+        \texttt{table1.json} for counts $<$10; subgroup drop in
+        \texttt{fairness.json} for subgroups with $n<10$; calibration-bin
+        suppression in \texttt{curves.json}.
+  \item Audit chain: SHA-256 of each task script is stamped into every
+        output JSON; the central aggregator verifies byte-identical task
+        code across sites.
+  \item Submission contract: user appends \texttt{y\_pred}/\texttt{y\_prob}
+        to the cohort parquet; \texttt{flair build-report} emits exactly
+        four JSON files. No patient-level data ever leaves the site.
+        For the FLAIR baseline kit, the container additionally ships
+        the tokenizer and frozen weights; sites invoke
+        \texttt{flair predict-baseline <task>} instead of writing their
+        own feature/model code.
+\end{itemize}
+
+\subsection*{Baseline kit}
+
+\paragraph{Generic event tokenizer.} Each row in a CLIF event table
+(\texttt{vitals}, \texttt{labs},
+\texttt{medication\_admin\_intermittent},
+\texttt{medication\_admin\_continuous}, \texttt{respiratory\_support})
+is mapped to a deterministic token of the form
+\texttt{<table>.<category>} (e.g., \texttt{vitals.heart\_rate},
+\texttt{labs.creatinine}, \texttt{meds.norepinephrine}). For each
+cohort window, FLAIR emits a sparse token $\to$ integer-count vector
+counting events in $[\texttt{window\_start}, \texttt{window\_end}]$.
+The tokenizer is config-free and exhaustive --- every category present
+in the input flows through with no per-task curation. Because tokens
+are derived from CLIF schema-locked category fields, the same code
+runs unchanged on MIMIC-CLIF and consortium sites. Module:
+\texttt{flair\_benchmark/baseline/tokenizer.py}.
+
+\paragraph{Logistic-regression baseline.} Sparse count features $\to$
+L2-penalized logistic regression (\texttt{sklearn}); submitted as
+\texttt{y\_prob} for the binary tasks.
+
+\paragraph{XGBoost baseline.} The same sparse count features $\to$
+XGBoost classifier with default depth and learning rate; submitted as
+\texttt{y\_prob}.
+
+Both models are trained on MIMIC-CLIF (70/30 temporal split via
+\texttt{\_split.py}) for each of T1--T5, serialized into the
+CLIF-WorkBench Singularity container, and shipped to each consortium
+site. Hyperparameters, the token dictionary, and the missingness
+convention (absent token $=$ zero count) are deferred to the Supplement
+(Model Cards + Datasheet).
+
+\subsection*{Reporting and statistical analysis}
+\begin{itemize}[leftmargin=1.5em]
+  \item TRIPOD+AI \citep{collins2024tripodai} compliance via
+        \texttt{flair\_benchmark/report/tripod\_ai.py} auto-population.
+  \item Primary metrics: AUROC, AUPRC; 95\% CIs via 1000-iteration
+        bootstrap.
+  \item Calibration: slope, intercept, Brier score, reliability curves
+        (downsampled raw points in \texttt{curves.json}).
+  \item Fairness: per-subgroup AUROC and parity gaps across sex, race,
+        ethnicity, and age bins.
+  \item Central dashboard renders ROC / PR / calibration curves from the
+        aggregated \texttt{curves.json} without re-accessing patient data.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section{Results \note{$\approx$ 700 words}}
+% ---------------------------------------------------------------------
+
+\subsection*{Cohort}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Table 1.} Combined cohort characteristics across N sites
+        (HIPAA-suppressed cells where applicable), stratified by split
+        and label.
+  \item \textbf{Figure 2 callout:} CONSORT-style flow diagram per task
+        (raw $\to$ cohort filters $\to$ train/test). Mirrors EchoNext-Mini
+        Fig.\ 2 layout.
+  \item Reported counts: total hospitalizations, total ICU stays per task,
+        per-task prevalence, demographic distribution.
+\end{itemize}
+
+\subsection*{Baseline performance on MIMIC-CLIF}
+\begin{itemize}[leftmargin=1.5em]
+  \item Per-task internal test AUROC / AUPRC with 95\% bootstrap CIs,
+        reported separately for each model family (logistic regression,
+        XGBoost).
+  \item Calibration slope / intercept / Brier score per task per model
+        family.
+\end{itemize}
+
+\subsection*{Federated performance across the CLIF consortium}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Table 2.} Per-task site-level summary (median, IQR, range
+        for AUROC / AUPRC across N sites), with a
+        \texttt{model\_family} column so each task carries one row per
+        family per site.
+  \item \textbf{Figure 3.} Forest plot of per-site AUROC by task with
+        two glyphs per task (logistic regression vs XGBoost); vertical
+        reference line at the MIMIC-CLIF internal benchmark for that
+        family.
+  \item Quantify calibration drift between MIMIC-CLIF and held-out
+        consortium sites, separately by model family.
+\end{itemize}
+
+\subsection*{Fairness}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Figure 4.} Heatmap of per-subgroup AUROC (rows = tasks,
+        columns = subgroups) with parity-gap shading. Cells with $n<10$
+        are suppressed.
+\end{itemize}
+
+\subsection*{Reproducibility evidence}
+\begin{itemize}[leftmargin=1.5em]
+  \item Bit-identical SHA-256 task-script hashes recorded in every output
+        JSON across sites; the central aggregator's audit log confirms
+        protocol fidelity.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section{Discussion \note{$\approx$ 400 words}}
+% ---------------------------------------------------------------------
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Generalization.} How much do MIMIC-trained baselines drop
+        when evaluated on held-out consortium sites? Quantify and
+        contextualize.
+  \item \textbf{Positioning vs.\ prior benchmarks.} YAIB
+        \citep{vandewater2023yaib} and HiRID-ICU-Benchmark
+        \citep{yeche2021hirid} harmonize public sources only; FLAIR's
+        differentiator is federation across private data with an audit
+        chain.
+  \item \textbf{Limitations.}
+        \texttt{clifpy} data-quality dependency; T5 CKD-stage exclusion
+        not yet implemented (CLIF \texttt{Diagnoses} table not exposed in
+        FLAIR loaders); T4 antibiotic drug-list curation is an open
+        dependency; baseline tokens are pure counts within the
+        prediction window with no time-of-occurrence, magnitude, or
+        trend features (deliberate floor; richer encodings are left to
+        user submissions); no urine-output criterion for AKI.
+  \item \textbf{Bias and fairness.} Consortium sites self-select; rural
+        and safety-net hospitals are under-represented.
+  \item \textbf{Intended use.} External validation tool for development
+        and method comparison --- \emph{not} a leaderboard endorsing
+        production deployment.
+  \item \textbf{Regulatory framing.} Per FDA CDS guidance and IMDRF SaMD
+        clinical-evaluation guidance (see \texttt{docs/paper/lit/}), the
+        benchmark targets the ``inform clinical management'' use class,
+        not autonomous decision-making.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section{Conclusions \note{$\approx$ 120 words}}
+% ---------------------------------------------------------------------
+\begin{itemize}[leftmargin=1.5em]
+  \item One paragraph. FLAIR delivers a federated, schema-locked,
+        audit-traceable ICU benchmark \textbf{paired with a reusable
+        baseline kit (event tokenizer + logistic regression + XGBoost)
+        that defines the floor of expected performance at every site};
+        release includes code, container, baseline weights, and
+        per-task LaTeX schematics. Community extension via GitHub PRs
+        is invited.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section*{Required statements}
+% ---------------------------------------------------------------------
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Data and Code Availability.} GitHub
+        \texttt{clif-consortium/FLAIR} (Apache 2.0); MIMIC-CLIF on
+        PhysioNet; baseline weights on Zenodo \todo{DOI placeholder};
+        Singularity image tag on GHCR \todo{tag placeholder}.
+  \item \textbf{IRB.} Each consortium site obtained independent IRB
+        approval; central protocol coordination at the University of
+        Chicago \todo{confirm}.
+  \item \textbf{Funding.} \todo{grants}.
+  \item \textbf{Author Contributions.} CRediT taxonomy slots \todo{fill}.
+  \item \textbf{Conflicts of Interest.} \todo{disclosures}.
+  \item \textbf{AI-Use Disclosure.} \todo{which LLM helped where}.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\section*{Supplementary Appendix \note{no NEJM AI hard cap}}
+% ---------------------------------------------------------------------
+\begin{itemize}[leftmargin=1.5em]
+  \item Per-task LaTeX schematics (T1--T5), compiled from
+        \texttt{docs/task\_schematics/}; the sepsis-T4 schematic
+        \citep{kamran2024sepsis} already exists and is the template.
+  \item Datasheet for Datasets (Gebru-style).
+  \item Model Cards (Mitchell-style) for the two baseline models
+        (logistic regression and XGBoost).
+  \item Tokenizer specification --- deterministic
+        \texttt{<table>.<category>} mapping; vocabulary size on
+        MIMIC-CLIF; missingness convention (absent token $=$ zero
+        count); per-token frequency histograms.
+  \item Full TRIPOD+AI checklist.
+  \item Hyperparameter table, feature dictionary, missingness table.
+  \item Per-site Table-1 details (cells with $n \ge 10$).
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

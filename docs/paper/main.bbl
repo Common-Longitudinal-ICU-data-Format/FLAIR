@@ -1,0 +1,337 @@
+\begin{thebibliography}{39}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Adams et~al.(2022)Adams, Henry, Sridharan, Soleimani, Zhan, Rawat,
+  Johnson, Hager, Cosgrove, Markowski, et~al.]{adams2022trews}
+Roy Adams, Katharine~E. Henry, Anirudh Sridharan, Hossein Soleimani, Andong
+  Zhan, Nishi Rawat, Lauren Johnson, David~N. Hager, Sara~E. Cosgrove, Andrew
+  Markowski, et~al.
+\newblock Prospective, multi-site study of patient outcomes after
+  implementation of the {TREWS} machine learning-based early warning system for
+  sepsis.
+\newblock \emph{Nature Medicine}, 28:\penalty0 1455--1460, 2022.
+\newblock \doi{10.1038/s41591-022-01894-0}.
+
+\bibitem[Arnrich et~al.(2025)Arnrich, Hyland, et~al.]{arnrich2025meds}
+Bert Arnrich, Stephanie~L. Hyland, et~al.
+\newblock The medical event data standard ({MEDS}): A common data model for
+  machine learning on electronic health records.
+\newblock \emph{NEJM AI}, 2025.
+\newblock \doi{10.1056/AIra2501253}.
+
+\bibitem[Bergquist et~al.(2024)Bergquist, Schaffter, Yan, Yu, Prosser, Gao,
+  Chen, Charzewski, Nabian, Husain, et~al.]{bergquist2024ehrdream}
+Timothy Bergquist, Thomas Schaffter, Yao Yan, Thomas Yu, Justin Prosser, Jifan
+  Gao, Guanhua Chen, Lukasz Charzewski, Zahra Nabian, Ibtihal Husain, et~al.
+\newblock Crowdsourcing generalizable mortality prediction models in the {EHR
+  DREAM} challenge.
+\newblock \emph{Journal of the American Medical Informatics Association}, 2024.
+\newblock \doi{10.1093/jamia/ocad215}.
+\newblock PMC10746301.
+
+\bibitem[Carter et~al.(2025)]{carter2025mayoecgai}
+Rickey~E. Carter et~al.
+\newblock Multi-site external validation of an artificial-intelligence
+  electrocardiogram algorithm for the detection of reduced left ventricular
+  ejection fraction.
+\newblock \emph{JACC Advances}, 2025.
+\newblock \doi{10.1016/j.jacadv.2025.102537}.
+
+\bibitem[Chekroud et~al.(2024)]{chekroud2024illusory}
+Adam~M. Chekroud et~al.
+\newblock Illusory generalizability of clinical prediction models.
+\newblock \emph{Science}, 2024.
+\newblock \doi{10.1126/science.adg8538}.
+
+\bibitem[Collaborative(2021)]{opensafely2021naturemedicine}
+The~OpenSAFELY Collaborative.
+\newblock {OpenSAFELY}: A platform for analysing electronic health records
+  securely.
+\newblock \emph{Nature Medicine}, 2021.
+\newblock Code-travels-not-data analytic platform for English primary-care
+  EHRs.
+
+\bibitem[Collins et~al.(2024)Collins, Moons, Dhiman, Riley, Beam, Van~Calster,
+  Ghassemi, Liu, Reitsma, van Smeden, et~al.]{collins2024tripodai}
+Gary~S. Collins, Karel G.~M. Moons, Paula Dhiman, Richard~D. Riley, Andrew~L.
+  Beam, Ben Van~Calster, Marzyeh Ghassemi, Xiaoxuan Liu, Johannes~B. Reitsma,
+  Maarten van Smeden, et~al.
+\newblock {TRIPOD+AI} statement: updated guidance for reporting clinical
+  prediction models that use regression or machine learning methods.
+\newblock \emph{BMJ}, 385:\penalty0 e078378, 2024.
+\newblock \doi{10.1136/bmj-2023-078378}.
+
+\bibitem[Finlayson et~al.(2021)Finlayson, Subbaswamy, Singh, Bowers, Kupke,
+  Zittrain, Kohane, and Saria]{finlayson2021clinicianshift}
+Samuel~G. Finlayson, Adarsh Subbaswamy, Karandeep Singh, John Bowers, Annabel
+  Kupke, Jonathan Zittrain, Isaac~S. Kohane, and Suchi Saria.
+\newblock The clinician and dataset shift in artificial intelligence.
+\newblock \emph{New England Journal of Medicine}, 385\penalty0 (3):\penalty0
+  283--286, 2021.
+\newblock \doi{10.1056/NEJMc2104626}.
+
+\bibitem[Gebru et~al.(2021)Gebru, Morgenstern, Vecchione, Vaughan, Wallach,
+  Daum{\'e}~III, and Crawford]{gebru2021datasheets}
+Timnit Gebru, Jamie Morgenstern, Briana Vecchione, Jennifer~Wortman Vaughan,
+  Hanna Wallach, Hal Daum{\'e}~III, and Kate Crawford.
+\newblock Datasheets for datasets.
+\newblock \emph{Communications of the ACM}, 64\penalty0 (12):\penalty0 86--92,
+  2021.
+\newblock \doi{10.1145/3458723}.
+
+\bibitem[Goodman et~al.(2025)]{goodman2025preregistration}
+Steven~N. Goodman et~al.
+\newblock Preregistration of clinical artificial intelligence studies.
+\newblock \emph{NEJM AI}, 2025.
+\newblock \doi{10.1056/AIe2400146}.
+
+\bibitem[Guinney and Saez-Rodriguez(2018)]{guinney2018dream}
+Justin Guinney and Julio Saez-Rodriguez.
+\newblock Alternative models for sharing confidential biomedical data.
+\newblock \emph{Nature Biotechnology}, 36:\penalty0 391--392, 2018.
+\newblock \doi{10.1038/nbt.4128}.
+
+\bibitem[Habib et~al.(2021)Habib, Lin, and Grant]{habib2021jamaeditorial}
+Anand~R. Habib, Anthony~L. Lin, and Richard~W. Grant.
+\newblock The epic sepsis model falls short --- the importance of external
+  validation.
+\newblock \emph{JAMA Internal Medicine}, 181\penalty0 (8):\penalty0 1040--1041,
+  2021.
+\newblock \doi{10.1001/jamainternmed.2021.3333}.
+
+\bibitem[{HL7 International}(2024)]{mcode2024hl7}
+{HL7 International}.
+\newblock {mCODE}: Minimal common oncology data elements --- {HL7}
+  implementation guide.
+\newblock HL7 FHIR Implementation Guide STU4, 2024.
+
+\bibitem[{International Medical Device Regulators Forum}(2017)]{imdrf2017samd}
+{International Medical Device Regulators Forum}.
+\newblock Software as a medical device (samd): Clinical evaluation.
+\newblock IMDRF/SaMD WG/N41 FINAL:2017, 2017.
+
+\bibitem[Johnson et~al.(2016)Johnson, Pollard, Shen, Lehman, Feng, Ghassemi,
+  Moody, Szolovits, Celi, and Mark]{johnson2016mimiciii}
+Alistair E.~W. Johnson, Tom~J. Pollard, Lu~Shen, Li-wei~H. Lehman, Mengling
+  Feng, Mohammad Ghassemi, Benjamin Moody, Peter Szolovits, Leo~Anthony Celi,
+  and Roger~G. Mark.
+\newblock {MIMIC-III}, a freely accessible critical care database.
+\newblock \emph{Scientific Data}, 3:\penalty0 160035, 2016.
+\newblock \doi{10.1038/sdata.2016.35}.
+
+\bibitem[Johnson et~al.(2023)Johnson, Bulgarelli, Shen, Gayles, Shammout,
+  Horng, Pollard, Hao, Moody, Gow, et~al.]{johnson2023mimiciv}
+Alistair E.~W. Johnson, Lucas Bulgarelli, Leo Shen, Alvin Gayles, Ayad
+  Shammout, Steven Horng, Tom~J. Pollard, Sicheng Hao, Benjamin Moody, Brian
+  Gow, et~al.
+\newblock {MIMIC-IV}, a freely accessible electronic health record dataset.
+\newblock \emph{Scientific Data}, 10:\penalty0 1, 2023.
+\newblock \doi{10.1038/s41597-022-01899-x}.
+
+\bibitem[Joshi et~al.(2025)]{joshi2025silenttrials}
+Shalmali Joshi et~al.
+\newblock Silent trials of clinical artificial intelligence: A scoping review.
+\newblock \emph{Nature Health}, 2025.
+\newblock \doi{10.1038/s44360-025-00048-z}.
+
+\bibitem[Kamran et~al.(2024)Kamran, Tjandra, Heiler, Virzi, Singh, King,
+  Valley, and Wiens]{kamran2024sepsis}
+Fahad Kamran, Donna Tjandra, Andrew Heiler, Jessica Virzi, Karandeep Singh,
+  Jessie~E. King, Thomas~S. Valley, and Jenna Wiens.
+\newblock Evaluation of sepsis prediction models before onset of treatment.
+\newblock \emph{NEJM AI}, 1\penalty0 (3), 2024.
+\newblock \doi{10.1056/AIoa2300032}.
+
+\bibitem[Karargyris et~al.(2023)Karargyris, Umeton, Sheller, Aristizabal,
+  George, Wuest, Pati, Kassem, Zenk, Baid, et~al.]{karargyris2023medperf}
+Alexandros Karargyris, Renato Umeton, Micah~J. Sheller, Alejandro Aristizabal,
+  Johnu George, Anna Wuest, Sarthak Pati, Hasan Kassem, Maximilian Zenk, Ujjwal
+  Baid, et~al.
+\newblock {MedPerf}: Open benchmarking platform for medical artificial
+  intelligence using federated evaluation.
+\newblock \emph{Nature Machine Intelligence}, 5:\penalty0 799--810, 2023.
+\newblock \doi{10.1038/s42256-023-00652-2}.
+
+\bibitem[Koch et~al.(2024)]{koch2024distributionshift}
+Bryan Koch et~al.
+\newblock A generalizable approach for distribution shift monitoring in
+  clinical machine learning models.
+\newblock \emph{npj Digital Medicine}, 2024.
+\newblock PMC11082139.
+
+\bibitem[Koyner et~al.(2018)Koyner, Carey, Edelson, and Churpek]{koyner2018aki}
+Jay~L. Koyner, Kyle~A. Carey, Dana~P. Edelson, and Matthew~M. Churpek.
+\newblock The development of a machine learning inpatient acute kidney injury
+  prediction model.
+\newblock \emph{Critical Care Medicine}, 46\penalty0 (7):\penalty0 1070--1077,
+  2018.
+\newblock \doi{10.1097/CCM.0000000000003123}.
+
+\bibitem[Mitchell et~al.(2019)Mitchell, Wu, Zaldivar, Barnes, Vasserman,
+  Hutchinson, Spitzer, Raji, and Gebru]{mitchell2019modelcards}
+Margaret Mitchell, Simone Wu, Andrew Zaldivar, Parker Barnes, Lucy Vasserman,
+  Ben Hutchinson, Elena Spitzer, Inioluwa~Deborah Raji, and Timnit Gebru.
+\newblock Model cards for model reporting.
+\newblock In \emph{Proceedings of the Conference on Fairness, Accountability,
+  and Transparency}, pages 220--229, 2019.
+\newblock \doi{10.1145/3287560.3287596}.
+
+\bibitem[{NEJM AI Pragmatic Trial Authors}(2024)]{pragmaticplaybook2024}
+{NEJM AI Pragmatic Trial Authors}.
+\newblock A novel playbook for pragmatic trial operations to monitor and
+  evaluate ambient artificial intelligence in clinical practice.
+\newblock \emph{NEJM AI}, 2024.
+\newblock \doi{10.1056/AIdbp2401267}.
+\newblock Manuscript ID AIdbp2401267.
+
+\bibitem[Pati et~al.(2022)Pati, Baid, Edwards, Sheller, Wang, Reina, Foley,
+  Gruzdev, Karkada, Davatzikos, et~al.]{pati2022fets}
+Sarthak Pati, Ujjwal Baid, Brandon Edwards, Micah Sheller, Shih-Han Wang,
+  G.~Anthony Reina, Patrick Foley, Alexey Gruzdev, Deepthi Karkada, Christos
+  Davatzikos, et~al.
+\newblock Federated learning enables big data for rare cancer boundary
+  detection.
+\newblock \emph{Nature Communications}, 13:\penalty0 7346, 2022.
+\newblock \doi{10.1038/s41467-022-33407-5}.
+
+\bibitem[Recht et~al.(2019)Recht, Roelofs, Schmidt, and
+  Shankar]{recht2019imagenet}
+Benjamin Recht, Rebecca Roelofs, Ludwig Schmidt, and Vaishaal Shankar.
+\newblock Do {ImageNet} classifiers generalize to {ImageNet}?
+\newblock In \emph{Proceedings of the 36th International Conference on Machine
+  Learning ({ICML})}, pages 5389--5400, 2019.
+
+\bibitem[Reps et~al.(2020)Reps, Williams, You, Falconer, Minty, Callahan, Ryan,
+  Park, Lim, and Rijnbeek]{reps2020ohdsistroke}
+Jenna~M. Reps, Ross~D. Williams, Seng~Chan You, Thomas Falconer, Evan Minty,
+  Alison Callahan, Patrick~B. Ryan, Rae~Woong Park, Hong-Seok Lim, and Peter
+  Rijnbeek.
+\newblock Feasibility and evaluation of a large-scale external validation
+  approach for patient-level prediction in an international data network:
+  Validation of models predicting stroke in female patients newly diagnosed
+  with atrial fibrillation.
+\newblock \emph{BMC Medical Research Methodology}, 20:\penalty0 102, 2020.
+\newblock \doi{10.1186/s12874-020-00991-3}.
+
+\bibitem[Rhee et~al.(2019)Rhee, Zhang, Kadri, Murphy, Martin, Overton, Seymour,
+  Angus, Dantes, Epstein, et~al.]{rhee2019sepsis}
+Chanu Rhee, Zilu Zhang, Sameer~S. Kadri, David~J. Murphy, Greg~S. Martin,
+  Elizabeth Overton, Christopher~W. Seymour, Derek~C. Angus, Raymund Dantes,
+  Lauren Epstein, et~al.
+\newblock Sepsis surveillance using adult sepsis events simplified {eSOFA}
+  criteria versus {Sepsis-3} sequential organ failure assessment criteria.
+\newblock \emph{Critical Care Medicine}, 47\penalty0 (3):\penalty0 307--314,
+  2019.
+\newblock \doi{10.1097/CCM.0000000000003521}.
+
+\bibitem[Rojas et~al.(2025)Rojas, Lyons, et~al.]{rojas2025clif}
+Juan~C. Rojas, Patrick~G. Lyons, et~al.
+\newblock The {Common Longitudinal ICU Data Format (CLIF)}: A standardized
+  critical care data schema for multi-center research.
+\newblock \emph{Intensive Care Medicine}, 2025.
+\newblock medRxiv 2024.09.04.24313058; consortium spans 9 systems, 39
+  hospitals, $\sim$111{,}000 admissions at founding.
+
+\bibitem[R{\"o}{\"o}sli et~al.(2022)R{\"o}{\"o}sli, Bozkurt, and
+  Hernandez-Boussard]{roosli2022mimicfairness}
+Eliane R{\"o}{\"o}sli, Selen Bozkurt, and Tina Hernandez-Boussard.
+\newblock Bias at warp speed: How {AI} may contribute to the disparities gap in
+  the time of {COVID-19}.
+\newblock \emph{Scientific Data}, 2022.
+\newblock \doi{10.1038/s41597-021-01110-7}.
+
+\bibitem[Sendak et~al.(2025)Sendak, Bedoya,
+  et~al.]{sendak2025sepsiswatchportability}
+Mark~P. Sendak, Armando~D. Bedoya, et~al.
+\newblock Portability of a sepsis risk stratification model across health
+  systems.
+\newblock \emph{npj Digital Medicine}, 2025.
+\newblock Sepsis Watch external evaluation at Summa Health.
+
+\bibitem[Seymour et~al.(2016)Seymour, Liu, Iwashyna, Brunkhorst, Rea, Scherag,
+  Rubenfeld, Kahn, Shankar-Hari, Singer, et~al.]{seymour2016assessment}
+Christopher~W. Seymour, Vincent~X. Liu, Theodore~J. Iwashyna, Frank~M.
+  Brunkhorst, Thomas~D. Rea, Andre Scherag, Gordon Rubenfeld, Jeremy~M. Kahn,
+  Manu Shankar-Hari, Mervyn Singer, et~al.
+\newblock Assessment of clinical criteria for sepsis: For the third
+  international consensus definitions for sepsis and septic shock (sepsis-3).
+\newblock \emph{JAMA}, 315\penalty0 (8):\penalty0 762--774, 2016.
+\newblock \doi{10.1001/jama.2016.0288}.
+
+\bibitem[Singer et~al.(2016)Singer, Deutschman, Seymour, Shankar-Hari, Annane,
+  Bauer, Bellomo, Bernard, Chiche, Coopersmith, et~al.]{singer2016sepsis3}
+Mervyn Singer, Clifford~S. Deutschman, Christopher~W. Seymour, Manu
+  Shankar-Hari, Djillali Annane, Michael Bauer, Rinaldo Bellomo, Gordon~R.
+  Bernard, Jean-Daniel Chiche, Craig~M. Coopersmith, et~al.
+\newblock The third international consensus definitions for sepsis and septic
+  shock (sepsis-3).
+\newblock \emph{JAMA}, 315\penalty0 (8):\penalty0 801--810, 2016.
+\newblock \doi{10.1001/jama.2016.0287}.
+
+\bibitem[Soin et~al.(2025)]{soin2025shiftremediation}
+Arjun Soin et~al.
+\newblock Multi-hospital evaluation of strategies to mitigate performance
+  degradation of a clinical prediction model under data shift.
+\newblock \emph{JAMA Network Open}, 2025.
+\newblock PMC12138723.
+
+\bibitem[Thille et~al.(2011)Thille, Harrois, Schortgen, Brun-Buisson, and
+  Brochard]{thille2011extubation}
+Arnaud~W. Thille, Anatole Harrois, Fr{\'e}d{\'e}rique Schortgen, Christian
+  Brun-Buisson, and Laurent Brochard.
+\newblock Outcomes of extubation failure in medical intensive care unit
+  patients.
+\newblock \emph{American Journal of Respiratory and Critical Care Medicine},
+  183\penalty0 (12):\penalty0 1727--1733, 2011.
+\newblock \doi{10.1164/rccm.201010-1715OC}.
+
+\bibitem[Toma{\v{s}}ev et~al.(2019)Toma{\v{s}}ev, Glorot, Rae, Zielinski,
+  Askham, Saraiva, Mottram, Meyer, Ravuri, Protsyuk, et~al.]{tomasev2019aki}
+Nenad Toma{\v{s}}ev, Xavier Glorot, Jack~W. Rae, Michal Zielinski, Harry
+  Askham, Andre Saraiva, Anne Mottram, Clemens Meyer, Suman Ravuri, Ivan
+  Protsyuk, et~al.
+\newblock A clinically applicable approach to continuous prediction of future
+  acute kidney injury.
+\newblock \emph{Nature}, 572:\penalty0 116--119, 2019.
+\newblock \doi{10.1038/s41586-019-1390-1}.
+
+\bibitem[{U.S. Food and Drug Administration}(2022)]{fda2022cds}
+{U.S. Food and Drug Administration}.
+\newblock Clinical decision support software --- guidance for industry and food
+  and drug administration staff.
+\newblock FDA Guidance Document, 2022.
+
+\bibitem[van~de Water et~al.(2023)van~de Water, Schmidt, Elbers, Thoral,
+  Arnrich, and Rockenschaub]{vandewater2023yaib}
+Robin van~de Water, Hendrik Nils~Aurel Schmidt, Paul Elbers, Patrick Thoral,
+  Bert Arnrich, and Patrick Rockenschaub.
+\newblock Yet another {ICU} benchmark: A flexible multi-center framework for
+  clinical {ML}.
+\newblock \emph{arXiv preprint arXiv:2306.05109}, 2023.
+\newblock \doi{10.48550/arXiv.2306.05109}.
+
+\bibitem[Wong et~al.(2021)Wong, Otles, Donnelly, Krumm, McCullough,
+  DeTroyer-Cooley, Pestrue, Phillips, Konye, Penoza, et~al.]{wong2021external}
+Andrew Wong, Erkin Otles, John~P. Donnelly, Andrew Krumm, Jeffrey McCullough,
+  Olivia DeTroyer-Cooley, Justin Pestrue, Marie Phillips, Judy Konye, Carleen
+  Penoza, et~al.
+\newblock External validation of a widely implemented proprietary sepsis
+  prediction model in hospitalized patients.
+\newblock \emph{JAMA Internal Medicine}, 181\penalty0 (8):\penalty0 1065--1070,
+  2021.
+\newblock \doi{10.1001/jamainternmed.2021.2626}.
+
+\bibitem[Y{\`e}che et~al.(2021)Y{\`e}che, Kuznetsova, Zimmermann, H{\"u}ser,
+  Lyu, Faltys, and R{\"a}tsch]{yeche2021hirid}
+Hugo Y{\`e}che, Rita Kuznetsova, Marc Zimmermann, Matthias H{\"u}ser, Xinrui
+  Lyu, Martin Faltys, and Gunnar R{\"a}tsch.
+\newblock {HiRID-ICU-Benchmark} --- a comprehensive machine learning benchmark
+  on high-resolution {ICU} data.
+\newblock In \emph{Proceedings of the Neural Information Processing Systems
+  Track on Datasets and Benchmarks}, 2021.
+
+\end{thebibliography}

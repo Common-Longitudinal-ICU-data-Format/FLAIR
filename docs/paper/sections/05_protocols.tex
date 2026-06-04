@@ -1,0 +1,109 @@
+% ~600 words. Submission, execution, aggregation. Comparator table.
+\section{Protocols}
+\label{sec:protocols}
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/figure1_flair_workflow}
+  \caption{\textbf{The FLAIR privacy boundary.} The federation's central
+  contract is visible at a glance: patient-level data never crosses the
+  boundary band, and exactly two things do. \emph{Code crosses rightward}:
+  a developer trains against MIMIC-CLIF using the FLAIR CLI and ships a
+  containerised model whose task script is SHA-256-stamped, so
+  byte-identical execution at every site is verifiable. \emph{Aggregate
+  JSONs cross leftward}: each of the 12+ CLIF silos runs the container
+  inside CLIF-WorkBench (no internet, no root, immutable image) and emits
+  only four reports (\texttt{table1.json}, \texttt{tripod\_ai.json},
+  \texttt{fairness.json}, \texttt{curves.json}) with cell suppression at
+  $n<10$. The FLAIR aggregator verifies the SHA-256 chain across sites
+  and publishes per-site and pooled metrics on the public leaderboard;
+  the per-site forest plot --- not the pooled scalar --- is the headline
+  signal.}
+  \label{fig:workflow}
+\end{figure*}
+
+The federated protocol is what makes FLAIR's privacy properties
+operational. We describe it in three steps --- developer-side
+submission, site-side execution, and central aggregation --- and then
+position the protocol against the closest precedents.
+
+\subsection*{Submission}
+
+A clinical decision support developer using FLAIR works entirely
+against MIMIC-CLIF during development. The library exposes CLIF tables
+through \texttt{clifpy}, the canonical CLIF Python interface, and
+ships a single CLI: \texttt{flair load-task} builds a task-specific
+cohort parquet; the developer engineers features and trains a model
+on the cohort and the wide CLIF feature set; \texttt{flair build-report}
+emits the four aggregate JSONs. Submission to the consortium consists
+of code, a frozen model artifact, and a container image specification
+(Docker or Singularity) that wraps both. The model-to-data paradigm
+itself is not new --- it was introduced by the DREAM Challenges
+\citep{guinney2018dream} and demonstrated for EHR-based mortality
+prediction at scale in the EHR DREAM Challenge
+\citep{bergquist2024ehrdream}. FLAIR's contribution is to move it from
+a one-time competition format into a standing benchmark and submission
+service.
+
+\subsection*{Execution}
+
+Each consortium site runs submitted containers inside the CLIF-WorkBench
+environment: a Singularity container with no internet access, no root,
+and an immutable read-only image. The submitted code is permitted to
+read the site's CLIF tables, write a predictions parquet (cohort plus
+\texttt{y\_true}, \texttt{y\_pred}, \texttt{y\_prob}), and invoke
+\texttt{flair build-report}, which produces exactly four JSON files:
+\texttt{table1.json}, \texttt{tripod\_ai.json}, \texttt{fairness.json},
+\texttt{curves.json}. Every JSON carries the SHA-256 digest of the
+task script that produced it, the FLAIR library version, and the
+generation timestamp. Sites retain final approval over which models
+execute; the simplicity of the per-task module --- one Python file
+expressing cohort, label, and exclusions in a few hundred lines ---
+makes that pre-execution audit tractable.
+
+\subsection*{Aggregation, leaderboard, and lifecycle}
+
+The central aggregator verifies that the SHA-256 stamp matches across
+sites for a given task version, merges aggregate JSONs, and publishes
+per-site and pooled metrics. Per-site variance is the primary signal of
+generalization; pooled metrics are reported but de-emphasized. The
+leaderboard records both retrospective benchmark performance and, for
+tasks where sites have opted in, prospective silent-trial evaluation
+under emerging guidance for clinical AI preregistration
+\citep{goodman2025preregistration,joshi2025silenttrials}. Recent work
+on operational templates for monitoring AI in routine clinical practice
+\citep{pragmaticplaybook2024} informs the prospective arm.
+
+\paragraph{Comparison with adjacent federated infrastructures.}
+The closest precedent for federated multi-site evaluation in healthcare
+is the OHDSI network, whose LEGEND framework standardized network
+studies on the OMOP common data model \citep{reps2020ohdsistroke};
+LEGEND federates SQL queries and coefficient sharing for logistic
+models. MedPerf \citep{karargyris2023medperf} demonstrates federated
+benchmarking for medical imaging models packaged as containers; the
+FeTS Challenge \citep{pati2022fets} established federated training,
+rather than validation, as a viable mode for imaging. OpenSAFELY
+\citep{opensafely2021naturemedicine} delivers a code-travels-not-data
+analytic platform for national-scale primary-care data. FLAIR
+contributes the missing combination for critical-care EHR-based CDS:
+modern longitudinal model classes, a clinically scoped data
+schema (CLIF) shared across sites, and a community-extensible task
+catalog under open governance. The five-attribute comparison is in
+Table~\ref{tab:comparators}.
+
+\begin{table}[t]
+\centering
+\caption{FLAIR alongside adjacent federated infrastructures.}
+\label{tab:comparators}
+\begin{tabularx}{\linewidth}{lXXXXX}
+\toprule
+ & OHDSI/LEGEND & MedPerf & FeTS & OpenSAFELY & \textbf{FLAIR} \\
+\midrule
+Data model       & OMOP         & task-specific & imaging (brain MRI) & TPP / EMIS       & CLIF \\
+Federation unit  & SQL / coefficients & container & training gradients & analytic code & container \\
+Modern DL CDS    & no           & yes (imaging) & yes (training only)   & limited        & yes (longitudinal EHR) \\
+PR-extensible tasks & no        & partial       & no                    & n/a             & yes \\
+Sites (current)  & many         & \est{$\sim$10s} & 71                  & English NHS    & 12+ \\
+\bottomrule
+\end{tabularx}
+\end{table}
