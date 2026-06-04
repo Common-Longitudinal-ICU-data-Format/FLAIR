@@ -1,0 +1,780 @@
+{
+  "site": "mimic",
+  "flair_version": "2.0.0",
+  "generated_at": "2026-05-29T19:10:33.117491+00:00",
+  "min_cell_n": 10,
+  "reference_window": "first 24h of first ICU stay (SOFA max-in-window)",
+  "task": {
+    "name": "task2_icu_daily_ltach",
+    "task_class": "outcome",
+    "temporal_pattern": "continuous",
+    "prediction_unit": "one-per-timestep",
+    "task_type": "binary",
+    "label_column": "label_ltach",
+    "task_script_sha256": "2dc361d6b1b1148d013858fe2f0993fb01f4fffda3a087696404fc296078c4eb"
+  },
+  "n_rows": 65989,
+  "n_stays": 12438,
+  "label": {
+    "type": "binary",
+    "positive_rows": 28099,
+    "negative_rows": 37890,
+    "positive_rate_per_row": 0.4258,
+    "stays_ever_positive": 4091,
+    "stays_ever_positive_rate": 0.3289
+  },
+  "demographics": {
+    "sex_category": {
+      "Female": 5546,
+      "Male": 6892
+    },
+    "race_category": {
+      "American Indian or Alaska Native": 33,
+      "Asian": 369,
+      "Black or African American": 1292,
+      "Native Hawaiian or Other Pacific Islander": 14,
+      "Other": 726,
+      "Unknown": 1828,
+      "White": 8176
+    },
+    "ethnicity_category": {
+      "Hispanic": 389,
+      "Non-Hispanic": 9884,
+      "Unknown": 2165
+    },
+    "age_band": {
+      "18-39": 506,
+      "40-64": 3649,
+      "65-79": 4696,
+      "80+": 3587
+    }
+  },
+  "label_by_subgroup": {
+    "sex_category": {
+      "Female": {
+        "n": 5546,
+        "positive": 1768,
+        "prevalence": 0.3188
+      },
+      "Male": {
+        "n": 6892,
+        "positive": 2323,
+        "prevalence": 0.3371
+      }
+    },
+    "race_category": {
+      "Unknown": {
+        "n": 1828,
+        "positive": 345,
+        "prevalence": 0.1887
+      },
+      "Asian": {
+        "n": 369,
+        "positive": 103,
+        "prevalence": 0.2791
+      },
+      "Native Hawaiian or Other Pacific Islander": {
+        "n": 14,
+        "positive": 3,
+        "prevalence": 0.2143
+      },
+      "White": {
+        "n": 8176,
+        "positive": 2859,
+        "prevalence": 0.3497
+      },
+      "Other": {
+        "n": 726,
+        "positive": 244,
+        "prevalence": 0.3361
+      },
+      "American Indian or Alaska Native": {
+        "n": 33,
+        "positive": 18,
+        "prevalence": 0.5455
+      },
+      "Black or African American": {
+        "n": 1292,
+        "positive": 519,
+        "prevalence": 0.4017
+      }
+    },
+    "ethnicity_category": {
+      "Hispanic": {
+        "n": 389,
+        "positive": 135,
+        "prevalence": 0.347
+      },
+      "Non-Hispanic": {
+        "n": 9884,
+        "positive": 3502,
+        "prevalence": 0.3543
+      },
+      "Unknown": {
+        "n": 2165,
+        "positive": 454,
+        "prevalence": 0.2097
+      }
+    },
+    "age_band": {
+      "80+": {
+        "n": 3587,
+        "positive": 890,
+        "prevalence": 0.2481
+      },
+      "18-39": {
+        "n": 506,
+        "positive": 209,
+        "prevalence": 0.413
+      },
+      "40-64": {
+        "n": 3649,
+        "positive": 1352,
+        "prevalence": 0.3705
+      },
+      "65-79": {
+        "n": 4696,
+        "positive": 1640,
+        "prevalence": 0.3492
+      }
+    }
+  },
+  "yearly": {
+    "2110": {
+      "rows": 410,
+      "stays": 81,
+      "positive_rows": 156,
+      "stays_ever_positive": 27
+    },
+    "2111": {
+      "rows": 460,
+      "stays": 103,
+      "positive_rows": 217,
+      "stays_ever_positive": 37
+    },
+    "2112": {
+      "rows": 505,
+      "stays": 107,
+      "positive_rows": 195,
+      "stays_ever_positive": 37
+    },
+    "2113": {
+      "rows": 690,
+      "stays": 119,
+      "positive_rows": 290,
+      "stays_ever_positive": 41
+    },
+    "2114": {
+      "rows": 590,
+      "stays": 122,
+      "positive_rows": 262,
+      "stays_ever_positive": 48
+    },
+    "2115": {
+      "rows": 562,
+      "stays": 120,
+      "positive_rows": 249,
+      "stays_ever_positive": 39
+    },
+    "2116": {
+      "rows": 643,
+      "stays": 121,
+      "positive_rows": 252,
+      "stays_ever_positive": 36
+    },
+    "2117": {
+      "rows": 526,
+      "stays": 113,
+      "positive_rows": 199,
+      "stays_ever_positive": 30
+    },
+    "2118": {
+      "rows": 575,
+      "stays": 126,
+      "positive_rows": 227,
+      "stays_ever_positive": 39
+    },
+    "2119": {
+      "rows": 608,
+      "stays": 134,
+      "positive_rows": 240,
+      "stays_ever_positive": 34
+    },
+    "2120": {
+      "rows": 732,
+      "stays": 110,
+      "positive_rows": 283,
+      "stays_ever_positive": 36
+    },
+    "2121": {
+      "rows": 661,
+      "stays": 124,
+      "positive_rows": 326,
+      "stays_ever_positive": 43
+    },
+    "2122": {
+      "rows": 786,
+      "stays": 144,
+      "positive_rows": 374,
+      "stays_ever_positive": 43
+    },
+    "2123": {
+      "rows": 731,
+      "stays": 130,
+      "positive_rows": 329,
+      "stays_ever_positive": 47
+    },
+    "2124": {
+      "rows": 625,
+      "stays": 130,
+      "positive_rows": 279,
+      "stays_ever_positive": 51
+    },
+    "2125": {
+      "rows": 935,
+      "stays": 152,
+      "positive_rows": 363,
+      "stays_ever_positive": 57
+    },
+    "2126": {
+      "rows": 809,
+      "stays": 150,
+      "positive_rows": 349,
+      "stays_ever_positive": 47
+    },
+    "2127": {
+      "rows": 717,
+      "stays": 144,
+      "positive_rows": 360,
+      "stays_ever_positive": 46
+    },
+    "2128": {
+      "rows": 866,
+      "stays": 151,
+      "positive_rows": 423,
+      "stays_ever_positive": 52
+    },
+    "2129": {
+      "rows": 712,
+      "stays": 144,
+      "positive_rows": 209,
+      "stays_ever_positive": 37
+    },
+    "2130": {
+      "rows": 996,
+      "stays": 172,
+      "positive_rows": 445,
+      "stays_ever_positive": 53
+    },
+    "2131": {
+      "rows": 782,
+      "stays": 152,
+      "positive_rows": 261,
+      "stays_ever_positive": 38
+    },
+    "2132": {
+      "rows": 750,
+      "stays": 143,
+      "positive_rows": 262,
+      "stays_ever_positive": 48
+    },
+    "2133": {
+      "rows": 832,
+      "stays": 161,
+      "positive_rows": 354,
+      "stays_ever_positive": 53
+    },
+    "2134": {
+      "rows": 737,
+      "stays": 151,
+      "positive_rows": 246,
+      "stays_ever_positive": 51
+    },
+    "2135": {
+      "rows": 1001,
+      "stays": 171,
+      "positive_rows": 385,
+      "stays_ever_positive": 50
+    },
+    "2136": {
+      "rows": 881,
+      "stays": 150,
+      "positive_rows": 384,
+      "stays_ever_positive": 49
+    },
+    "2137": {
+      "rows": 854,
+      "stays": 146,
+      "positive_rows": 416,
+      "stays_ever_positive": 51
+    },
+    "2138": {
+      "rows": 766,
+      "stays": 158,
+      "positive_rows": 348,
+      "stays_ever_positive": 60
+    },
+    "2139": {
+      "rows": 836,
+      "stays": 174,
+      "positive_rows": 379,
+      "stays_ever_positive": 63
+    },
+    "2140": {
+      "rows": 882,
+      "stays": 162,
+      "positive_rows": 427,
+      "stays_ever_positive": 62
+    },
+    "2141": {
+      "rows": 900,
+      "stays": 153,
+      "positive_rows": 385,
+      "stays_ever_positive": 54
+    },
+    "2142": {
+      "rows": 800,
+      "stays": 137,
+      "positive_rows": 315,
+      "stays_ever_positive": 42
+    },
+    "2143": {
+      "rows": 1026,
+      "stays": 160,
+      "positive_rows": 600,
+      "stays_ever_positive": 68
+    },
+    "2144": {
+      "rows": 775,
+      "stays": 154,
+      "positive_rows": 368,
+      "stays_ever_positive": 51
+    },
+    "2145": {
+      "rows": 591,
+      "stays": 140,
+      "positive_rows": 276,
+      "stays_ever_positive": 52
+    },
+    "2146": {
+      "rows": 836,
+      "stays": 153,
+      "positive_rows": 394,
+      "stays_ever_positive": 57
+    },
+    "2147": {
+      "rows": 977,
+      "stays": 176,
+      "positive_rows": 480,
+      "stays_ever_positive": 58
+    },
+    "2148": {
+      "rows": 778,
+      "stays": 142,
+      "positive_rows": 335,
+      "stays_ever_positive": 48
+    },
+    "2149": {
+      "rows": 968,
+      "stays": 178,
+      "positive_rows": 466,
+      "stays_ever_positive": 58
+    },
+    "2150": {
+      "rows": 912,
+      "stays": 158,
+      "positive_rows": 388,
+      "stays_ever_positive": 54
+    },
+    "2151": {
+      "rows": 774,
+      "stays": 141,
+      "positive_rows": 300,
+      "stays_ever_positive": 37
+    },
+    "2152": {
+      "rows": 736,
+      "stays": 150,
+      "positive_rows": 338,
+      "stays_ever_positive": 46
+    },
+    "2153": {
+      "rows": 823,
+      "stays": 157,
+      "positive_rows": 404,
+      "stays_ever_positive": 57
+    },
+    "2154": {
+      "rows": 903,
+      "stays": 160,
+      "positive_rows": 489,
+      "stays_ever_positive": 56
+    },
+    "2155": {
+      "rows": 798,
+      "stays": 154,
+      "positive_rows": 300,
+      "stays_ever_positive": 52
+    },
+    "2156": {
+      "rows": 851,
+      "stays": 164,
+      "positive_rows": 384,
+      "stays_ever_positive": 56
+    },
+    "2157": {
+      "rows": 775,
+      "stays": 147,
+      "positive_rows": 330,
+      "stays_ever_positive": 46
+    },
+    "2158": {
+      "rows": 735,
+      "stays": 153,
+      "positive_rows": 320,
+      "stays_ever_positive": 50
+    },
+    "2159": {
+      "rows": 838,
+      "stays": 145,
+      "positive_rows": 385,
+      "stays_ever_positive": 45
+    },
+    "2160": {
+      "rows": 1053,
+      "stays": 173,
+      "positive_rows": 444,
+      "stays_ever_positive": 58
+    },
+    "2161": {
+      "rows": 875,
+      "stays": 164,
+      "positive_rows": 416,
+      "stays_ever_positive": 57
+    },
+    "2162": {
+      "rows": 783,
+      "stays": 151,
+      "positive_rows": 367,
+      "stays_ever_positive": 57
+    },
+    "2163": {
+      "rows": 1097,
+      "stays": 184,
+      "positive_rows": 446,
+      "stays_ever_positive": 62
+    },
+    "2164": {
+      "rows": 760,
+      "stays": 152,
+      "positive_rows": 261,
+      "stays_ever_positive": 40
+    },
+    "2165": {
+      "rows": 756,
+      "stays": 141,
+      "positive_rows": 346,
+      "stays_ever_positive": 43
+    },
+    "2166": {
+      "rows": 766,
+      "stays": 156,
+      "positive_rows": 297,
+      "stays_ever_positive": 51
+    },
+    "2167": {
+      "rows": 784,
+      "stays": 174,
+      "positive_rows": 228,
+      "stays_ever_positive": 51
+    },
+    "2168": {
+      "rows": 765,
+      "stays": 146,
+      "positive_rows": 196,
+      "stays_ever_positive": 42
+    },
+    "2169": {
+      "rows": 584,
+      "stays": 135,
+      "positive_rows": 254,
+      "stays_ever_positive": 47
+    },
+    "2170": {
+      "rows": 680,
+      "stays": 143,
+      "positive_rows": 212,
+      "stays_ever_positive": 36
+    },
+    "2171": {
+      "rows": 634,
+      "stays": 144,
+      "positive_rows": 345,
+      "stays_ever_positive": 52
+    },
+    "2172": {
+      "rows": 825,
+      "stays": 145,
+      "positive_rows": 236,
+      "stays_ever_positive": 45
+    },
+    "2173": {
+      "rows": 621,
+      "stays": 131,
+      "positive_rows": 189,
+      "stays_ever_positive": 33
+    },
+    "2174": {
+      "rows": 870,
+      "stays": 159,
+      "positive_rows": 397,
+      "stays_ever_positive": 53
+    },
+    "2175": {
+      "rows": 968,
+      "stays": 163,
+      "positive_rows": 430,
+      "stays_ever_positive": 58
+    },
+    "2176": {
+      "rows": 879,
+      "stays": 156,
+      "positive_rows": 360,
+      "stays_ever_positive": 49
+    },
+    "2177": {
+      "rows": 821,
+      "stays": 157,
+      "positive_rows": 441,
+      "stays_ever_positive": 57
+    },
+    "2178": {
+      "rows": 849,
+      "stays": 149,
+      "positive_rows": 223,
+      "stays_ever_positive": 40
+    },
+    "2179": {
+      "rows": 955,
+      "stays": 169,
+      "positive_rows": 381,
+      "stays_ever_positive": 63
+    },
+    "2180": {
+      "rows": 935,
+      "stays": 174,
+      "positive_rows": 380,
+      "stays_ever_positive": 55
+    },
+    "2181": {
+      "rows": 632,
+      "stays": 144,
+      "positive_rows": 286,
+      "stays_ever_positive": 47
+    },
+    "2182": {
+      "rows": 910,
+      "stays": 158,
+      "positive_rows": 434,
+      "stays_ever_positive": 48
+    },
+    "2183": {
+      "rows": 921,
+      "stays": 154,
+      "positive_rows": 469,
+      "stays_ever_positive": 52
+    },
+    "2184": {
+      "rows": 837,
+      "stays": 143,
+      "positive_rows": 327,
+      "stays_ever_positive": 48
+    },
+    "2185": {
+      "rows": 896,
+      "stays": 176,
+      "positive_rows": 361,
+      "stays_ever_positive": 64
+    },
+    "2186": {
+      "rows": 827,
+      "stays": 162,
+      "positive_rows": 298,
+      "stays_ever_positive": 50
+    },
+    "2187": {
+      "rows": 638,
+      "stays": 145,
+      "positive_rows": 305,
+      "stays_ever_positive": 52
+    },
+    "2188": {
+      "rows": 888,
+      "stays": 150,
+      "positive_rows": 368,
+      "stays_ever_positive": 42
+    },
+    "2189": {
+      "rows": 791,
+      "stays": 148,
+      "positive_rows": 273,
+      "stays_ever_positive": 40
+    },
+    "2190": {
+      "rows": 387,
+      "stays": 70,
+      "positive_rows": 141,
+      "stays_ever_positive": 20
+    },
+    "2191": {
+      "rows": 232,
+      "stays": 55,
+      "positive_rows": 82,
+      "stays_ever_positive": 20
+    },
+    "2192": {
+      "rows": 189,
+      "stays": 46,
+      "positive_rows": 25,
+      "stays_ever_positive": "<10"
+    },
+    "2193": {
+      "rows": 205,
+      "stays": 53,
+      "positive_rows": 92,
+      "stays_ever_positive": 20
+    },
+    "2194": {
+      "rows": 153,
+      "stays": 39,
+      "positive_rows": 76,
+      "stays_ever_positive": 18
+    },
+    "2195": {
+      "rows": 252,
+      "stays": 34,
+      "positive_rows": 154,
+      "stays_ever_positive": 13
+    },
+    "2196": {
+      "rows": 373,
+      "stays": 46,
+      "positive_rows": 188,
+      "stays_ever_positive": 21
+    },
+    "2197": {
+      "rows": 215,
+      "stays": 39,
+      "positive_rows": 121,
+      "stays_ever_positive": 17
+    },
+    "2198": {
+      "rows": 159,
+      "stays": 27,
+      "positive_rows": 85,
+      "stays_ever_positive": "<10"
+    },
+    "2199": {
+      "rows": 96,
+      "stays": 26,
+      "positive_rows": 43,
+      "stays_ever_positive": "<10"
+    },
+    "2200": {
+      "rows": 184,
+      "stays": 34,
+      "positive_rows": 105,
+      "stays_ever_positive": 12
+    },
+    "2201": {
+      "rows": 123,
+      "stays": 21,
+      "positive_rows": 64,
+      "stays_ever_positive": "<10"
+    },
+    "2202": {
+      "rows": 115,
+      "stays": 28,
+      "positive_rows": 48,
+      "stays_ever_positive": 13
+    },
+    "2203": {
+      "rows": 66,
+      "stays": 21,
+      "positive_rows": 18,
+      "stays_ever_positive": "<10"
+    },
+    "2204": {
+      "rows": 31,
+      "stays": "<10",
+      "positive_rows": 14,
+      "stays_ever_positive": "<10"
+    },
+    "2205": {
+      "rows": 76,
+      "stays": 13,
+      "positive_rows": 30,
+      "stays_ever_positive": "<10"
+    },
+    "2206": {
+      "rows": 62,
+      "stays": 12,
+      "positive_rows": 21,
+      "stays_ever_positive": "<10"
+    },
+    "2207": {
+      "rows": 103,
+      "stays": 11,
+      "positive_rows": 55,
+      "stays_ever_positive": "<10"
+    },
+    "2208": {
+      "rows": 54,
+      "stays": 10,
+      "positive_rows": 16,
+      "stays_ever_positive": "<10"
+    },
+    "2209": {
+      "rows": 25,
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10"
+    },
+    "2210": {
+      "rows": 22,
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10"
+    },
+    "2211": {
+      "rows": 11,
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10"
+    }
+  },
+  "sofa_first_24h_max": {
+    "n": 12438,
+    "n_missing": "<10",
+    "mean": 5.5847,
+    "median": 5.0,
+    "p25": 2.0,
+    "p75": 8.0
+  },
+  "charlson_admission": {
+    "n": 6073,
+    "n_missing": 6365,
+    "mean": 3.616,
+    "median": 4.0,
+    "p25": 2.0,
+    "p75": 5.0
+  },
+  "elixhauser_admission": {
+    "n": 6073,
+    "n_missing": 6365,
+    "mean": 21.5908,
+    "median": 21.0,
+    "p25": 14.0,
+    "p75": 29.0
+  }
+}

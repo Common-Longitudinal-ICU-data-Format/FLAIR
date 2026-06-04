@@ -1,0 +1,33 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{epstein1997vfd,thille2011extubation}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Consensus-window IMV episode detection}{1}{section.1}\protected@file@percent }
+\newlabel{sec:consensus}{{1}{1}{Consensus-window IMV episode detection}{section.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {2}FLAIR operational definition}{2}{section.2}\protected@file@percent }
+\newlabel{sec:def}{{2}{2}{FLAIR operational definition}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Index time and label}{2}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Cohort}{2}{subsection.2.2}\protected@file@percent }
+\newlabel{sec:cohort}{{2.2}{2}{Cohort}{subsection.2.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}CLIF tables and categories used}{3}{subsection.2.3}\protected@file@percent }
+\newlabel{sec:t3-clif}{{2.3}{3}{CLIF tables and categories used}{subsection.2.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces CLIF surface for Task~T3. Both the IMV-vs-non-IMV classifier and the trach sentinel live in \texttt  {respiratory\_support}; the consensus-window logic of \S  \ref {sec:consensus} runs on top of these two predicates.}}{3}{table.caption.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Algorithmic flow}{5}{section.3}\protected@file@percent }
+\newlabel{sec:flow}{{3}{5}{Algorithmic flow}{section.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Build pipeline for Task~T3. Solid arrows: main flow. Dashed red arrows: exclusions. The diamond enforces the censoring rule: any hospitalization whose observation window closes before $t_{\text  {extub}}^i + 24\text  {h}$ without an observed death or reintubation is dropped, since its label is unobservable.}}{5}{figure.caption.2}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:t3-flow}{{1}{5}{Build pipeline for Task~T3. Solid arrows: main flow. Dashed red arrows: exclusions. The diamond enforces the censoring rule: any hospitalization whose observation window closes before $\textub ^i + 24\text {h}$ without an observed death or reintubation is dropped, since its label is unobservable}{figure.caption.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Design choices and rationale}{6}{section.4}\protected@file@percent }
+\newlabel{sec:rationale}{{4}{6}{Design choices and rationale}{section.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Why 15-minute / 30-minute consensus windows.}{6}{section*.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Why drop trach-closed first episodes.}{6}{section*.4}\protected@file@percent }
+\bibstyle{plainnat}
+\bibdata{references}
+\bibcite{epstein1997vfd}{{1}{1997}{{Epstein et~al.}}{{Epstein, Nevins, and Chung}}}
+\bibcite{thille2011extubation}{{2}{2011}{{Thille et~al.}}{{Thille, Harrois, Schortgen, Brun-Buisson, and Brochard}}}
+\@writefile{toc}{\contentsline {paragraph}{Why drop ambiguous censoring.}{7}{section*.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Why one-per-stay (not continuous).}{7}{section*.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Prevalence implications.}{7}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Out of scope}{7}{section.5}\protected@file@percent }
+\gdef \@abspage@last{7}

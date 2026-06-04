@@ -171,11 +171,17 @@ def _first_qualifying_abx_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
     abx_int = load_medication_admin_intermittent(
         cfg, hosp_ids, med_groups=[QUALIFYING_MED_GROUP],
     )
-    abx_int = abx_int.filter(
+    abx_int_filter = (
         pl.col("admin_dttm").is_not_null()
         & (pl.col("med_route_category").str.to_lowercase() == QUALIFYING_ROUTE)
-        & (pl.col("mar_action_group").str.to_lowercase() == ADMINISTERED_GROUP)
-    ).select(["hospitalization_id", "admin_dttm"])
+    )
+    if "mar_action_group" in abx_int.columns:
+        abx_int_filter = abx_int_filter & (
+            pl.col("mar_action_group").str.to_lowercase() == ADMINISTERED_GROUP
+        )
+    abx_int = abx_int.filter(abx_int_filter).select(
+        ["hospitalization_id", "admin_dttm"]
+    )
 
     abx_cont = load_medication_admin_continuous(
         cfg, hosp_ids, med_groups=[QUALIFYING_MED_GROUP],

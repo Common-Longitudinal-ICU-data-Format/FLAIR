@@ -1,0 +1,148 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, decorations.pathreplacing, backgrounds}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[round]{natbib}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+\newcommand{\predstart}{\text{pred\_start}}
+\newcommand{\predstop}{\text{pred\_stop}}
+
+\title{\textbf{FLAIR Task Schematic} \\[0.3em]
+       ICU Daily LTACH Discharge at 07:00 Local (Task T2)}
+\author{FLAIR Benchmark}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent We specify the FLAIR daily ICU LTACH-discharge task: at
+every local 07:00 rounds anchor during the first ICU stay, predict
+whether the hospitalization will end with transfer to a Long-Term
+Acute Care Hospital (LTACH) rather than in-hospital mortality
+(Expired or Hospice). Task~T2 is the exact label complement of
+Task~T1 on the identical cohort, identical grid, and identical
+24-hour lookback. This schematic specifies only the differences;
+the shared pipeline is the authority defined in
+\texttt{icu\_daily\_mortality.tex} (Task~T1).
+\end{abstract}
+
+\section{Relationship to Task~T1}
+
+The build pipeline of Task~T2 is byte-identical to Task~T1's: same
+cohort filters (adult, $\geq 1$ ICU ADT, \texttt{discharge\_category}
+$\in \{\text{LTACH},\,\text{Expired},\,\text{Hospice}\}$), same
+$\predstart$, $\predstop$, and decision-point grid, same 24h
+lookback, same temporal split. The only difference is the final label
+rule. The full operational definition, cohort details, and step-by-step
+build logic are in \texttt{icu\_daily\_mortality.tex} (Task~T1); the
+flowchart of Figure~\ref{fig:t2-flow} is shared.
+
+\section{Label rule (Task~T2 only)}
+
+Let
+$\texttt{disp}_i = \texttt{lower}(\texttt{strip}(\texttt{discharge\_category}_i))$.
+For $d$ in the daily 07:00 decision grid $D_i$:
+\[
+y_i(d) \;=\; \mathbb{1}\!\left[\,\texttt{disp}_i\ \text{matches regex}\
+\texttt{ltach|long.?term}\,\right].
+\]
+
+\begin{itemize}[leftmargin=2em]
+  \item The label is constant across all rows of $H_i$ (the eventual
+        disposition is a single hospitalization-level fact broadcast
+        to every grid point).
+  \item Because the Task~T1 / Task~T2 cohort filter guarantees
+        $\texttt{disp}_i$ is either \texttt{"expired"},
+        \texttt{"hospice"}, or matches the LTACH regex,
+        $\texttt{label\_ltach}_i + \texttt{label\_mortality}_i = 1$
+        for every retained row.
+\end{itemize}
+
+\section{CLIF tables and categories used}
+
+The CLIF surface for Task~T2 is identical to Task~T1: the same three
+tables (\texttt{hospitalization}, \texttt{patient}, \texttt{adt})
+and the same category-column filters. The cohort filter on
+\texttt{hospitalization.discharge\_category} keeps
+$\{\texttt{"expired"},\,\texttt{"hospice"}\}\ \cup\ $regex
+\texttt{ltach|long.?term} (case-insensitive); the ADT filter restricts
+to \texttt{location\_category} $=$ \texttt{"icu"} (case-insensitive);
+\texttt{patient} is join-only. See the full table and per-table column
+inventory in the sibling document \texttt{icu\_daily\_mortality.tex}
+(\S CLIF tables and categories used). Tasks~T1 and~T2 differ only in
+the final label predicate, not in which CLIF data they touch.
+
+\section{Algorithmic flow (shared with Task~T1)}
+
+\begin{figure}[H]
+\centering
+\input{figures/icu_daily_disposition_flowchart}
+\caption{Build pipeline shared by Tasks~T1 and T2. The label box at
+the bottom is parameterized: T2 emits $y = 1$ iff
+\texttt{disp}\textsubscript{i} matches \texttt{ltach|long.?term}.
+Everything else --- cohort filters, ICU timing, $\predstart$ /
+$\predstop$, the daily 07:00 grid, the 24h lookback, the temporal
+split, the parquet schema --- is identical to Task~T1.}
+\label{fig:t2-flow}
+\end{figure}
+
+\section{Design choices and rationale}
+
+\paragraph{Why a separate schematic for the complement label.}
+A reader scanning the supplement should find one document per FLAIR
+task, with its own META, label rule, and prevalence numbers. The
+build pipeline being shared is a convenience of implementation, not a
+property of the task definition: a future site whose
+\texttt{discharge\_category} taxonomy splits LTACH from other
+long-term destinations more finely could change Task~T2's regex
+without affecting Task~T1.
+
+\paragraph{Prevalence asymmetry vs.\ Task~T1.}
+At the row level the positive rate is 42.6\% LTACH, complementary to
+T1's 57.4\% mortality. At the stay level the asymmetry is sharper:
+32.9\% of retained stays are LTACH-positive vs.\ 67.1\% mortality-positive
+(see \texttt{docs/paper/outline.tex} Table~1). In MIMIC, hospice and
+expired-in-hospital both fall on T1's positive side, while only the
+LTACH-or-long-term family falls on T2's, so the marginals are not
+50/50. Reporting AUPRC alongside AUROC is mandatory.
+
+\paragraph{Why LTACH is the operationally interesting label.}
+LTACH transfer is a planned, resource-intensive disposition decision
+that triggers care-coordination work several days before discharge
+\citep{kahn2010ltach}. A morning prediction of LTACH-bound vs.\
+in-hospital-mortality trajectory can drive social-work referrals,
+family conversations, and family-meeting timing; the same trajectory
+forecast from the mortality side (T1) is more commonly used for
+goals-of-care conversations. The two complementary framings expose
+the same underlying signal to two distinct downstream workflows.
+
+\section{Out of scope}
+
+\begin{itemize}[leftmargin=2em]
+  \item All items listed in \texttt{icu\_daily\_mortality.tex}
+        (Task~T1) \S\textit{Out of scope} carry over.
+  \item Finer-grained LTACH-vs-skilled-long-term-care distinctions
+        within the LTACH-positive class.
+\end{itemize}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

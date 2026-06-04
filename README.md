@@ -2,13 +2,13 @@
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/) [![CLIF](https://img.shields.io/badge/data-CLIF_format-orange.svg)](https://clif-icu.com)
 
-A privacy-first benchmark framework for evaluating ML/AI methods on ICU prediction tasks across 17+ hospital sites using the CLIF (Common Longitudinal ICU Format) data standard.
+A privacy-first benchmark framework for evaluating ML/AI methods on ICU prediction tasks across 12+ hospital sites using the CLIF (Common Longitudinal ICU Format) data standard.
 
 In the ICU, clinical decisions happen in real-time and directly impact patient survival. Rich data—diagnoses, laboratory values, vital signs, and outcomes—can drive better care, and AI offers new ways to support clinical reasoning in these high-stakes environments. Yet building trustworthy, generalizable AI requires diverse datasets that reflect varied patient populations and clinical practices.
 
 Public ICU datasets like MIMIC and eICU have enabled significant research progress, but they represent only a handful of institutions. Meanwhile, the vast majority of ICU data remains locked in private hospital silos—inaccessible for multi-site validation due to privacy regulations. This fragmentation limits our ability to develop AI that generalizes beyond the institutions where it was trained.
 
-**CLIF and FLAIR bridge this gap.** The Common Longitudinal ICU Format (CLIF) provides a shared data standard that harmonizes ICU data across institutions. FLAIR builds on this foundation, enabling federated model evaluation on real-world private data from 17+ hospitals—without patient information ever leaving each site.
+**CLIF and FLAIR bridge this gap.** The Common Longitudinal ICU Format (CLIF) provides a shared data standard that harmonizes ICU data across institutions. FLAIR builds on this foundation, enabling federated model evaluation on real-world private data from 12+ hospitals—without patient information ever leaving each site.
 
 ------------------------------------------------------------------------
 
@@ -28,7 +28,7 @@ Multi-site validation is essential, but patient data is protected by strict priv
 
 ### The Solution: Federated Evaluation
 
-FLAIR enables researchers to validate their methods on **private ICU datasets from 17+ US hospitals** without the data ever leaving each site:
+FLAIR enables researchers to validate their methods on **private ICU datasets from 12+ US hospitals** without the data ever leaving each site:
 
 ![FLAIR Workflow](assets/FlairWorkflow.gif)
 
@@ -38,11 +38,11 @@ FLAIR enables researchers to validate their methods on **private ICU datasets fr
 
 ## 🏛️ The CLIF Consortium
 
-FLAIR is built on the **Common Longitudinal ICU Format (CLIF)** data standard, maintained by a consortium of **17+ academic medical centers** across the United States.
+FLAIR is built on the **Common Longitudinal ICU Format (CLIF)** data standard, maintained by a consortium of **12+ academic medical centers** across the United States.
 
 | Metric              | Value           |
 |---------------------|-----------------|
-| Participating Sites | 17+             |
+| Participating Sites | 12+             |
 | Geographic Coverage | Nationwide (US) |
 | Combined ICU Beds   | 2,000+          |
 | Data Standard       | CLIF v2.1       |
@@ -58,7 +58,7 @@ Since CLIF consortium data is private, how do you develop your method? **MIMIC-C
 │   MIMIC-CLIF    │         │  CLIF Consortium │
 │   (Public)      │         │  (Private)       │
 ├─────────────────┤         ├─────────────────-┤
-│ • PhysioNet     │   Same  │ • 17+ Sites      │
+│ • PhysioNet     │   Same  │ • 12+ Sites      │
 │ • ~70k ICU stays│ ══════► │ • 500k+ ICU stays│
 │ • Single site   │  Schema │ • Diverse pops   │
 │ • Development   │         │ • Evaluation     │

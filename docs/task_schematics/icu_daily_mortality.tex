@@ -1,0 +1,267 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc, decorations.pathreplacing, backgrounds}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+\usepackage{caption}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[round]{natbib}
+
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+\newcommand{\predstart}{\text{pred\_start}}
+\newcommand{\predstop}{\text{pred\_stop}}
+
+\title{\textbf{FLAIR Task Schematic} \\[0.3em]
+       ICU Daily In-Hospital Mortality at 07:00 Local (Task T1)}
+\author{FLAIR Benchmark}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent We specify the FLAIR daily ICU mortality task: at every local
+07:00 rounds anchor during the first ICU stay, predict whether the
+hospitalization will end with the patient dying in hospital (Expired
+or Hospice) rather than transferring to a Long-Term Acute Care
+Hospital (LTACH). The cohort is conditioned on non-survival --- only
+hospitalizations whose eventual disposition maps to LTACH or
+in-hospital mortality are included --- so the task is a binary
+terminal-trajectory question between two compatible end-of-life
+trajectories. Task~T2 (LTACH discharge) is the exact label complement
+on the same cohort.
+\end{abstract}
+
+\section{FLAIR operational definition}
+\label{sec:def}
+
+\subsection{Anchors and windows}
+
+Let $H_i$ denote a hospitalization with admission time
+$t^{\text{adm}}_i$ and discharge or death time $t^{\text{end}}_i =
+\min(t^{\text{disch}}_i,\, t^{\text{death}}_i)$. Let
+$t^{\text{ICU}_1,\text{start}}_i$ and $t^{\text{ICU}_1,\text{end}}_i$
+be the first ICU stay endpoints returned by \verb|compute_icu_timing|
+on the CLIF \texttt{ADT} table. All datetimes are naive but
+wall-clock-local per \texttt{cfg["timezone"]}; literal hours of the
+day are interpreted as local hospital time.
+
+\begin{description}[leftmargin=2em, style=nextline]
+
+\item[Prediction-window start ($\predstart$).]
+\[
+\predstart_i \;=\; \text{trunc}\!\bigl(t^{\text{ICU}_1,\text{start}}_i,\,
+1\text{d}\bigr) + 1\text{d} + 7\text{h}.
+\]
+The first decision point is local 07:00 on the calendar day \emph{after}
+first ICU admission. A patient admitted at 03:00 on Monday gets their
+first prediction at 07:00 on Tuesday.
+
+\item[Prediction-window stop ($\predstop$).]
+\[
+\predstop_i \;=\; \min\!\bigl(t^{\text{ICU}_1,\text{end}}_i,\,
+t^{\text{disch}}_i,\, t^{\text{death}}_i\bigr).
+\]
+Predictions cease at the end of the first ICU stay or the end of the
+hospitalization, whichever comes first.
+
+\item[Decision-point grid.]
+Daily 24h step:
+$D_i = \{\predstart_i + k\!\cdot\!24\text{h} : k\in\mathbb{Z}_{\ge 0},\,
+\predstart_i + k\!\cdot\!24\text{h} < \predstop_i\}$.
+
+\item[Label (\texttt{label\_mortality}).]
+Let
+$\texttt{disp}_i = \texttt{lower}(\texttt{strip}(\texttt{discharge\_category}_i))$.
+For $d \in D_i$:
+\[
+y_i(d) \;=\; \mathbb{1}\!\left[ \texttt{disp}_i \in
+\{\,\texttt{"expired"},\, \texttt{"hospice"}\,\} \right].
+\]
+The label is constant across all rows of $H_i$ (the hospitalization's
+eventual disposition is a single fact broadcast to every grid point).
+
+\end{description}
+
+\subsection{Cohort (conditional on non-survival)}
+
+\begin{itemize}[leftmargin=2em]
+  \item Age at admission $\ge 18$ with valid \texttt{admission\_dttm}
+        and \texttt{discharge\_dttm}.
+  \item $\geq 1$ ICU ADT record (first ICU stay is defined).
+  \item First ICU stay long enough to contain at least one 07:00 grid
+        point after the admission day (i.e., $\predstart_i <
+        \predstop_i$).
+  \item \texttt{discharge\_category} (case-insensitive) matches either:
+        \begin{itemize}
+          \item \texttt{"expired"} or \texttt{"hospice"} (in-hospital
+                mortality), or
+          \item regex \texttt{ltach|long.?term} (LTACH discharge).
+        \end{itemize}
+  \item \textbf{Exclude} \texttt{discharge\_category} null or any
+        alive disposition (home, SNF, rehab, AMA, still admitted,
+        other).
+\end{itemize}
+
+\subsection{CLIF tables and categories used}
+\label{sec:t1-clif}
+
+Task~T1 reads three CLIF v2.1 tables. Two carry a category-column
+filter that defines the cohort; the third is a join-only auxiliary
+for demographics and death time.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}llp{7.0cm}@{}}
+\toprule
+\textbf{CLIF table} & \textbf{Category column} & \textbf{Literal values kept (case-insensitive)} \\
+\midrule
+\texttt{hospitalization} & \texttt{discharge\_category} &
+$\{\texttt{"expired"},\,\texttt{"hospice"}\}\ \cup\ $regex
+\texttt{ltach|long.?term} \\
+\texttt{adt}             & \texttt{location\_category} & $\{\texttt{"icu"}\}$ \\
+\texttt{patient}         & ---                         & join only; no category filter \\
+\bottomrule
+\end{tabular}
+\caption{CLIF surface for Tasks~T1 and~T2. The
+\texttt{discharge\_category} row is the \emph{cohort} filter (LTACH or
+in-hospital mortality, applied before split). The T1 label additionally
+restricts to $\{\texttt{"expired"}, \texttt{"hospice"}\}$ and the T2
+label restricts to the LTACH regex; both labels are computed on the
+same retained set of rows.}
+\end{table}
+
+Columns selected from each table:
+\begin{itemize}[leftmargin=2em, itemsep=0pt]
+  \item \texttt{hospitalization}: \texttt{hospitalization\_id},
+        \texttt{patient\_id}, \texttt{admission\_dttm},
+        \texttt{discharge\_dttm}, \texttt{age\_at\_admission},
+        \texttt{discharge\_category}.
+  \item \texttt{patient}: \texttt{patient\_id},
+        \texttt{sex\_category}, \texttt{race\_category},
+        \texttt{ethnicity\_category}, \texttt{death\_dttm}.
+  \item \texttt{adt}: \texttt{hospitalization\_id},
+        \texttt{location\_category}, \texttt{in\_dttm}, \texttt{out\_dttm}.
+\end{itemize}
+
+A FLAIR site whose local \texttt{discharge\_category} vocabulary maps
+LTACH or long-term acute care under a different literal must extend the
+regex in \texttt{flair\_benchmark/tasks/task1\_icu\_daily\_mortality.py}
+(and Task~T2 in lockstep) or the cohort will silently lose its
+LTACH-arm denominator.
+
+\section{Algorithmic flow}
+\label{sec:flow}
+
+\begin{figure}[H]
+\centering
+\input{figures/icu_daily_disposition_flowchart}
+\caption{Build pipeline shared by Tasks~T1 and T2. Solid arrows: main
+flow. Dashed red arrows: exclusions. The two tasks differ only in the
+final label box; both consume the same cohort, the same grid, and the
+same lookback window. Task~T2 (LTACH) is detailed in a sibling
+schematic.}
+\label{fig:t1-flow}
+\end{figure}
+
+Step-by-step prose:
+
+\begin{enumerate}[leftmargin=2em]
+  \item Load CLIF tables: \texttt{hospitalization}, \texttt{patient},
+        \texttt{adt}.
+  \item Build the adult cohort with valid admission/discharge times.
+  \item Restrict to hospitalizations with $\geq 1$ ICU ADT row.
+  \item Filter \texttt{discharge\_category} to LTACH OR in-hospital
+        mortality (case-insensitive); drop nulls and alive-other
+        dispositions.
+  \item Compute first-ICU-stay window via
+        \texttt{compute\_icu\_timing(adt)}.
+  \item Compute $\predstart_i$ by truncating
+        $t^{\text{ICU}_1,\text{start}}_i$ to date, adding 1 day, then
+        adding 7 hours.
+  \item Compute $\predstop_i =
+        \min(t^{\text{ICU}_1,\text{end}}_i,\, t^{\text{disch}}_i,\,
+        t^{\text{death}}_i)$.
+  \item Explode the daily 07:00 grid
+        $[\predstart_i,\, \predstop_i)$ per hospitalization
+        (\verb|pl.datetime_ranges|, $\texttt{interval}=\texttt{"24h"}$,
+        \texttt{closed="left"}).
+  \item Broadcast the label
+        ($\texttt{disp}_i \in \{\texttt{"expired"},
+        \texttt{"hospice"}\}$) to every grid row.
+  \item Assign \texttt{window\_start} $= d - 24\text{h}$,
+        \texttt{window\_end} $= d$ (fixed 24h lookback).
+  \item Apply temporal train/test split per
+        \texttt{flair\_benchmark.\_split.assign\_split}, keyed on
+        \texttt{prediction\_dttm}.
+  \item Select \texttt{OUTPUT\_COLS} and persist as parquet.
+\end{enumerate}
+
+\section{Design choices and rationale}
+\label{sec:rationale}
+
+\paragraph{Why a conditional-on-non-survival cohort.}
+Among all ICU admissions the per-hospitalization mortality rate sits
+around 10--15\%, so an unconditional mortality task is extremely
+imbalanced and dominated by trivial-negative examples (low-acuity
+elective admissions that go home). Conditioning on non-survival
+disposition (LTACH OR mortality) carves out the clinically meaningful
+fork: among patients whose eventual trajectory is one of two terminal
+arms, which one is it? This makes the binary task balanced enough to
+train without aggressive class-weighting and aligns with how the
+clinical question is asked at morning rounds for chronically critically
+ill patients.
+
+\paragraph{Why 07:00 local rounds anchor.}
+ICU morning rounds are the canonical decision cadence; predictions
+produced before rounds are actionable that day, predictions after
+rounds are not. The 07:00 timestamp is a wall-clock-local literal,
+relying on \texttt{flair\_benchmark.\_clif.pd\_to\_pl} having stripped
+timezone info from \texttt{clifpy} datetimes (which themselves are
+typed to \texttt{cfg["timezone"]}). Across CLIF sites this is a stable
+choice; sites that prefer 06:00 or 08:00 can re-anchor by adjusting
+\texttt{PRED\_HOUR} without changing the rest of the pipeline.
+
+\paragraph{Why daily (not hourly).}
+The decision being modeled --- terminal-trajectory commitment --- does
+not change hour-to-hour. A daily cadence matches the clinical question
+and keeps row counts manageable (MIMIC-CLIF: 12{,}438 stays /
+65{,}989 daily rows; see \texttt{docs/paper/outline.tex} Table~1).
+
+\paragraph{Prevalence and the asymmetry with Task~T2.}
+At the row level the positive rate is 57.4\% (mortality), with
+stays-ever-positive 67.1\%. The conditional cohort is NOT 50/50
+between mortality and LTACH; in MIMIC, mortality dominates because
+hospice and expired-in-hospital both fall on the mortality side of the
+fork while only LTACH carries the alternative. Task~T2 (LTACH) ends up
+with a complementary but asymmetric positive rate of 42.6\% per-row
+(32.9\% stays-ever-positive).
+
+\section{Out of scope}
+
+\begin{itemize}[leftmargin=2em]
+  \item Multi-class extension to alive-other dispositions (home, SNF,
+        rehab, AMA) as a third class.
+  \item Hospital-wide (non-ICU) variant.
+  \item Input feature engineering and severity-score baselines
+        (e.g., APACHE-III \citep{knaus1991apache3}, SAPS-II).
+  \item Survival-time / time-to-event variant.
+\end{itemize}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
