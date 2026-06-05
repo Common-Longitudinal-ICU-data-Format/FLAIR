@@ -59,7 +59,7 @@ def summarize_task(task_module,
     }
 
     if sofa_per_stay is not None and sofa_per_stay.height > 0:
-        block["sofa_first_24h_max"] = _per_stay_score_summary(
+        block["sofa_hospitalization_max"] = _per_stay_score_summary(
             cohort, sofa_per_stay, "sofa_max"
         )
     if comorb_per_stay is not None and comorb_per_stay.height > 0:
@@ -97,7 +97,7 @@ def _binary_label_block(cohort: pl.DataFrame, label_col: str,
             "type": "binary",
             "positive_count": suppress(pos),
             "negative_count": suppress(neg),
-            "prevalence": _safe_div(pos, n),
+            "prevalence_per_prediction_point": _safe_div(pos, n),
         }
 
     # decision-point / timestep
@@ -110,9 +110,9 @@ def _binary_label_block(cohort: pl.DataFrame, label_col: str,
         "type": "binary",
         "positive_rows": suppress(pos),
         "negative_rows": suppress(neg),
-        "positive_rate_per_row": _safe_div(pos, n),
         "stays_ever_positive": suppress(stays_ever_pos),
-        "stays_ever_positive_rate": _safe_div(stays_ever_pos, n_stays),
+        "prevalence_per_prediction_point": _safe_div(pos, n),
+        "prevalence_per_hospitalization": _safe_div(stays_ever_pos, n_stays),
     }
 
 
@@ -175,35 +175,48 @@ def _label_by_subgroup(cohort: pl.DataFrame, label_col: str, task_type: str,
     if task_type != "binary":
         return {}
 
-    if prediction_unit == "one-per-stay":
-        grain = cohort
-    else:
-        # Aggregate to stay grain: a stay is "positive" if any row is positive.
-        grain = (
-            cohort.group_by("hospitalization_id")
-            .agg([
-                pl.col(label_col).max().alias(label_col),
-                *[pl.col(c).first().alias(c)
-                  for c in SUBGROUP_COLS if c in cohort.columns],
-            ])
-        )
-
     out: dict = {}
     for col in SUBGROUP_COLS:
-        if col not in grain.columns:
+        if col not in cohort.columns:
             continue
         per_level: dict = {}
-        for level in grain[col].drop_nulls().unique().to_list():
-            sub = grain.filter(pl.col(col) == level)
-            n = sub.height
-            if n < MIN_CELL_COUNT:
+        for level in cohort[col].drop_nulls().unique().to_list():
+            sub_rows = cohort.filter(pl.col(col) == level)
+            stay_grain = (
+                sub_rows.group_by("hospitalization_id")
+                .agg(pl.col(label_col).max().alias(label_col))
+            )
+            n_stays = stay_grain.height
+            if n_stays < MIN_CELL_COUNT:
                 continue
-            pos = int(sub.filter(pl.col(label_col) == 1).height)
-            per_level[str(level)] = {
-                "n": n,
-                "positive": pos,
-                "prevalence": _safe_div(pos, n),
-            }
+            stays_ever_pos = int(
+                stay_grain.filter(pl.col(label_col) == 1).height
+            )
+            if prediction_unit == "one-per-stay":
+                per_level[str(level)] = {
+                    "n_stays": n_stays,
+                    "stays_ever_positive": suppress(stays_ever_pos),
+                    "prevalence_per_prediction_point": _safe_div(
+                        stays_ever_pos, n_stays
+                    ),
+                }
+            else:
+                n_rows = sub_rows.height
+                positive_rows = int(
+                    sub_rows.filter(pl.col(label_col) == 1).height
+                )
+                per_level[str(level)] = {
+                    "n_rows": n_rows,
+                    "positive_rows": suppress(positive_rows),
+                    "n_stays": n_stays,
+                    "stays_ever_positive": suppress(stays_ever_pos),
+                    "prevalence_per_prediction_point": _safe_div(
+                        positive_rows, n_rows
+                    ),
+                    "prevalence_per_hospitalization": _safe_div(
+                        stays_ever_pos, n_stays
+                    ),
+                }
         if per_level:
             out[col] = per_level
     return out
@@ -249,6 +262,9 @@ def _yearly_block(cohort: pl.DataFrame, label_col: str, task_type: str,
             pos_rows = int(sub.filter(pl.col(label_col) == 1).height)
             if prediction_unit == "one-per-stay":
                 entry["positive"] = suppress(pos_rows)
+                entry["prevalence_per_prediction_point"] = _safe_div(
+                    pos_rows, rows
+                )
             else:
                 ever_pos = int(
                     sub.filter(pl.col(label_col) == 1)
@@ -256,6 +272,12 @@ def _yearly_block(cohort: pl.DataFrame, label_col: str, task_type: str,
                 )
                 entry["positive_rows"] = suppress(pos_rows)
                 entry["stays_ever_positive"] = suppress(ever_pos)
+                entry["prevalence_per_prediction_point"] = _safe_div(
+                    pos_rows, rows
+                )
+                entry["prevalence_per_hospitalization"] = _safe_div(
+                    ever_pos, stays
+                )
         out[str(int(year))] = entry
     return out
 

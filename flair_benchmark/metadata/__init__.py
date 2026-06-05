@@ -21,13 +21,13 @@ from flair_benchmark._clif import (base_icu_cohort, load_hospitalization,
                                     read_clif_config)
 from flair_benchmark._icu_timing import compute_icu_timing
 from flair_benchmark.metadata._comorbidity import compute_cci_elix
-from flair_benchmark.metadata._severity import compute_first_24h_sofa_max
+from flair_benchmark.metadata._severity import compute_hospitalization_sofa_max
 from flair_benchmark.metadata._summarize import summarize_task
 from flair_benchmark.report._suppress import MIN_CELL_COUNT
 
 __all__ = ["extract_site_metadata"]
 
-REFERENCE_WINDOW_DESC = "first 24h of first ICU stay (SOFA max-in-window)"
+REFERENCE_WINDOW_DESC = "full hospitalization (SOFA max-in-window)"
 
 
 def extract_site_metadata(clif_config_path: str,
@@ -55,9 +55,10 @@ def extract_site_metadata(clif_config_path: str,
 
     sofa_per_stay = None
     if not skip_sofa:
-        orchestrator = _build_orchestrator(cfg)
-        first_icu = cohort.select(["hospitalization_id", "first_icu_start_time"])
-        sofa_per_stay = compute_first_24h_sofa_max(orchestrator, first_icu)
+        sofa_cohort = cohort.select(
+            ["hospitalization_id", "admission_dttm", "discharge_dttm"]
+        )
+        sofa_per_stay = compute_hospitalization_sofa_max(cfg, sofa_cohort)
 
     comorb_per_stay = None
     if not skip_comorb:
@@ -100,16 +101,6 @@ def extract_site_metadata(clif_config_path: str,
             **block,
         }
     return out
-
-
-def _build_orchestrator(cfg: dict):
-    """Instantiate a clifpy.ClifOrchestrator from a FLAIR clif_config dict."""
-    from clifpy import ClifOrchestrator
-    return ClifOrchestrator(
-        data_directory=cfg["data_directory"],
-        filetype=cfg["filetype"],
-        timezone=cfg["timezone"],
-    )
 
 
 def _print_warn(msg: str) -> None:

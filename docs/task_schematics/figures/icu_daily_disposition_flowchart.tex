@@ -1,5 +1,5 @@
 % Algorithmic flowchart for FLAIR ICU daily disposition tasks (T1 mortality / T2 LTACH).
-% Both tasks share this pipeline; only the final label rule differs (see caption).
+% Both tasks share an unconditional cohort and pipeline; only the final label rule differs.
 
 \begin{tikzpicture}[
     node distance=0.55cm and 0.7cm,
@@ -20,22 +20,20 @@
         {adult cohort\\\scriptsize(age $\geq 18$; valid admission/discharge)};
     \node[box, below=of cohort] (icu)
         {filter to $\geq 1$ ICU ADT record};
-    \node[box, below=of icu] (disp)
-        {filter \texttt{discharge\_category}\\$\in$ \{expired, hospice, ltach/long-term\}};
-    \node[box, below=of disp] (timing)
+    \node[box, below=of icu] (timing)
         {\texttt{compute\_icu\_timing}\\$\Rightarrow$ \texttt{first\_icu\_start/end\_time}};
     \node[box, below=of timing] (predstart)
         {$\predstart_i = \text{trunc}(t^{\text{ICU}_1,\text{start}}_i,\,1\text{d})
          + 1\text{d} + 7\text{h}$};
     \node[box, below=of predstart] (predstop)
         {$\predstop_i = \min(t^{\text{ICU}_1,\text{end}}_i,\,
-         t^{\text{disch}}_i,\, t^{\text{death}}_i)$};
+         \texttt{coalesce}(t^{\text{death}}_i, t^{\text{disch}}_i))$};
     \node[box, below=of predstop] (grid)
         {daily 07:00 grid\\$d \in [\predstart_i,\, \predstop_i)$, step $= 24$h};
     \node[box, below=of grid] (label)
         {broadcast \texttt{label\_*}\\\scriptsize{T1: $y = 1$ iff disp $\in$
-         \{expired, hospice\}}\\\scriptsize{T2: $y = 1$ iff disp matches
-         \texttt{ltach|long.?term}}};
+         \{Expired, Hospice\}, else 0}\\\scriptsize{T2: $y = 1$ iff disp matches
+         \texttt{ltach|long.?term}, else 0}\\\scriptsize{(null / Still Admitted $\Rightarrow$ 0)}};
     \node[box, below=of label] (split)
         {temporal train/test split};
     \node[outbox, below=of split] (parquet)
@@ -45,17 +43,13 @@
     % exclusions on the right
     \node[excl, right=2.0cm of icu] (exclNoIcu)
         {EXCLUDE:\\no ICU ADT};
-    \node[excl, right=2.0cm of disp] (exclAlive)
-        {EXCLUDE:\\alive-other disposition\\\scriptsize(home, SNF, rehab,
-         AMA, other,\\\scriptsize still admitted, null)};
     \node[excl, right=2.0cm of grid] (exclShort)
         {EXCLUDE:\\stay ends before\\first 07:00 grid point};
 
     % main arrows
     \draw[arrow] (raw) -- (cohort);
     \draw[arrow] (cohort) -- (icu);
-    \draw[arrow] (icu) -- (disp);
-    \draw[arrow] (disp) -- (timing);
+    \draw[arrow] (icu) -- (timing);
     \draw[arrow] (timing) -- (predstart);
     \draw[arrow] (predstart) -- (predstop);
     \draw[arrow] (predstop) -- (grid);
@@ -65,7 +59,6 @@
 
     % exclusion arrows
     \draw[sidearrow] (icu.east) to[bend left=10] (exclNoIcu.west);
-    \draw[sidearrow] (disp.east) to[bend left=10] (exclAlive.west);
     \draw[sidearrow] (grid.east) to[bend left=10] (exclShort.west);
 
 \end{tikzpicture}

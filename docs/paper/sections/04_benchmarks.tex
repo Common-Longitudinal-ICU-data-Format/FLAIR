@@ -78,16 +78,21 @@ leaderboard ranks submissions on the primary metric for each task and
 displays per-site variance prominently: a single high pooled AUROC
 hides exactly the failure mode FLAIR exists to surface.
 
-\subsection*{Extension by community pull request}
+\subsection*{An open, extensible task catalog}
 
-A new benchmark task is proposed as a single Python module under
-\texttt{flair\_benchmark/tasks/} containing the \texttt{META} dictionary
-and a \texttt{build} function returning the canonical cohort frame; no
-registry edits or library changes are required. Acceptance review
-verifies (i) reproducibility against MIMIC-CLIF, (ii) clinical face
-validity through a clinician-led review, and (iii) site-governance
-acceptance at a minimum of two consortium sites before the task enters
-the federated suite. This is the structural counter to benchmark
-saturation: the catalog grows with community need, distributed across
-many proposers, rather than ossifying around the priors of any single
-author group \citep{recht2019imagenet,chekroud2024illusory}.
+FLAIR is released open source under the Apache~2.0 license at
+\texttt{github.com/clif-consortium/FLAIR}, and the five tasks above
+are explicitly the \emph{seed} of a growing catalog rather than the
+benchmark's permanent scope. Any researcher or clinician can propose a
+new task as a single Python module under
+\texttt{flair\_benchmark/tasks/} containing the \texttt{META}
+dictionary and a \texttt{build} function returning the canonical
+cohort frame; no registry edits or library changes are required.
+Acceptance review verifies (i) reproducibility against MIMIC-CLIF,
+(ii) clinical face validity through a clinician-led review, and
+(iii) site-governance acceptance at a minimum of two consortium sites
+before the task enters the federated suite. This is the structural
+counter to benchmark saturation: the catalog grows with community
+need, distributed across many proposers, rather than ossifying around
+the priors of any single author group
+\citep{recht2019imagenet,chekroud2024illusory}.

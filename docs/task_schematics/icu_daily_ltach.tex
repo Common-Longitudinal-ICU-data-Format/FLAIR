@@ -35,24 +35,29 @@
 \noindent We specify the FLAIR daily ICU LTACH-discharge task: at
 every local 07:00 rounds anchor during the first ICU stay, predict
 whether the hospitalization will end with transfer to a Long-Term
-Acute Care Hospital (LTACH) rather than in-hospital mortality
-(Expired or Hospice). Task~T2 is the exact label complement of
-Task~T1 on the identical cohort, identical grid, and identical
-24-hour lookback. This schematic specifies only the differences;
-the shared pipeline is the authority defined in
-\texttt{icu\_daily\_mortality.tex} (Task~T1).
+Acute Care Hospital (CLIF \texttt{discharge\_category} $=$
+\texttt{Long Term Care Hospital (LTACH)}). The cohort is identical
+to Task~T1 (all adult ICU hospitalizations, no
+\texttt{discharge\_category} filter); only the label predicate
+differs. T1 and T2 are \textbf{not} a partition: a stay discharged
+Home is label-0 in both; a stay discharged Expired is label-1 in T1
+and label-0 in T2. The shared pipeline is specified once in
+\texttt{icu\_daily\_mortality.tex} (Task~T1); this schematic specifies
+only the T2 label rule and its design rationale.
 \end{abstract}
 
 \section{Relationship to Task~T1}
 
 The build pipeline of Task~T2 is byte-identical to Task~T1's: same
-cohort filters (adult, $\geq 1$ ICU ADT, \texttt{discharge\_category}
-$\in \{\text{LTACH},\,\text{Expired},\,\text{Hospice}\}$), same
-$\predstart$, $\predstop$, and decision-point grid, same 24h
-lookback, same temporal split. The only difference is the final label
-rule. The full operational definition, cohort details, and step-by-step
-build logic are in \texttt{icu\_daily\_mortality.tex} (Task~T1); the
-flowchart of Figure~\ref{fig:t2-flow} is shared.
+cohort filters (adult, valid admission/discharge, $\geq 1$ ICU ADT
+record, first ICU stay long enough for at least one 07:00 grid point),
+same $\predstart$, $\predstop$, and decision-point grid, same 24h
+lookback, same temporal split. \textbf{Neither task filters on
+\texttt{discharge\_category} at the cohort stage.} The only difference
+is the final label rule. The full operational definition, cohort
+details, and step-by-step build logic are in
+\texttt{icu\_daily\_mortality.tex} (Task~T1); the flowchart of
+Figure~\ref{fig:t2-flow} is shared.
 
 \section{Label rule (Task~T2 only)}
 
@@ -68,23 +73,30 @@ y_i(d) \;=\; \mathbb{1}\!\left[\,\texttt{disp}_i\ \text{matches regex}\
   \item The label is constant across all rows of $H_i$ (the eventual
         disposition is a single hospitalization-level fact broadcast
         to every grid point).
-  \item Because the Task~T1 / Task~T2 cohort filter guarantees
-        $\texttt{disp}_i$ is either \texttt{"expired"},
-        \texttt{"hospice"}, or matches the LTACH regex,
-        $\texttt{label\_ltach}_i + \texttt{label\_mortality}_i = 1$
-        for every retained row.
+  \item A null \texttt{disp}$_i$ (i.e., \texttt{discharge\_category}
+        null in the source) or any non-matching value
+        (\texttt{Expired}, \texttt{Hospice}, \texttt{Home},
+        \texttt{Skilled Nursing Facility (SNF)},
+        \texttt{Acute Inpatient Rehab Facility},
+        \texttt{Against Medical Advice (AMA)}, \texttt{Other},
+        \texttt{Still Admitted}, \ldots) yields $y_i(d) = 0$.
+  \item Because Tasks~T1 and T2 share the same unconditional cohort
+        and have non-overlapping label predicates,
+        $\texttt{label\_mortality}_i + \texttt{label\_ltach}_i \le 1$
+        but \textbf{not} necessarily $= 1$: a Home discharge is 0 in
+        both, an Expired discharge is 1 in T1 / 0 in T2, and an
+        LTACH discharge is 0 in T1 / 1 in T2.
 \end{itemize}
 
 \section{CLIF tables and categories used}
 
 The CLIF surface for Task~T2 is identical to Task~T1: the same three
-tables (\texttt{hospitalization}, \texttt{patient}, \texttt{adt})
-and the same category-column filters. The cohort filter on
-\texttt{hospitalization.discharge\_category} keeps
-$\{\texttt{"expired"},\,\texttt{"hospice"}\}\ \cup\ $regex
-\texttt{ltach|long.?term} (case-insensitive); the ADT filter restricts
-to \texttt{location\_category} $=$ \texttt{"icu"} (case-insensitive);
-\texttt{patient} is join-only. See the full table and per-table column
+tables (\texttt{hospitalization}, \texttt{patient}, \texttt{adt}) and
+the same cohort filters. The ADT filter restricts to
+\texttt{location\_category} $=$ \texttt{"icu"} (case-insensitive);
+\texttt{patient} is join-only; \texttt{discharge\_category} is read
+from \texttt{hospitalization} for the \emph{label} only --- no cohort
+filter is applied on it. See the full table and per-table column
 inventory in the sibling document \texttt{icu\_daily\_mortality.tex}
 (\S CLIF tables and categories used). Tasks~T1 and~T2 differ only in
 the final label predicate, not in which CLIF data they touch.
@@ -105,7 +117,7 @@ split, the parquet schema --- is identical to Task~T1.}
 
 \section{Design choices and rationale}
 
-\paragraph{Why a separate schematic for the complement label.}
+\paragraph{Why a separate schematic for a different label on the same cohort.}
 A reader scanning the supplement should find one document per FLAIR
 task, with its own META, label rule, and prevalence numbers. The
 build pipeline being shared is a convenience of implementation, not a
@@ -114,24 +126,28 @@ property of the task definition: a future site whose
 long-term destinations more finely could change Task~T2's regex
 without affecting Task~T1.
 
-\paragraph{Prevalence asymmetry vs.\ Task~T1.}
-At the row level the positive rate is 42.6\% LTACH, complementary to
-T1's 57.4\% mortality. At the stay level the asymmetry is sharper:
-32.9\% of retained stays are LTACH-positive vs.\ 67.1\% mortality-positive
-(see \texttt{docs/paper/outline.tex} Table~1). In MIMIC, hospice and
-expired-in-hospital both fall on T1's positive side, while only the
-LTACH-or-long-term family falls on T2's, so the marginals are not
-50/50. Reporting AUPRC alongside AUROC is mandatory.
+\paragraph{Prevalence and class imbalance.}
+LTACH transfer is a rare disposition in the absolute sense: across
+all adult ICU stays it sits in the low single digits per-row positive
+rate. Class imbalance is therefore the dominant modelling challenge,
+and AUPRC is the primary headline metric. AUROC is reported but is
+known to be optimistic on heavily imbalanced binary tasks.
 
 \paragraph{Why LTACH is the operationally interesting label.}
 LTACH transfer is a planned, resource-intensive disposition decision
 that triggers care-coordination work several days before discharge
-\citep{kahn2010ltach}. A morning prediction of LTACH-bound vs.\
-in-hospital-mortality trajectory can drive social-work referrals,
-family conversations, and family-meeting timing; the same trajectory
-forecast from the mortality side (T1) is more commonly used for
-goals-of-care conversations. The two complementary framings expose
-the same underlying signal to two distinct downstream workflows.
+\citep{kahn2010ltach}. A morning prediction of LTACH-bound trajectory
+can drive social-work referrals, family conversations, and
+family-meeting timing.
+
+\paragraph{Why an unconditional cohort.}
+Earlier drafts conditioned the cohort on the union of LTACH and
+in-hospital mortality, manufacturing a balanced binary against T1.
+That design has been retired (see Task~T1 schematic, \S Design
+choices). The unconditional cohort makes the per-row positive rate
+interpretable as the prevalence of LTACH-bound trajectories among all
+ICU survivors-and-non-survivors, and matches the standard
+ICU-outcome-prediction setup.
 
 \section{Out of scope}
 

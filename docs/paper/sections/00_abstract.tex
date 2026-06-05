@@ -23,8 +23,12 @@ long-term acute care, extubation failure, sepsis, KDIGO stage~2 acute
 kidney injury). Models run in an immutable container at each site and
 emit aggregate-only JSON reports (cohort characteristics, full
 TRIPOD+AI metrics, subgroup fairness gaps, calibration curves) with
-HIPAA cell suppression. The task catalog is openly extensible by
-community pull request.
+HIPAA cell suppression. The full FLAIR stack---library, task
+definitions, container specification, and report generators---is
+released open source (Apache~2.0) at
+\texttt{github.com/clif-consortium/FLAIR}, and the task catalog is
+designed to grow: any contributor can add a new benchmark task as a
+single-file Python module via GitHub pull request.
 
 \noindent\textbf{Results.} Across \est{$\sim$12 consortium sites and
 $\sim$500{,}000 ICU stays}, baseline models trained on MIMIC-CLIF show
@@ -36,4 +40,7 @@ CDSS validation from years to weeks, exposes models to a growing
 federated cohort that resists public-benchmark saturation, and
 produces the TRIPOD+AI and fairness evidence package regulators
 increasingly require---without patient-level data leaving any site.
+The initial five-task suite is a seed, not a ceiling: the open
+governance model invites the community to extend the benchmark to
+new clinical questions over time.
 \end{abstract}

@@ -102,6 +102,11 @@ drafting prose is paint-by-numbers. Hard envelope: 3000 main-text words,
         evaluation. Sites emit four aggregated JSON reports
         (\texttt{table1}, \texttt{tripod\_ai}, \texttt{fairness},
         \texttt{curves}).
+  \item Open-source release (Apache~2.0,
+        \texttt{github.com/clif-consortium/FLAIR}); the five-task suite
+        is a seed --- the catalog grows by community PR, each new task
+        added as a single Python module under
+        \texttt{flair\_benchmark/tasks/}.
 \end{itemize}
 
 \subsubsection*{Results}
@@ -109,9 +114,9 @@ drafting prose is paint-by-numbers. Hard envelope: 3000 main-text words,
   \item Combined cohort: \todo{n hospitalizations, n ICU stays, n sites
         across the consortium}. MIMIC-CLIF baseline cohort (development
         entry point): 84{,}854 ICU stays at the broadest task (T4 sepsis);
-        12{,}438--65{,}577 stays for the four task-specific cohorts
+        26{,}771--65{,}577 stays for the four task-specific cohorts
         (T1/T2 daily disposition, T3 extubation, T5 AKI); per-task
-        positive-rate range 1.7\%--57.4\% at decision-row granularity
+        positive-rate range 1.7\%--19.2\% at decision-row granularity
         (see Table~\ref{tab:mimic-snapshot}).
   \item Per-task AUROC / AUPRC (median, IQR across sites) \todo{fill from
         federated runs}; calibration drift quantified between MIMIC-CLIF
@@ -150,6 +155,11 @@ drafting prose is paint-by-numbers. Hard envelope: 3000 main-text words,
         ETL plus two reference baselines (logistic regression, XGBoost)
         released as the FLAIR baseline kit}; aggregate-only report
         bundle; baseline + federated results across the CLIF consortium.
+  \item \textbf{P5b --- Open source, extensible.} Apache~2.0 release at
+        \texttt{github.com/clif-consortium/FLAIR}; the five-task suite
+        is a seed catalog, with new tasks added by community PR as
+        single Python modules under \texttt{flair\_benchmark/tasks/}
+        and accepted via two-site governance review.
   \item \textbf{Figure 1 callout} \note{counts toward 5-item budget}:
         \emph{Summary of Contributions} panel modeled on EchoNext-Mini
         Fig.\ 1 \citep{hughes2026echonextmini} --- one side shows the
@@ -195,14 +205,29 @@ included by reference in the Supplement.
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{T1 --- ICU Daily In-Hospital Mortality (7\,AM).}
         one-per-timestep, 24\,h lookback, daily 07:00 local anchor.
-        Cohort: first ICU stay; discharge $\in$ \{LTACH, mortality\}.
-        \emph{MIMIC-CLIF:} 12{,}438 stays / 65{,}989 daily rows;
-        per-row positive rate 57.4\%; stays-ever-positive 67.1\%.
-  \item \textbf{T2 --- ICU Daily LTACH Discharge (7\,AM).} Complementary
-        label to T1; same cohort and grid.
-        \emph{MIMIC-CLIF:} same 12{,}438 stays / 65{,}989 rows;
-        per-row positive rate 42.6\%; stays-ever-positive 32.9\%
-        (mortality-vs-LTACH disposition is asymmetric).
+        \emph{Cohort:} all adult first-ICU-stay hospitalizations (no
+        \texttt{discharge\_category} filter).
+        \emph{Label:} $y=1$ iff CLIF \texttt{discharge\_category} $\in$
+        \{\texttt{Expired}, \texttt{Hospice}\}; all other dispositions
+        (\texttt{Home}, \texttt{SNF}, \texttt{Rehab},
+        \texttt{Long Term Care Hospital (LTACH)}, \texttt{AMA},
+        \texttt{Other}, \texttt{Still Admitted}, null, \ldots) are
+        label-0.
+        \emph{MIMIC-CLIF:} 64{,}434 stays / 198{,}125 daily rows;
+        per-row positive rate 19.2\%; stays-ever-positive 13.0\%.
+  \item \textbf{T2 --- ICU Daily LTACH Discharge (7\,AM).} Same cohort
+        and grid as T1. \emph{Label:} $y=1$ iff CLIF
+        \texttt{discharge\_category} $=$
+        \texttt{Long Term Care Hospital (LTACH)}; everything else ---
+        \texttt{Expired}, \texttt{Hospice}, \texttt{Home}, \texttt{SNF},
+        \texttt{Rehab}, \texttt{AMA}, \texttt{Other},
+        \texttt{Still Admitted}, null --- is label-0. T1 and T2 do
+        \textbf{not} partition: a Home discharge is 0 in both; an
+        Expired discharge is 1 in T1 / 0 in T2.
+        \emph{MIMIC-CLIF:} same 64{,}434 stays / 198{,}125 daily rows;
+        per-row positive rate 14.3\%; stays-ever-positive 6.4\%
+        (LTACH-bound stays are long, so the per-row rate exceeds the
+        stay-level rate).
   \item \textbf{T3 --- Extubation Failure within 24\,h.} one-per-stay,
         anchored at the first confirmed extubation event; consensus-window
         IMV episode detector in \texttt{\_ventilation\_episodes.py}.
@@ -225,37 +250,41 @@ included by reference in the Supplement.
 \paragraph{MIMIC-CLIF cohort snapshot.} The numbers below come from
 \texttt{flair extract-metadata --clif-config clif\_config\_mimic.json}
 (\texttt{flair\_benchmark} v2.0.0; HIPAA cell-suppression at $n{<}10$;
-SOFA computed over the first 24\,h of the first ICU stay via
-\texttt{clifpy}; Charlson and Elixhauser computed from
-\texttt{HospitalDiagnosis} where available --- \emph{note: 49--54\% of
-stays are missing comorbidity scores in the MIMIC-CLIF export, a known
-data-quality gap to flag in the Limitations}).
+SOFA computed as the worst score across the full hospitalization via
+\texttt{clifpy}'s polars backend (\texttt{compute\_sofa\_polars});
+Charlson and Elixhauser computed from \texttt{HospitalDiagnosis} where
+available --- \emph{note: 49--54\% of stays are missing comorbidity
+scores in the MIMIC-CLIF export, a known data-quality gap to flag in
+the Limitations}).
 
 \begin{table}[h]
 \centering
-\small
-\setlength{\tabcolsep}{4pt}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
 \begin{tabular}{lrrrrr}
 \toprule
-                       & \textbf{T1 mort.} & \textbf{T2 LTACH} & \textbf{T3 ext-fail} & \textbf{T4 sepsis} & \textbf{T5 AKI} \\
+                             & \textbf{T1 mort.} & \textbf{T2 LTACH} & \textbf{T3 ext-fail} & \textbf{T4 sepsis} & \textbf{T5 AKI} \\
 \midrule
-ICU stays              & 12{,}438        & 12{,}438         & 26{,}771           & 84{,}854         & 65{,}577        \\
-Decision rows          & 65{,}989        & 65{,}989         & 26{,}771           & 7{,}093{,}633   & 4{,}135{,}079   \\
-Positive rate (row)    & 57.4\%          & 42.6\%           & 5.4\%              & 3.3\%            & 1.7\%           \\
-Stays ever positive    & 67.1\%          & 32.9\%           & ---                & 54.9\%           & 4.8\%           \\
+ICU stays                    & 64{,}434          & 64{,}434          & 26{,}771           & 84{,}854         & 65{,}577        \\
+Decision rows                & 198{,}125         & 198{,}125         & 26{,}771           & 7{,}093{,}633   & 4{,}135{,}079   \\
+Positive rate (row)          & 19.2\%            & 14.3\%            & 5.4\%              & 3.3\%            & 1.7\%           \\
+Stays ever positive          & 13.0\%            & 6.4\%             & 5.4\%              & 54.9\%           & 4.8\%           \\
 \midrule
-Sex: Female / Male     & 5{,}546 / 6{,}892 & 5{,}546 / 6{,}892 & 10{,}033 / 16{,}738 & 37{,}552 / 47{,}302 & 28{,}867 / 36{,}710 \\
-Age 65+ share          & 66.6\%          & 66.6\%           & 54.1\%             & 54.6\%           & 55.1\%          \\
-SOFA 24h (median, IQR) & 5 (2--8)        & 5 (2--8)         & 5 (4--8)           & 3 (1--6)         & 3 (1--5)        \\
-Charlson (median, IQR) & 4 (2--5)        & 4 (2--5)         & 2 (0--4)           & 2 (0--4)         & 2 (0--4)        \\
+Sex: F / M                   & 27{,}805/36{,}629 & 27{,}805/36{,}629 & 10{,}033/16{,}738  & 37{,}552/47{,}302 & 28{,}867/36{,}710 \\
+Age 65+ share                & 55.3\%            & 55.3\%            & 54.1\%             & 54.6\%           & 55.1\%          \\
+SOFA hosp.\ max (med., IQR)  & 5 (2--8)          & 5 (2--8)          & 7 (5--10)          & 5 (2--8)         & 4 (2--7)        \\
+Charlson (median, IQR)       & 2 (0--4)          & 2 (0--4)          & 2 (0--4)           & 2 (0--4)         & 2 (0--4)        \\
 \bottomrule
 \end{tabular}
 \caption{MIMIC-CLIF cohort snapshot per task, generated by
 \texttt{flair extract-metadata}. \emph{Decision rows} = one-per-stay for
 T3 (extubation episode), one-per-timestep otherwise (daily at 07:00 for
 T1/T2; hourly for T4/T5). \emph{Age 65+} share is over distinct ICU
-stays. \emph{Stays ever positive} is omitted for T3 because the task is
-one-per-stay (the row-level rate is the stay-level rate).}
+stays. \emph{Stays ever positive} equals the row-level rate for T3
+because the task is one-per-stay. \emph{SOFA hosp.\ max} is the worst
+SOFA score across the full hospitalization
+$[\textit{admission\_dttm}, \textit{discharge\_dttm}]$, computed via
+\texttt{clifpy}'s polars backend (\texttt{compute\_sofa\_polars}).}
 \label{tab:mimic-snapshot}
 \end{table}
 
@@ -432,9 +461,12 @@ convention (absent token $=$ zero count) are deferred to the Supplement
         audit-traceable ICU benchmark \textbf{paired with a reusable
         baseline kit (event tokenizer + logistic regression + XGBoost)
         that defines the floor of expected performance at every site};
-        release includes code, container, baseline weights, and
-        per-task LaTeX schematics. Community extension via GitHub PRs
-        is invited.
+        full stack released open source (Apache~2.0,
+        \texttt{github.com/clif-consortium/FLAIR}) --- code, container,
+        baseline weights, and per-task LaTeX schematics. Researchers
+        and clinicians are invited to grow the catalog by submitting
+        new tasks as single-file Python modules via GitHub PR,
+        accepted through a two-site governance review.
 \end{itemize}
 
 % ---------------------------------------------------------------------

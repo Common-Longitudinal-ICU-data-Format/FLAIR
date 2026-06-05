@@ -58,14 +58,19 @@ Second, it is anchored on the Common Longitudinal ICU Format (CLIF), a
 critical-care common data element schema adopted by 12+ academic
 medical centers \citep{rojas2025clif}, conceptually parallel to mCODE
 for oncology \citep{mcode2024hl7} and complementary to the Medical
-Event Data Standard \citep{arnrich2025meds}. Third, the task catalog,
-evaluation protocol, and submission contract are open and extensible
-by GitHub pull request, so the benchmark co-evolves with clinical need
-rather than ossifying around a single author group's priors.
+Event Data Standard \citep{arnrich2025meds}. Third, FLAIR is released open source (Apache~2.0,
+\texttt{github.com/clif-consortium/FLAIR}): the task catalog,
+evaluation protocol, and submission contract are extensible by
+GitHub pull request, with each new task added as a single Python
+module under \texttt{flair\_benchmark/tasks/}. The benchmark
+co-evolves with clinical need rather than ossifying around a single
+author group's priors, and the five-task v1 suite below is
+explicitly a seed for that catalog rather than a fixed scope.
 
 We organize the rest of the manuscript around three commitments: the
 CLIF-anchored \emph{datasets} that participating sites contribute
 (\S\ref{sec:datasets}), the initial five-task \emph{benchmark} suite
+together with the open contribution protocol for adding more tasks
 (\S\ref{sec:benchmarks}), and the federated submission and evaluation
 \emph{protocol} (\S\ref{sec:protocols}). A short subsection
 (\S\ref{sec:fda}) then situates FLAIR within the kind of evidence
