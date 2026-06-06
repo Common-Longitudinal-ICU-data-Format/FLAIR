@@ -19,6 +19,19 @@ leaderboard is weak because the data they would overfit to are not
 accessible to them. We view this not as a feature of FLAIR per se but
 as an emergent property of the access model.
 
+\paragraph{Why evaluation, not training, federates safely.} FLAIR
+federates evaluation rather than training, and the distinction is
+load-bearing for risk: aggregate metrics leak orders of magnitude less
+about patients than the weight updates exchanged in federated learning
+\citep{karargyris2023medperf}, and no live network connection is held
+open during a run. The reciprocal risk --- exposing a submitted model to
+sites --- is contained by the immutable, no-internet, site-approved
+container, so model intellectual property and inversion risk stay
+bounded. Because those safeguards are fixed by design, participation can
+move from a per-pair data use agreement to a templated agreement,
+shrinking the legal latency that has historically capped multi-site
+validation at a handful of sites.
+
 \paragraph{Limitations.} Adoption is bounded by the institutions that
 have implemented CLIF; non-CLIF sites cannot currently participate
 without an ETL effort. The current task suite is restricted to binary
@@ -32,10 +45,17 @@ T4's antibiotic vocabulary is an open dependency.
 prospective silent-trial evaluation \citep{joshi2025silenttrials},
 longitudinal calibration drift monitoring against site reference
 periods, and integration of additional CLIF tables (diagnoses,
-procedures) as the schema matures. The model-to-data primitive
+procedures) as the schema matures. Because CLIF standardizes not only
+the relational schema but also the permissible category vocabularies
+through its minimum common ICU data elements (mCIDE), a model defined
+once is reproducible across sites and over time: the same Portal
+submission and aggregation contract that runs on a retrospective
+extract applies unchanged to a live CLIF feed, so prospective,
+near-real-time benchmarking is a configuration of the existing
+protocol rather than a new system. The model-to-data primitive
 underpinning FLAIR is data-modality-agnostic; once CLIF stabilizes
-multimodal extensions, the same submission and aggregation contract
-will apply to notes and waveforms.
+multimodal extensions, the same contract will apply to notes and
+waveforms.
 
 \paragraph{Conclusion.} FLAIR makes privacy-preserving multi-site
 external validation of EHR-based clinical decision support a routine,

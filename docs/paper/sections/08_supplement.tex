@@ -1,0 +1,83 @@
+% Supplementary appendix. Heavy detail deferred from the main text:
+% count-featurization spec, baseline hyperparameter grids, full results.
+\section{Supplementary appendix}
+\label{sec:supp}
+
+\subsection*{S1. Count featurization specification}
+
+The FLAIR v1 baseline reduces each cohort window to a sparse count
+vector, following the count-featurization recipe of EHRSHOT and FEMR
+\citep{wornow2023ehrshot,steinberg2021femr} adapted to CLIF.
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Token construction.} Every row of a CLIF event table
+        (\texttt{vitals}, \texttt{labs},
+        \texttt{medication\_admin\_intermittent},
+        \texttt{medication\_admin\_continuous},
+        \texttt{respiratory\_support}) is mapped to a deterministic
+        \texttt{<table>.<category>} token. The dictionary is built by
+        enumerating every schema-locked category present in MIMIC-CLIF;
+        no per-task curation is applied.
+  \item \textbf{Window.} For each cohort row, the featurizer counts the
+        events whose time falls in
+        $[\texttt{window\_start}, \texttt{window\_end}]$, the same
+        window the task definition emits.
+  \item \textbf{Representation.} Counts are accumulated into a
+        \texttt{scipy} CSR sparse matrix (rows $=$ cohort windows,
+        columns $=$ tokens); only non-zero counts are stored.
+  \item \textbf{Missingness.} Absent token $=$ zero count; there is no
+        separate imputation step. A token unseen at training time is
+        ignored at inference.
+  \item \textbf{Variants not enabled.} FEMR's \texttt{CountFeaturizer}
+        also supports ontology expansion, numeric-value deciles,
+        string-value combinations, and time-binned counts; the FLAIR
+        v1 baseline uses plain in-window counts only, so the baseline
+        carries no external-ontology (Athena) dependency.
+\end{itemize}
+
+\subsection*{S2. Baseline hyperparameter grids}
+
+Both heads are trained on MIMIC-CLIF using a 70/30 temporal split, with
+model selection by validation AUROC over a grid search. Search spaces
+mirror the EHRSHOT count-baseline configuration.
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Logistic regression.} \texttt{sklearn}
+        \texttt{LogisticRegression}, L2 penalty, LBFGS solver,
+        \texttt{max\_iter}~$=1000$, \texttt{tol}~$=10^{-4}$; features
+        scaled with \texttt{MaxAbsScaler}; inverse-regularization
+        $C \in \{10^{-8}, 10^{-6}, 10^{-4}, 10^{-2}, 10^{-1}, 1,
+        10^{2}, 10^{4}\}$.
+  \item \textbf{XGBoost.} Gradient-boosted trees with
+        \texttt{max\_depth} $\in \{3, 6, \infty\}$,
+        \texttt{learning\_rate} $\in \{0.02, 0.1, 0.5\}$, and
+        \texttt{num\_leaves} $\in \{10, 25, 100\}$.
+\end{itemize}
+
+\subsection*{S3. Full baseline results on MIMIC-CLIF}
+
+Per-task, per-model internal-test discrimination and calibration on the
+70/30 temporal hold-out. Cells are placeholders pending the final run.
+
+\begin{table}[h]
+\centering
+\caption{Count-featurization baseline: full per-task metrics on the
+MIMIC-CLIF internal test split.}
+\label{tab:supp-baseline-full}
+\begin{tabular}{l l ccccc}
+\toprule
+Task & Model & AUROC & AUPRC & Cal.\ slope & Cal.\ intercept & Brier \\
+\midrule
+T1 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T1 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T2 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T2 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T3 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T3 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T4 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T4 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T5 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T5 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+\bottomrule
+\end{tabular}
+\end{table}

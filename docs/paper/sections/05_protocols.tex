@@ -15,17 +15,42 @@
   inside CLIF-WorkBench (no internet, no root, immutable image) and emits
   only four reports (\texttt{table1.json}, \texttt{tripod\_ai.json},
   \texttt{fairness.json}, \texttt{curves.json}) with cell suppression at
-  $n<10$. The FLAIR aggregator verifies the SHA-256 chain across sites
-  and publishes per-site and pooled metrics on the public leaderboard;
-  the per-site forest plot --- not the pooled scalar --- is the headline
-  signal.}
+  $n<10$. The \emph{FLAIR Portal} orchestrates the ecosystem: a Benchmark
+  Committee approves task pull requests and models, the Portal registers
+  and distributes the containers and hosts the models, each Site Lead /
+  Data Steward runs the approved container locally, and the Portal
+  verifies the SHA-256 chain across sites and publishes per-site and
+  pooled metrics on the public leaderboard; the per-site forest plot ---
+  not the pooled scalar --- is the headline signal.}
   \label{fig:workflow}
 \end{figure*}
 
 The federated protocol is what makes FLAIR's privacy properties
-operational. We describe it in three steps --- developer-side
-submission, site-side execution, and central aggregation --- and then
-position the protocol against the closest precedents.
+operational. We first name the actors that operate the ecosystem, then
+describe the protocol in three steps --- developer-side submission,
+site-side execution, and central aggregation --- and position it
+against the closest precedents.
+
+\subsection*{The FLAIR ecosystem: roles and the Portal}
+
+FLAIR is operated as an ecosystem of four roles, mirroring the
+model-to-data benchmarking pattern MedPerf established for medical
+imaging \citep{karargyris2023medperf} and bringing it to critical-care
+longitudinal EHR. The \emph{FLAIR Portal} is the orchestration layer: it
+registers tasks, models, and sites, distributes the containerised code
+and Dockerfiles, collects the returned aggregate JSONs, and renders the
+leaderboard. A \emph{Benchmark Committee} --- clinicians, methodologists,
+regulators, and patient representatives --- reviews each new task, which
+enters as a single-file Python module via GitHub pull request, for
+reproducibility against MIMIC-CLIF and clinical face validity, and
+approves models for execution. A \emph{Model Owner} submits a frozen
+model plus its container. At each institution a \emph{Site Lead / Data
+Steward} pulls the approved container from the Portal, runs it inside
+CLIF-WorkBench against local CLIF tables, and returns only the four
+standardized aggregate JSONs. The lifecycle is therefore
+register~$\rightarrow$~approve~$\rightarrow$~execute~$\rightarrow$~release:
+no patient-level data leaves any site, and every site runs byte-identical
+Portal-distributed code.
 
 \subsection*{Submission}
 
@@ -43,7 +68,10 @@ itself is not new --- it was introduced by the DREAM Challenges
 prediction at scale in the EHR DREAM Challenge
 \citep{bergquist2024ehrdream}. FLAIR's contribution is to move it from
 a one-time competition format into a standing benchmark and submission
-service.
+service. Before any model is dispatched to a site, the Portal runs its
+container against MIMIC-CLIF as a compatibility check, so only models
+that execute cleanly on the schema-locked public data are approved for
+federated execution.
 
 \subsection*{Execution}
 
@@ -93,6 +121,8 @@ Table~\ref{tab:comparators}.
 
 \begin{table}[t]
 \centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
 \caption{FLAIR alongside adjacent federated infrastructures.}
 \label{tab:comparators}
 \begin{tabularx}{\linewidth}{lXXXXX}
@@ -102,6 +132,7 @@ Table~\ref{tab:comparators}.
 Data model       & OMOP         & task-specific & imaging (brain MRI) & TPP / EMIS       & CLIF \\
 Federation unit  & SQL / coefficients & container & training gradients & analytic code & container \\
 Modern DL CDS    & no           & yes (imaging) & yes (training only)   & limited        & yes (longitudinal EHR) \\
+Hosted-model portal & no & yes & yes & no & yes \\
 PR-extensible tasks & no        & partial       & no                    & n/a             & yes \\
 Sites (current)  & many         & \est{$\sim$10s} & 71                  & English NHS    & 12+ \\
 \bottomrule

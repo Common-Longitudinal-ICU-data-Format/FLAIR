@@ -54,7 +54,7 @@
         <path d="M 60 134 Q 60 122 75 122 Q 90 122 90 134"/>
       </g>
       <text x="75" y="150" text-anchor="middle"
-            font-size="10.5" font-weight="700" fill="#7C3F00">Data steward</text>
+            font-size="10.5" font-weight="700" fill="#7C3F00">Site Lead</text>
       <!-- padlock pill -->
       <g transform="translate(75,166)">
         <rect x="-23" y="-9" width="46" height="14" rx="7"
@@ -81,8 +81,8 @@
   <!-- LEFT header pill -->
   <rect x="30" y="105" width="530" height="32" rx="16" fill="#3B4CCA"/>
   <text x="295" y="126" text-anchor="middle"
-        font-size="14" font-weight="600" fill="#FFFFFF">
-    PUBLIC SIDE · researcher · code · aggregator · leaderboard
+        font-size="13" font-weight="600" fill="#FFFFFF">
+    PUBLIC SIDE · researcher · Model Owner · FLAIR Portal · leaderboard
   </text>
 
   <!-- BOUNDARY mini header (above band) -->
@@ -232,12 +232,34 @@
     </g>
     <text x="475" y="382" font-size="11" font-weight="700" fill="#1F2937">Container</text>
     <text x="475" y="398" font-size="10" fill="#4B5563">model + code · frozen</text>
+    <text x="420" y="430" font-size="9.5" fill="#6B7280" font-style="italic">Model Owner submits container</text>
+
+    <!-- BENCHMARK COMMITTEE — governance gate before code crosses -->
+    <rect x="30" y="448" width="530" height="92" rx="12"
+          fill="#E8EBFA" stroke="#3B4CCA" stroke-width="2"/>
+    <text x="44" y="470" font-size="12" font-weight="700"
+          fill="#3B4CCA" letter-spacing="1">GOVERN — Benchmark Committee</text>
+    <!-- committee icon: three small heads -->
+    <g fill="#3B4CCA">
+      <g transform="translate(54,486)">
+        <circle cx="0" cy="6" r="6"/><path d="M -9 22 Q -9 13 0 13 Q 9 13 9 22" />
+      </g>
+      <g transform="translate(74,486)">
+        <circle cx="0" cy="6" r="6"/><path d="M -9 22 Q -9 13 0 13 Q 9 13 9 22" />
+      </g>
+      <g transform="translate(94,486)">
+        <circle cx="0" cy="6" r="6"/><path d="M -9 22 Q -9 13 0 13 Q 9 13 9 22" />
+      </g>
+    </g>
+    <text x="120" y="494" font-size="10.5" fill="#4B5563">reviews task PRs (single-file modules) · approves models</text>
+    <text x="120" y="510" font-size="10.5" fill="#4B5563">clinicians · methodologists · regulators · patient reps</text>
+    <text x="120" y="528" font-size="10" fill="#6B7280" font-style="italic">approval gates what crosses the boundary &amp; runs at sites</text>
 
     <!-- AGGREGATOR CARD — receives lower crossing -->
     <rect x="30" y="608" width="530" height="78" rx="12"
           fill="#D8F0EA" stroke="#1E8E7B" stroke-width="2"/>
     <text x="44" y="630" font-size="12" font-weight="700"
-          fill="#1E8E7B" letter-spacing="1">AGGREGATE — central verification</text>
+          fill="#1E8E7B" letter-spacing="1">FLAIR PORTAL — orchestrate · register · verify</text>
     <!-- check icon -->
     <g transform="translate(50,648)">
       <rect x="0" y="0" width="26" height="26" rx="5" fill="#1E8E7B"/>
@@ -245,8 +267,8 @@
             stroke="#FFFFFF" stroke-width="2.6" fill="none"
             stroke-linecap="round" stroke-linejoin="round"/>
     </g>
-    <text x="86" y="660" font-size="12" font-weight="700" fill="#1F2937">FLAIR aggregator</text>
-    <text x="86" y="676" font-size="10.5" fill="#4B5563">verifies SHA-256 chain matches across sites · merges aggregates</text>
+    <text x="86" y="660" font-size="12" font-weight="700" fill="#1F2937">FLAIR Portal</text>
+    <text x="86" y="676" font-size="9.5" fill="#4B5563">registers tasks + models · distributes containers · hosts models · verifies SHA-256 · merges</text>
 
     <!-- LEADERBOARD with per-site FOREST PLOT -->
     <rect x="30" y="696" width="530" height="92" rx="12"

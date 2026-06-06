@@ -63,6 +63,48 @@ window endpoints, label, split, age, sex, race, and ethnicity --- so
 that downstream feature engineering and evaluation code is shared
 across tasks.
 
+\subsection*{Count-based reference baselines}
+
+The leaderboard is anchored by a count-featurization baseline in the
+EHRSHOT/FEMR tradition \citep{wornow2023ehrshot,steinberg2021femr},
+adapted to CLIF. Every row of a CLIF event table (\texttt{vitals},
+\texttt{labs}, \texttt{medication\_admin\_*},
+\texttt{respiratory\_support}) is mapped to a deterministic
+\texttt{<table>.<category>} token (e.g., \texttt{vitals.heart\_rate},
+\texttt{labs.creatinine}), and each cohort window is reduced to a
+sparse integer count vector over those tokens. The featurizer is
+config-free and exhaustive --- every schema-locked category flows
+through with no per-task curation, so the same code runs unchanged on
+MIMIC-CLIF and at every consortium site. Two simple heads consume the
+count vectors: L2-penalized logistic regression and XGBoost, each
+emitting a calibrated \texttt{y\_prob}. Both are trained on MIMIC-CLIF
+and shipped frozen to sites; hyperparameter grids, the token
+dictionary, and the missingness convention (absent token $=$ zero
+count) are given in the supplementary appendix
+(Sec.~\ref{sec:supp}). Internal-test performance on MIMIC-CLIF is
+summarized in Table~\ref{tab:baseline}.
+
+\begin{table}[t]
+\centering
+\caption{Count-featurization baseline performance on the MIMIC-CLIF
+internal test split (70/30 temporal hold-out). Cells are placeholders
+pending the final run.}
+\label{tab:baseline}
+\begin{tabular}{l cc cc}
+\toprule
+& \multicolumn{2}{c}{Logistic regression} & \multicolumn{2}{c}{XGBoost} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Task & AUROC & AUPRC & AUROC & AUPRC \\
+\midrule
+T1 --- ICU daily mortality      & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T2 --- LTAC discharge           & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T3 --- Extubation failure 24\,h & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T4 --- Sepsis 6\,h              & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T5 --- AKI KDIGO\,2 24\,h       & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection*{Leaderboard mechanics}
 
 For each task and site, FLAIR reports area under the receiver-operating

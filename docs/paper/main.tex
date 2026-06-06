@@ -66,12 +66,16 @@ ICU Format}}
 \section*{Required statements}
 % ---------------------------------------------------------------------
 \noindent\textbf{Data and Code Availability.} Source code, task
-definitions, and report-generation library are released under Apache
-2.0 at \texttt{github.com/clif-consortium/FLAIR}. MIMIC-CLIF is
-distributed via PhysioNet; consortium data are accessible only by
-running submitted code at each site through the FLAIR portal.
-Baseline model weights are deposited on Zenodo (\todo{DOI}); the
-CLIF-WorkBench Singularity image is published on GHCR (\todo{tag}).
+definitions, Dockerfiles, and the report-generation library are
+released under Apache 2.0 at \texttt{github.com/clif-consortium/FLAIR}.
+MIMIC-CLIF is distributed via PhysioNet; consortium data are accessible
+only by running submitted code at each site through the FLAIR Portal.
+Baseline models are registered with and hosted on the FLAIR Portal,
+which distributes them to sites; for open-access reproducibility the
+same weights and model cards are mirrored on the Hugging Face Hub and
+archived under a Zenodo DOI (\todo{DOI}), and the CLIF-WorkBench
+container is published on GHCR and other public registries
+(\todo{tag}).
 
 \noindent\textbf{IRB.} Each consortium site obtained independent
 institutional review board approval; central protocol coordination is
@@ -89,5 +93,10 @@ or artifacts they helped produce}.
 % ---------------------------------------------------------------------
 \bibliographystyle{plainnat}
 \bibliography{references}
+
+% ---------------------------------------------------------------------
+\appendix
+% ---------------------------------------------------------------------
+\input{sections/08_supplement.tex}
 
 \end{document}

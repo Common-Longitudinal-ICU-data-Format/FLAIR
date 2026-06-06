@@ -20,9 +20,19 @@ once and reuse the mapping across studies. In spirit, CLIF is to
 critical care what mCODE \citep{mcode2024hl7} is to oncology: a
 clinically scoped common-data-element layer that makes downstream
 analytic code portable. CLIF is complementary to broader EHR standards
-such as the Medical Event Data Standard \citep{arnrich2025meds} and
-OMOP; ETL adapters between CLIF and these formats are maintained so
-that adoption does not require schema lock-in.
+such as the Medical Event Data Standard (MEDS) \citep{arnrich2025meds}
+and OMOP. FLAIR lets a developer consume CLIF data in either of two
+equivalent ways, chosen per project: natively, as CLIF relational
+tables through the \texttt{clifpy} interface, or as a MEDS event stream
+via the maintained CLIF$\rightarrow$MEDS bridge (\texttt{CLIF\_MEDS},
+\texttt{github.com/Common-Longitudinal-ICU-data-Format/CLIF\_MEDS}), so
+adoption never requires schema lock-in. Crucially, because CLIF
+standardizes the data \emph{elements} themselves through its minimum
+common ICU data elements (mCIDE) --- not merely the table layout ---
+transportability is not only syntactic: a model meets the same coded
+vocabularies at every site, so FLAIR measures genuine cross-site
+generalizability of trained models rather than an artifact of differing
+feature definitions.
 
 \subsection*{MIMIC-CLIF as the public development entry point}
 

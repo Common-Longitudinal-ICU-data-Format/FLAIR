@@ -325,7 +325,10 @@ across consortium sites with site-level median/IQR.}
 
 \subsection*{Baseline kit}
 
-\paragraph{Generic event tokenizer.} Each row in a CLIF event table
+\paragraph{Generic event tokenizer (count featurization).} The
+benchmark is set by a count-featurization baseline following the
+EHRSHOT/FEMR recipe \citep{wornow2023ehrshot,steinberg2021femr},
+adapted to CLIF. Each row in a CLIF event table
 (\texttt{vitals}, \texttt{labs},
 \texttt{medication\_admin\_intermittent},
 \texttt{medication\_admin\_continuous}, \texttt{respiratory\_support})
@@ -337,7 +340,11 @@ counting events in $[\texttt{window\_start}, \texttt{window\_end}]$.
 The tokenizer is config-free and exhaustive --- every category present
 in the input flows through with no per-task curation. Because tokens
 are derived from CLIF schema-locked category fields, the same code
-runs unchanged on MIMIC-CLIF and consortium sites. Module:
+runs unchanged on MIMIC-CLIF and consortium sites. Unlike EHRSHOT,
+which counts ontology-expanded source codes over the entire record via
+an Athena ontology, FLAIR counts schema-locked CLIF category tokens
+inside the task's cohort window, dropping the external-ontology
+dependency. Module:
 \texttt{flair\_benchmark/baseline/tokenizer.py}.
 
 \paragraph{Logistic-regression baseline.} Sparse count features $\to$
