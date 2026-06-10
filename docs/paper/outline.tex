@@ -93,7 +93,7 @@ drafting prose is paint-by-numbers. Hard envelope: 3000 main-text words,
         sites \note{fill N at submission}.
   \item Five clinically grounded tasks: T1 ICU daily mortality, T2 ICU
         daily LTACH discharge, T3 extubation failure $<$24h, T4 sepsis
-        (antibiotic-anchored) $<$6h, T5 AKI KDIGO-2 $<$24h.
+        (antibiotic-anchored) $<$6h, T5 unplanned ICU readmission.
   \item Reference baseline kit: (i) a generic CLIF event tokenizer that
         maps every clinical event into a token and emits per-window
         count features, and (ii) two reference models --- L2-penalized
@@ -114,9 +114,10 @@ drafting prose is paint-by-numbers. Hard envelope: 3000 main-text words,
   \item Combined cohort: \todo{n hospitalizations, n ICU stays, n sites
         across the consortium}. MIMIC-CLIF baseline cohort (development
         entry point): 84{,}854 ICU stays at the broadest task (T4 sepsis);
-        26{,}771--65{,}577 stays for the four task-specific cohorts
-        (T1/T2 daily disposition, T3 extubation, T5 AKI); per-task
-        positive-rate range 1.7\%--19.2\% at decision-row granularity
+        stays for the task-specific cohorts
+        (T1/T2 daily disposition, T3 extubation, T5 ICU readmission
+        \note{fill T5 cohort size after readmission regeneration});
+        per-task positive-rate range at decision-row granularity
         (see Table~\ref{tab:mimic-snapshot}).
   \item Per-task AUROC / AUPRC (median, IQR across sites) \todo{fill from
         federated runs}; calibration drift quantified between MIMIC-CLIF
@@ -240,11 +241,13 @@ included by reference in the Supplement.
         $\ge t_{\text{zero}}$ \citep{kamran2024sepsis}.
         \emph{MIMIC-CLIF:} 84{,}854 stays / 7{,}093{,}633 hourly rows;
         per-row positive rate 3.3\%; stays-ever-positive 54.9\%.
-  \item \textbf{T5 --- AKI KDIGO-2 within 24\,h.} one-per-timestep, hourly
-        grid; SCr-only criterion; Koyner-2018 exclusions
-        \citep{koyner2018aki}.
-        \emph{MIMIC-CLIF:} 65{,}577 stays / 4{,}135{,}079 hourly rows;
-        per-row positive rate 1.7\%; stays-ever-positive 4.8\%.
+  \item \textbf{T5 --- Unplanned ICU Readmission.} one-per-stay, anchored
+        at first-ICU discharge; ADT-derived label (return to ICU through a
+        non-procedural path); planned ICU$\to$procedural$\to$ICU merged out;
+        excludes death-in-ICU, direct ICU discharge, sub-hour first stay,
+        intermediate ER \citep{rojas2018readmission}.
+        \emph{MIMIC-CLIF:} \note{fill stays / positive rate after
+        readmission regeneration}.
 \end{itemize}
 
 \paragraph{MIMIC-CLIF cohort snapshot.} The numbers below come from

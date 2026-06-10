@@ -50,12 +50,15 @@ and infectious physiology.
         $t_{\mathrm{zero}}$. The implementation mirrors the
         antibiotic-anchored evaluation framing of
         \citet{kamran2024sepsis}.
-  \item \textbf{T5 --- Acute Kidney Injury, KDIGO stage 2 within
-        24~h.} One-per-timestep on an hourly grid; KDIGO stage 2 is
-        defined on serum creatinine with Koyner-style exclusions
-        \citep{koyner2018aki}, complementing the broader signature of
-        in-patient AKI prediction
-        \citep{tomasev2019aki}.
+  \item \textbf{T5 --- Unplanned ICU Readmission.} One-per-stay,
+        anchored at first-ICU discharge; the label is a return to the
+        ICU later in the same hospitalization through a non-procedural
+        path. Working from the CLIF \texttt{ADT} location stream,
+        planned ICU $\to$ procedural $\to$ ICU excursions are merged and
+        excluded; the cohort drops death-in-ICU, direct ICU discharge,
+        sub-hour first stays, and intermediate ER visits. The framing
+        follows structured-EHR ICU-readmission prediction
+        \citep{rojas2018readmission}.
 \end{itemize}
 
 Each cohort parquet carries a fixed ten-column schema --- identifiers,
@@ -100,7 +103,7 @@ T1 --- ICU daily mortality      & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.
 T2 --- LTAC discharge           & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
 T3 --- Extubation failure 24\,h & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
 T4 --- Sepsis 6\,h              & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T5 --- AKI KDIGO\,2 24\,h       & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T5 --- Unplanned ICU readmission & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
 \bottomrule
 \end{tabular}
 \end{table}

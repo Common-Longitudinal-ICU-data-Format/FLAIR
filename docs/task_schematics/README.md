@@ -14,7 +14,7 @@ authoritative spec --- the module docstrings defer to these documents.
 | T2 ICU Daily LTACH Discharge (7AM) | `icu_daily_ltach.tex` | shares T1's flowchart |
 | T3 Extubation Failure within 24h | `extubation_failure_24h.tex` | `figures/extubation_failure_24h_flowchart.tex` |
 | T4 Sepsis (antibiotic-anchored) within 6h | `sepsis_antibiotic_timezero.tex` | `figures/flowchart.tex` + `figures/timeline.tex` |
-| T5 AKI KDIGO-2 within 24h | `aki_kdigo2_24h.tex` | `figures/aki_kdigo2_24h_flowchart.tex` |
+| T5 Unplanned ICU Readmission | `icu_readmission.tex` | `figures/icu_readmission_flowchart.tex` |
 
 T1 and T2 are paired tasks (complementary labels on the same cohort
 and pipeline); T2 cites T1 as the pipeline authority and shares the
@@ -51,12 +51,10 @@ in `flair_benchmark/tasks/task<N>_*.py` mirrors the constants and
 predicates verbatim. When updating either side, update both:
 
 - Constants such as `INPUT_WINDOW_HOURS`, `GRID_STEP_HOURS`,
-  `HORIZON_HOURS`, `KDIGO_STAGE2_RATIO`,
-  `BASELINE_WINDOW_HOURS_DEFAULT`, `INTUB_WINDOW_MIN_DEFAULT`,
+  `HORIZON_HOURS`, `INTUB_WINDOW_MIN_DEFAULT`,
   `EXTUB_WINDOW_MIN_DEFAULT`, `TRACH_CLOSURE_TOLERANCE_MIN`,
-  `KOYNER_FIRST_SCR_EXCLUSION_MGDL`, and
-  `KOYNER_EARLY_RRT_WINDOW_HOURS` appear with matching numeric values
-  in both the schematic and the corresponding module.
+  `MIN_ICU_STAY_HOURS`, and the `LOCATION_MAPPING` buckets appear with
+  matching values in both the schematic and the corresponding module.
 - `META.inclusion_criteria` / `META.exclusion_criteria` strings should
   read as English equivalents of the schematic's cohort bullets.
 - Each schematic's "CLIF tables and categories used" subsection

@@ -1,10 +1,10 @@
 """
-Task 4: Sepsis prediction with antibiotic-anchored time-zero
+Task 4: Sepsis prediction with CDC Adult Sepsis Event (ASE) time-zero
 (binary classification, one-per-timestep).
 
 Clinical question:
-  Will this hospitalized patient receive their first qualifying systemic-IV
-  antibiotic within the next 6 hours?
+  Will this hospitalized patient meet the CDC Adult Sepsis Event (ASE)
+  surveillance definition within the next 6 hours?
 
 Reference:
   Kamran F, Tjandra D, Heiler A, Virzi J, Singh K, King JE, Valley TS, Wiens J.
@@ -12,49 +12,67 @@ Reference:
   NEJM AI 1(3), 2024. DOI: 10.1056/AIoa2300032.
 
 Rationale:
-  The qualifying-antibiotic order is used as an operational proxy for clinician
-  recognition of sepsis (per Kamran 2024). Because the label IS the clinician
-  action, predictions made at or after the action would trivially correlate
-  with the outcome ("label leakage"). The prediction window therefore
-  terminates strictly BEFORE t_zero so the model never sees the action it is
-  trying to forecast.
+  Kamran 2024 labels sepsis with a composite of the CDC surveillance
+  (Adult Sepsis Event) and CMS SEP-1 definitions, and defines onset as the
+  first time at which that definition is met. We adopt the CDC ASE arm via
+  clifpy's reference implementation (clifpy.utils.ase.compute_ase) and take
+  t_zero as the ASE onset timestamp: the earliest contributing ASE criterion
+  --- the "min/first timestamp" --- which equals
+  LEAST(blood_culture, first_qualifying_antibiotic_day, vasopressor, IMV,
+  AKI, hyperbilirubinemia, thrombocytopenia, lactate). Because ASE onset
+  folds in treatment/diagnostic actions (blood culture, qualifying
+  antibiotics, vasopressors), predictions made at or after it would trivially
+  correlate with the outcome ("label leakage"); the prediction window
+  therefore terminates strictly BEFORE t_zero, so the model only sees data
+  predating clinical recognition.
 
-Anchors (per docs/task_schematics/sepsis_antibiotic_timezero.pdf §3.1):
-  t_zero      = min(admin_dttm | med_group == cms_sepsis_qualifying_antibiotics,
-                                  med_route_category == iv,
-                                  mar_action_group == administered)
+  Caveat: ASE onset here is the *earliest* contributing criterion (clifpy's
+  LEAST over component timestamps), not the instant both Component A
+  (presumed infection) and Component B (organ dysfunction) are jointly
+  satisfied. This matches the requested "1st min timestamp" and is the
+  conservative (leak-safe) anchor.
+
+Anchors:
+  t_zero      = min(ase_onset_w_lactate_dttm | sepsis == 1)  per hospitalization
   pred_start  = max(min(vitals.recorded_dttm), admission_dttm + 1h)
-  pred_stop   = min(t_zero, discharge_dttm, death_dttm)   # t_zero = +inf if none
+  pred_stop   = min(t_zero, discharge_dttm, death_dttm)   # t_zero = +inf if never septic
 
 Cohort (hospital-wide, Kamran 2024):
   1. Adult hospitalizations (age >= 18) with valid admission/discharge dttm.
   2. EXCLUDE hospitalizations with any ADT stay on psychiatric or
      rehabilitation unit.
-  3. EXCLUDE admitted-on-treatment (t_zero <= pred_start).
+  3. EXCLUDE already-septic-at-entry (t_zero <= pred_start).
   4. EXCLUDE hospitalizations with no vital sign measurements
      (pred_start is undefined).
 
+Data requirement:
+  compute_ase needs the CLIF microbiology_culture table (blood cultures,
+  fluid_category == 'blood_buffy'). Exports lacking it cannot establish
+  Component A and will not yield a usable label.
+
 Row shape:
   One row per hourly decision point in [pred_start, pred_stop), closed-open.
-  Hospitalizations with no qualifying antibiotic ever produce all-negative
-  rows over [pred_start, discharge or death].
+  Hospitalizations that never meet ASE produce all-negative rows over
+  [pred_start, discharge or death].
 
-Label rule (label_sepsis_abx_6h):
+Label rule (label_sepsis_6h):
   y(d) = 1 iff t_zero is not null AND prediction_dttm < t_zero <= prediction_dttm + 6h.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import polars as pl
+from clifpy.utils.ase import compute_ase
 
 from flair_benchmark._clif import (
     base_icu_cohort,  # noqa: F401 — re-exported for parity with other tasks
     load_adt,
     load_hospitalization,
-    load_medication_admin_continuous,
-    load_medication_admin_intermittent,
     load_patient,
     load_vitals,
+    pd_to_pl,
     read_clif_config,
 )
 from flair_benchmark._split import assign_split
@@ -63,25 +81,28 @@ LABEL_HORIZON_HOURS = 6
 INPUT_WINDOW_HOURS = 24
 GRID_STEP_HOURS = 1
 
-QUALIFYING_MED_GROUP = "cms_sepsis_qualifying_antibiotics"
-QUALIFYING_ROUTE = "iv"
-ADMINISTERED_GROUP = "administered"
+# ASE onset column from clifpy.utils.ase.compute_ase. The "_w_lactate" arm
+# includes lactate >= 2.0 mmol/L as an organ-dysfunction criterion, bringing
+# the CDC ASE definition closer to the CMS SEP-1 arm Kamran 2024 also uses.
+ASE_ONSET_COL = "ase_onset_w_lactate_dttm"
+ASE_INCLUDE_LACTATE = True
 EXCLUDE_LOCATION_CATEGORIES = ["psychiatric", "rehabilitation"]
 
 META = {
     "name": "task4_sepsis_abx_6h",
-    "display_name": "Sepsis (antibiotic-anchored) within 6h",
+    "display_name": "Sepsis (CDC ASE onset) within 6h",
     "task_class": "intervention",
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-timestep",
     "task_type": "binary",
-    "label_column": "label_sepsis_abx_6h",
-    "positive_class": "qualifying_iv_abx_within_6h",
+    "label_column": "label_sepsis_6h",
+    "positive_class": "ase_onset_within_6h",
     "input_window_hours": INPUT_WINDOW_HOURS,
     "prediction_window": [0, LABEL_HORIZON_HOURS],
     "cohort_description": (
         "Hospital-wide adult cohort (Kamran 2024); psych/rehab units excluded; "
-        "admitted-on-treatment excluded; must have at least one vital sign."
+        "already-septic-at-entry excluded; must have at least one vital sign. "
+        "Label anchored on CDC Adult Sepsis Event onset (clifpy compute_ase)."
     ),
     "inclusion_criteria": [
         "age_at_admission >= 18",
@@ -90,7 +111,7 @@ META = {
     ],
     "exclusion_criteria": [
         "any ADT stay on psychiatric or rehabilitation unit",
-        "first qualifying antibiotic at or before first vital sign (admitted on treatment)",
+        "ASE onset at or before first vital sign (already septic at entry)",
         "no vital signs recorded",
     ],
     "evaluation_metrics": [
@@ -157,44 +178,44 @@ def _first_vital_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
     )
 
 
-def _first_qualifying_abx_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
-    """Union intermittent + continuous med tables, filter to qualifying
-    systemic-IV antibiotics that were actually administered, return earliest
-    admin_dttm per hospitalization.
+def _sepsis_onset_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
+    """Run clifpy's CDC Adult Sepsis Event (ASE) calculator and return the
+    earliest ASE onset per hospitalization as t_zero.
 
-    Intermittent and continuous tables have different CLIF semantics:
-      - Intermittent: each row is a discrete MAR action; must filter
-        mar_action_group == 'administered' to drop held/refused/etc.
-      - Continuous: each row is an infusion-rate timeseries point; presence
-        of the row implies administration (no mar_action_group column).
+    compute_ase emits one row per (hospitalization, blood culture) episode
+    with a 0/1 ``sepsis`` flag and an onset timestamp (the LEAST over all
+    contributing ASE criteria). We keep septic episodes and take the minimum
+    onset per hospitalization. Hospitalizations that never meet ASE are absent
+    here and become all-negative downstream (t_zero = null).
+
+    Requires the CLIF microbiology_culture table (blood cultures); without it
+    compute_ase cannot establish Component A and raises on load.
     """
-    abx_int = load_medication_admin_intermittent(
-        cfg, hosp_ids, med_groups=[QUALIFYING_MED_GROUP],
-    )
-    abx_int_filter = (
-        pl.col("admin_dttm").is_not_null()
-        & (pl.col("med_route_category").str.to_lowercase() == QUALIFYING_ROUTE)
-    )
-    if "mar_action_group" in abx_int.columns:
-        abx_int_filter = abx_int_filter & (
-            pl.col("mar_action_group").str.to_lowercase() == ADMINISTERED_GROUP
+    micro = Path(cfg["data_directory"]) / f"clif_microbiology_culture.{cfg['filetype']}"
+    if not micro.exists():
+        raise FileNotFoundError(
+            "task4_sepsis: CDC ASE labeling needs the CLIF microbiology_culture "
+            f"table (blood cultures), not found at {micro}. Add "
+            "clif_microbiology_culture to the export or revert to the "
+            "antibiotic-anchored label."
         )
-    abx_int = abx_int.filter(abx_int_filter).select(
-        ["hospitalization_id", "admin_dttm"]
+
+    ase = compute_ase(
+        hospitalization_ids=hosp_ids,
+        data_directory=cfg["data_directory"],
+        filetype=cfg["filetype"],
+        timezone=cfg["timezone"],
+        apply_rit=True,
+        include_lactate=ASE_INCLUDE_LACTATE,
+        verbose=False,
     )
 
-    abx_cont = load_medication_admin_continuous(
-        cfg, hosp_ids, med_groups=[QUALIFYING_MED_GROUP],
-    )
-    abx_cont = abx_cont.filter(
-        pl.col("admin_dttm").is_not_null()
-        & (pl.col("med_route_category").str.to_lowercase() == QUALIFYING_ROUTE)
-    ).select(["hospitalization_id", "admin_dttm"])
-
-    abx = pl.concat([abx_int, abx_cont], how="vertical")
+    ase = pd_to_pl(ase[["hospitalization_id", "sepsis", ASE_ONSET_COL]])
     return (
-        abx.group_by("hospitalization_id")
-        .agg(pl.col("admin_dttm").min().alias("t_zero"))
+        ase.filter((pl.col("sepsis") == 1) & pl.col(ASE_ONSET_COL).is_not_null())
+        .with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
+        .group_by("hospitalization_id")
+        .agg(pl.col(ASE_ONSET_COL).min().alias("t_zero"))
     )
 
 
@@ -219,8 +240,10 @@ def build(clif_config: str, train_end: str | None,
         ).alias("pred_start")
     )
 
-    t_zero = _first_qualifying_abx_dttm(cfg, hosp_ids)
-    cohort = cohort.join(t_zero, on="hospitalization_id", how="left")
+    t_zero = _sepsis_onset_dttm(cfg, hosp_ids)
+    cohort = cohort.with_columns(pl.col("hospitalization_id").cast(pl.Utf8)).join(
+        t_zero, on="hospitalization_id", how="left"
+    )
 
     cohort = cohort.filter(
         pl.col("t_zero").is_null() | (pl.col("t_zero") > pl.col("pred_start"))

@@ -97,6 +97,45 @@ def extract_metadata_cmd(
         typer.echo(f"  {task_name:32s} → {path}")
 
 
+def _run_fe(extractor, feature_config: str, task: str, out: str) -> None:
+    """Shared body for fe-wide / fe-meds: load config + task, extract, write."""
+    import polars as pl
+
+    from flair_benchmark.features._config import load_feature_config
+
+    feature_cfg, clif_cfg = load_feature_config(feature_config)
+    task_df = pl.read_parquet(task)
+    df = extractor(task_df, feature_cfg, clif_cfg)
+    out_path = Path(out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    df.write_parquet(out_path)
+    typer.echo(f"Wrote {df.height:,} ELF events → {out_path}")
+
+
+@app.command("fe-wide")
+def fe_wide_cmd(
+    feature_config: str = typer.Option(..., "--feature-config",
+                                       help="Path to feature_config.yaml"),
+    task: str = typer.Option(..., "--task", help="Task cohort parquet (from load-task)"),
+    out: str = typer.Option(..., "--out", help="Output ELF parquet path"),
+) -> None:
+    """Wide time-series features → MEDS/ELF long, truncated at the prediction point."""
+    from flair_benchmark.features import get_wide_feature_dataset
+    _run_fe(get_wide_feature_dataset, feature_config, task, out)
+
+
+@app.command("fe-meds")
+def fe_meds_cmd(
+    feature_config: str = typer.Option(..., "--feature-config",
+                                       help="Path to feature_config.yaml"),
+    task: str = typer.Option(..., "--task", help="Task cohort parquet (from load-task)"),
+    out: str = typer.Option(..., "--out", help="Output ELF parquet path"),
+) -> None:
+    """Lightweight med event stream (raw dose + raw unit) → MEDS/ELF long."""
+    from flair_benchmark.features import get_meds_stream
+    _run_fe(get_meds_stream, feature_config, task, out)
+
+
 @app.command("list-tasks")
 def list_tasks_cmd() -> None:
     """List discovered task names with taxonomy columns."""

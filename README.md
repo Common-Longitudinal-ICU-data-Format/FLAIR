@@ -168,15 +168,25 @@ cd FLAIR
 pip install -e .
 ```
 
-**Requirements**: Python 3.10+, clifpy
+**Requirements**: Python 3.10+, clifpy, polars, typer, pyyaml
 
 ------------------------------------------------------------------------
 
 ## 🚀 Quick Start
 
-FLAIR is a CLI. Two commands cover the whole workflow.
+FLAIR is a CLI. The whole workflow is **Configure → ① Make a task → ② Get data →
+③ Train → ④ Report.** Commands:
 
-### 1. Configure CLIF Data Source
+| Command | Stage | What it does |
+|---|---|---|
+| `flair list-tasks` | ① | List discovered tasks + taxonomy |
+| `flair load-task` | ① | Build a task cohort parquet |
+| `flair fe-meds` | ② | Assist: CLIF → MEDS/ELF med event stream |
+| `flair fe-wide` | ② | Assist: CLIF → wide feature set as ELF events |
+| `flair build-report` | ④ | Aggregate report bundle (4 JSONs) |
+| `flair extract-metadata` | — | Per-site cohort metadata for the leaderboard |
+
+### Configure the CLIF data source
 
 ``` bash
 cp clif_config_template.json clif_config.json
@@ -184,7 +194,9 @@ cp clif_config_template.json clif_config.json
 
 Edit `clif_config.json` to set your data path, filetype, and timezone.
 
-### 2. Build a task cohort
+------------------------------------------------------------------------
+
+### ① Task making — `flair load-task`
 
 ``` bash
 flair list-tasks
@@ -199,7 +211,32 @@ flair load-task task1_icu_daily_mortality \
 # (omit --train-end / --test-start for MIMIC: 70/30 temporal split is used)
 ```
 
-### 3. Build features and train a model (your code)
+The cohort parquet (schema in [Cohort parquet](#cohort-parquet-what-flair-load-task-emits))
+carries `hospitalization_id`, `window_start`, `window_end` (= prediction time),
+the label, `split`, and demographics. Every downstream stage keys off it.
+
+------------------------------------------------------------------------
+
+### ② Getting data — three options
+
+From the cohort, turn CLIF tables into model inputs. Pick one:
+
+| Option | How | Output |
+|---|---|---|
+| **A · Direct FE** | your own code over cohort + `clifpy` | whatever you build |
+| **B · Assist: CLIF as MEDS** | `flair fe-meds` / `get_meds_stream` | ELF long med events |
+| **C · Assist: CLIF as wide dataset** | `flair fe-wide` / `get_wide_feature_dataset` | ELF long feature events |
+
+Both assist functions are **config-driven** (`feature_config.yaml`), **always
+load via clifpy**, **write parquet**, strip timezone to wall-clock, and emit the
+**same ELF long schema** (see [ELF output schema](#elf-output-schema)). They
+guarantee **no future-data leakage** (no event after a stay's prediction point)
+and **chart the unit** on every numeric event so a downstream step can convert.
+
+#### Option A — Direct FE (bring your own)
+
+Full control: read the cohort, pull whatever CLIF data you want, engineer
+features your way.
 
 ``` python
 import polars as pl
@@ -209,14 +246,15 @@ cohort = pl.read_parquet("cohort.parquet")
 ids = cohort["hospitalization_id"].to_list()
 
 co = ClifOrchestrator(data_directory="...", filetype="parquet", timezone="US/Central")
-wide = co.create_wide_dataset(
+co.create_wide_dataset(
+    tables_to_load=["vitals", "labs"],
+    category_filters={"vitals": ["heart_rate", "sbp"], "labs": ["creatinine"]},
     hospitalization_ids=ids,
-    # ... vitals/labs/respiratory_support categories you want ...
 )
-# join wide → train your model → produce y_pred / y_prob.
+wide = co.wide_df  # join → engineer → train → y_pred / y_prob
 ```
 
-Or query CLIF tables directly:
+Or query a single CLIF table directly:
 
 ``` python
 from clifpy.tables import Vitals
@@ -227,9 +265,91 @@ vitals = Vitals.from_file(
 )
 ```
 
-### 4. Append predictions and run the report
+#### Option B — Assist: CLIF as MEDS (`flair fe-meds`)
+
+Lightweight pull of the configured med categories into an ELF event stream —
+**raw dose + raw unit, no unit conversion / weight join / dose normalization**
+(the raw unit is charted so you can convert later).
+
+``` bash
+flair fe-meds \
+    --feature-config feature_config.yaml \
+    --task cohort.parquet \
+    --out features/meds.parquet
+```
+
+``` text
+subject_id | time             | code                        | numeric_value | unit
+P101       | 2150-03-01 04:00 | MED_INT//vancomycin//mg     | 1000          | mg
+P101       | 2150-03-01 06:30 | MED_CON//norepinephrine//.. | 0.04          | mcg/kg/min
+```
+
+#### Option C — Assist: CLIF as wide dataset (`flair fe-wide`)
+
+Pulls **all configured time-series features** (vitals, labs, meds,
+patient_assessments, respiratory_support) via clifpy's wide dataset, truncates
+each stay at its prediction point, and emits the same ELF long schema.
+
+``` bash
+flair fe-wide \
+    --feature-config feature_config.yaml \
+    --task cohort.parquet \
+    --out features/wide.parquet
+```
+
+``` text
+subject_id | time             | code                   | numeric_value | unit
+P101       | 2150-03-01 06:10 | VITAL//heart_rate//bpm | 88            | bpm
+P101       | 2150-03-01 06:30 | LAB//creatinine//mg/dl | 1.8           | mg/dl
+```
+
+> ⚠️ **Scale note:** clifpy loads full CLIF tables before filtering, so `fe-wide`
+> over a full-MIMIC cohort is memory/time-heavy. For large cohorts prefer Option
+> A with pre-sharded tables, or run `fe-wide` on a cohort subset.
+
+#### `feature_config.yaml`
+
+Both assist functions read one YAML (example at the repo root). It points at the
+`clif_config.json`, lists the mCIDE categories per table, and optionally
+overrides units. Unknown categories warn (not fail), validated against clifpy
+schemas.
+
+``` yaml
+clif_config: clif_config_mimic.json        # the JSON clif config (site/data_dir/tz)
+wide:                                        # -> fe-wide
+  vitals:  {categories: [heart_rate, sbp, spo2, map]}
+  labs:    {categories: [creatinine, lactate, wbc]}
+  medication_admin_continuous: {categories: [norepinephrine, propofol]}
+  respiratory_support: {columns: [device_category, fio2_set, peep_set]}
+meds_stream:                                 # -> fe-meds
+  medication_admin_continuous:   {categories: [norepinephrine, propofol]}
+  medication_admin_intermittent: {categories: [vancomycin, cefepime]}
+# units: {labs: {creatinine: mg/dl}}         # optional overrides
+```
+
+#### ELF output schema
+
+Both `fe-meds` and `fe-wide` emit the same MEDS/ELF long event table:
+
+| Column | Type | Notes |
+|---|---|---|
+| `subject_id` | str | = `patient_id`; always present |
+| `time` | datetime | tz-naive wall-clock; ≤ stay's prediction point |
+| `code` | str | `"<DOMAIN>//<category>//<unit>"` (e.g. `LAB//creatinine//mg/dl`) |
+| `numeric_value` | float | null for categorical events |
+| `unit` | str | charted wherever `numeric_value` is set |
+| `text_value` | str | for categorical events (e.g. device category) |
+| `hospitalization_id` | str | always present |
+
+------------------------------------------------------------------------
+
+### ③ Train a model (your code)
+
+Train on your features → produce predictions, then append them to the cohort:
 
 ``` python
+import polars as pl
+cohort = pl.read_parquet("cohort.parquet")
 preds = cohort.with_columns([
     pl.Series("y_true", y_true),
     pl.Series("y_pred", y_pred),
@@ -238,12 +358,20 @@ preds = cohort.with_columns([
 preds.write_parquet("preds.parquet")
 ```
 
+------------------------------------------------------------------------
+
+### ④ Reporting tools — `flair build-report`
+
 ``` bash
 flair build-report preds.parquet \
     --task task1_icu_daily_mortality \
     --out ./report/
-# → report/table1.json table1.json fairness.json curves.json
+# → report/table1.json  tripod_ai.json  fairness.json  curves.json
 ```
+
+Emits the aggregate-only [report bundle](#report-bundle-what-flair-build-report-emits)
+— four JSONs of cohort, TRIPOD-AI, fairness, and curve statistics, with HIPAA
+cell suppression. Patient-level data never leaves the site.
 
 See [examples/end_to_end.py](examples/end_to_end.py) for a runnable demo.
 
@@ -272,9 +400,10 @@ PIs at each site still audit code before running it and have final approval. The
 ```         
 flair_benchmark/
 ├── __init__.py                 # tiny: list_tasks, get_task, __version__
-├── cli.py                      # the `flair` CLI: load-task, build-report, list-tasks
+├── cli.py                      # the `flair` CLI: load-task, fe-wide, fe-meds,
+│                               #   build-report, extract-metadata, list-tasks
 ├── _clif.py                    # clifpy → polars loaders (Hospitalization, Adt, Patient,
-│                               #   Vitals, Labs, RespiratorySupport)
+│                               #   Vitals, Labs, RespiratorySupport, meds) + pd_to_pl (tz strip)
 ├── _split.py                   # temporal date split / MIMIC 70-30 fallback
 ├── _icu_timing.py              # rank-based first/second ICU stay (shared default)
 ├── _hash.py                    # SHA-256 of a task .py for audit metadata
@@ -287,6 +416,13 @@ flair_benchmark/
 │   ├── task3_extubation_failure_24h.py
 │   ├── task4_sepsis_abx_6h.py
 │   └── task5_aki_kdigo2_24h.py
+├── features/                   # CLIF → MEDS/ELF feature extractors (config-driven)
+│   ├── __init__.py             # get_wide_feature_dataset, get_meds_stream
+│   ├── _config.py              # load feature_config.yaml + mCIDE category validation
+│   ├── _elf.py                 # ELF long schema + invariant checks
+│   ├── _units.py               # per-category unit lookup (labs schema, vitals, resp)
+│   ├── wide.py                 # fe-wide: clifpy wide dataset → ELF long
+│   └── meds_stream.py          # fe-meds: raw med pull (no conversion) → ELF long
 └── report/
     ├── __init__.py             # build_report() orchestrator
     ├── _suppress.py            # HIPAA cell suppression helper

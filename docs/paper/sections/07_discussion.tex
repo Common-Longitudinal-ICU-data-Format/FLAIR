@@ -38,8 +38,10 @@ without an ETL effort. The current task suite is restricted to binary
 classification on structured EHR variables and excludes notes,
 waveforms, and images. Aggregate-only outputs constrain some
 fine-grained bias analyses; subgroups below the suppression threshold
-are not visible. T5 currently uses serum-creatinine-only KDIGO, and
-T4's antibiotic vocabulary is an open dependency.
+are not visible. T5's planned-versus-unplanned readmission distinction
+rests on CLIF ADT location categories (a procedural-sandwich heuristic)
+rather than coded reason-for-transfer, and T4's antibiotic vocabulary
+is an open dependency.
 
 \paragraph{Roadmap.} Near-term work extends the suite to opt-in
 prospective silent-trial evaluation \citep{joshi2025silenttrials},
