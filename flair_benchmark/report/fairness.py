@@ -35,19 +35,38 @@ def build_fairness(preds: pl.DataFrame, meta: dict,
     df = preds.filter(pl.col("split") == "test")
     df = _bin_age(df)
 
+    clinical_t = meta.get("clinical_threshold")
+    df_clinical = None
+    if task_type == "binary" and clinical_t is not None and "y_prob" in df.columns:
+        # second pass at the task's clinical decision threshold (label space)
+        df_clinical = df.with_columns(
+            (pl.col("y_prob") >= clinical_t).cast(pl.Int32).alias("y_pred"))
+
     subgroups: dict = {}
     parity: dict = {}
+    parity_clinical: dict = {}
     for col in SUBGROUP_COLS:
         if col not in df.columns:
             continue
-        subgroups[col] = _subgroup_metrics(df, col, label_col, task_type, threshold)
-        parity[col] = _parity_gaps(df, col, label_col, task_type, threshold)
+        levels = _subgroup_metrics(df, col, label_col, task_type, threshold)
+        subgroups[col] = levels
+        gaps = _parity_gaps(df, col, label_col, task_type, threshold)
+        if levels:
+            gaps["reference_group"] = max(levels, key=lambda lv: levels[lv]["n"])
+        parity[col] = gaps
+        if df_clinical is not None:
+            parity_clinical[col] = _parity_gaps(df_clinical, col, label_col,
+                                                task_type, clinical_t)
 
-    return {
+    out = {
         "subgroups": subgroups,
         "parity": parity,
         "metadata": {"min_subgroup_n": MIN_SUBGROUP_N, "threshold": threshold},
     }
+    if df_clinical is not None:
+        out["parity_at_clinical_threshold"] = parity_clinical
+        out["metadata"]["clinical_threshold"] = clinical_t
+    return out
 
 
 def _bin_age(df: pl.DataFrame) -> pl.DataFrame:
@@ -78,7 +97,8 @@ def _metrics_one_group(sub: pl.DataFrame, label_col: str,
     n = sub.height
     if task_type == "binary":
         from sklearn.metrics import (
-            average_precision_score, roc_auc_score,
+            average_precision_score,
+            roc_auc_score,
         )
         y_true = sub[label_col].to_numpy().astype(float)
         y_pred = sub["y_pred"].to_numpy()
@@ -91,9 +111,13 @@ def _metrics_one_group(sub: pl.DataFrame, label_col: str,
                      "fpr": None if fpr is None else round(fpr, 4),
                      "prevalence": round(float(y_true.mean()), 4)}
         if y_prob is not None and len(np.unique(y_true)) > 1:
+            from sklearn.metrics import brier_score_loss
+
+            from flair_benchmark.report._calib import calibration_slope_intercept
             out["auroc"] = round(float(roc_auc_score(y_true, y_prob)), 4)
             out["auprc"] = round(float(average_precision_score(y_true, y_prob)), 4)
-            slope, intercept = _calibration_slope_intercept(y_true, y_prob)
+            out["brier"] = round(float(brier_score_loss(y_true, y_prob)), 4)
+            slope, intercept = calibration_slope_intercept(y_true, y_prob)
             out["calibration_slope"] = slope
             out["calibration_intercept"] = intercept
         return out
@@ -113,22 +137,6 @@ def _metrics_one_group(sub: pl.DataFrame, label_col: str,
                 "mae": round(float(mean_absolute_error(y_true, y_pred)), 4),
                 "mean_y_true": round(float(y_true.mean()), 4),
                 "mean_y_pred": round(float(y_pred.mean()), 4)}
-
-
-def _calibration_slope_intercept(y_true: np.ndarray,
-                                  y_prob: np.ndarray) -> tuple[float | None, float | None]:
-    """Logistic regression of y_true on logit(y_prob). Returns (slope, intercept).
-
-    A perfectly calibrated model yields slope=1, intercept=0.
-    """
-    eps = 1e-6
-    p = np.clip(y_prob, eps, 1 - eps)
-    logit = np.log(p / (1 - p))
-    if len(np.unique(y_true)) < 2 or np.std(logit) == 0:
-        return None, None
-    from sklearn.linear_model import LogisticRegression
-    lr = LogisticRegression(C=1e6).fit(logit.reshape(-1, 1), y_true.astype(int))
-    return round(float(lr.coef_[0, 0]), 4), round(float(lr.intercept_[0]), 4)
 
 
 def _parity_gaps(df: pl.DataFrame, group_col: str, label_col: str,

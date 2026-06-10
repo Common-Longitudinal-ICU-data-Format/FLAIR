@@ -67,9 +67,11 @@ def main() -> None:
         feat_df[["sex_category", "race_category", "ethnicity_category"]]
         .pipe(lambda d: __import__("pandas").get_dummies(d, dummy_na=True))
     )
-    X = feat_df.drop(columns=["hospitalization_id", "window_start", "window_end",
+    X = feat_df.drop(columns=["patient_id", "hospitalization_id", "prediction_dttm",
+                              "window_number", "prediction_id",
                               label_col, "split", "sex_category", "race_category",
-                              "ethnicity_category"]).to_numpy().astype(float)
+                              "ethnicity_category"],
+                     errors="ignore").to_numpy().astype(float)
     y = feat_df[label_col].to_numpy()
     is_train = (feat_df["split"] == "train").to_numpy()
 

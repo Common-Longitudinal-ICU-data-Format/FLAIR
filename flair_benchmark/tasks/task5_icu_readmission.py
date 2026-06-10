@@ -25,16 +25,15 @@ Cohort exclusions (faithful port of the original task7 logic):
 
 Row shape (one-per-stay):
   Exactly one row per surviving hospitalization. The prediction is anchored
-  at the end of the first ICU stay; the input window is the entire first
-  ICU stay (variable length).
+  at the end of the first ICU stay; all data up to prediction_dttm may be
+  used.
 
 Pipeline:
   1. base_icu_cohort()             — adult ICU cohort + ADT (see _clif.py)
   2. compute_readmission_timing()  — first ICU stay + 2nd-ICU / flags
   3. apply the five exclusions
   4. label = 1 iff second_icu_start_time is not null
-  5. prediction_dttm = first_icu_end_time;
-     window_start = first_icu_start_time; window_end = first_icu_end_time
+  5. prediction_dttm = first_icu_end_time (the no-data-after cutoff)
   6. assign_split() keyed on prediction_dttm
 """
 
@@ -45,6 +44,7 @@ import polars as pl
 from flair_benchmark._clif import base_icu_cohort, read_clif_config
 from flair_benchmark._readmission import compute_readmission_timing
 from flair_benchmark._split import assign_split
+from flair_benchmark.tasks._finalize import finalize_cohort
 
 MIN_ICU_STAY_HOURS = 1
 
@@ -55,6 +55,9 @@ META = {
     "temporal_pattern": "episode",
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
+    "clinical_threshold": 0.2,
+    "clinical_action": "keep in ICU",
+    "clinical_direction": "above",  # act when risk of ICU readmission > 20%
     "label_column": "label_icu_readmission",
     "positive_class": "readmitted",
     "input_window_hours": None,
@@ -84,7 +87,6 @@ META = {
 
 OUTPUT_COLS = [
     "hospitalization_id", "prediction_dttm",
-    "window_start", "window_end",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
 ]
@@ -126,11 +128,9 @@ def build(clif_config: str, train_end: str | None,
         pl.col("second_icu_start_time").is_not_null().cast(pl.Int32)
             .alias(META["label_column"]),
         pl.col("first_icu_end_time").alias("prediction_dttm"),
-        pl.col("first_icu_start_time").alias("window_start"),
-        pl.col("first_icu_end_time").alias("window_end"),
     ])
 
     df = assign_split(df, cfg["site"], train_end, test_start,
                       admission_col="prediction_dttm")
     df = df.filter(pl.col("split").is_not_null())
-    return df.select(OUTPUT_COLS)
+    return finalize_cohort(df, OUTPUT_COLS, META)

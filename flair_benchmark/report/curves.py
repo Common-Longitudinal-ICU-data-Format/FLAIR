@@ -27,6 +27,8 @@ def build_curves(preds: pl.DataFrame, meta: dict) -> dict:
         out["roc"] = _roc_points(y_true, y_prob)
         out["pr"] = _pr_points(y_true, y_prob)
         out["calibration"] = _calibration_bins(y_true, y_prob, n_bins=10)
+        from flair_benchmark.report._calib import calibration_extended
+        out["calibration_extended"] = calibration_extended(y_true.astype(float), y_prob)
     elif task_type == "multiclass":
         out["multiclass"] = _multiclass_curves(test, label_col, meta.get("class_names"))
     elif task_type == "regression":

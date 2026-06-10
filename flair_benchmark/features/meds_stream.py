@@ -11,10 +11,13 @@ from __future__ import annotations
 import polars as pl
 
 from flair_benchmark._clif import (
-    load_medication_admin_continuous, load_medication_admin_intermittent,
+    load_medication_admin_continuous,
+    load_medication_admin_intermittent,
 )
 from flair_benchmark.features._elf import (
-    attach_subject_id, empty_elf, finalize,
+    attach_subject_id,
+    empty_elf,
+    finalize,
 )
 
 _TABLES = {

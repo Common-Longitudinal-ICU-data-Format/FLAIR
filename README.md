@@ -77,8 +77,8 @@ FLAIR provides **5 clinically relevant prediction tasks** organised by a two-axi
 
 |   | episode | continuous |
 |------------------|------------------|----------------------------|
-| **outcome**      | — | T1 (daily mortality), T2 (daily LTACH) |
-| **deterioration**| — | T5 (AKI, Koyner-style) |
+| **outcome**      | T5 (unplanned ICU readmission) | T1 (daily mortality), T2 (daily LTACH) |
+| **deterioration**| — | — |
 | **intervention** | T3 (extubation failure) | T4 (sepsis, antibiotic-anchored) |
 
 ### v1 task list
@@ -89,18 +89,15 @@ FLAIR provides **5 clinically relevant prediction tasks** organised by a two-axi
 | 2 | ICU Daily LTACH Discharge (7AM) | outcome | continuous | one-per-timestep | Binary | First ICU stay, discharge ∈ {LTACH, mortality} |
 | 3 | Extubation Failure within 24h | intervention | episode | one-per-stay | Binary | Confirmed first IMV extubation |
 | 4 | Sepsis (antibiotic-anchored) within 6h | intervention | continuous | one-per-timestep | Binary | Adults, no psych/rehab, not admitted-on-treatment |
-| 5 | AKI KDIGO-2 within 24h ([Koyner 2018](https://doi.org/10.1097/CCM.0000000000003123)) | deterioration | continuous | one-per-timestep | Binary | ≥ 1 SCr, first SCr \< 3.0 mg/dL, no RRT within 48h |
+| 5 | Unplanned ICU Readmission (end of first ICU stay) | outcome | episode | one-per-stay | Binary | First ICU stay ≥ 1h, survives first stay, not direct-discharged from ICU, no intermediate ER |
 
-### Understanding Time Windows
+### Understanding the Prediction Time
 
-Each task defines a **time window** for data extraction:
+Each row carries a single **`prediction_dttm`** — the moment the model makes its prediction.
 
-- **`window_start`**: Beginning of the data collection period
-- **`window_end`**: The **prediction time** - this is when the model makes its prediction
+**Critical**: You may use **ALL** data with `time ≤ prediction_dttm` (the entire available history for that stay — there is no fixed lookback window). You **CANNOT** use any data after `prediction_dttm`. Using data beyond the prediction time would be data leakage.
 
-**Critical**: You can use ALL data points within the window (`window_start` to `window_end`), but you **CANNOT** use any data after `window_end`. Using data beyond the prediction time would be data leakage.
-
-Window shape varies by `prediction_unit`: - **`one-per-stay`** (T3): one window per hospitalization, anchored at the first confirmed extubation; `window_end = first_extubation_dttm` and `window_start = first_extubation_dttm − 24h`. - **`one-per-timestep`** (T1, T2, T4, T5): each row carries its own `prediction_dttm`; `window_end = prediction_dttm` and `window_start = prediction_dttm − 24h`. T1/T2 anchor on local-07:00 daily; T4 is hourly until first qualifying antibiotic; T5 is hourly until first KDIGO-2 onset.
+The prediction anchor varies by `prediction_unit`: - **`one-per-stay`** (T3, T5): one prediction per hospitalization. T3 anchors at the first confirmed extubation (`prediction_dttm = first_extubation_dttm`); T5 anchors at the end of the first ICU stay (`prediction_dttm = first_icu_end_time`). - **`one-per-timestep`** (T1, T2, T4): each row carries its own `prediction_dttm`. T1/T2 anchor on local-07:00 daily; T4 is hourly until first qualifying antibiotic.
 
 > **Community-Driven**: These tasks are driven by community needs. Have a cool prediction task idea? Open a [PR](https://github.com/clif-consortium/FLAIR/pulls) or [Issue](https://github.com/clif-consortium/FLAIR/issues)! We're actively working on adding more tasks.
 
@@ -117,42 +114,52 @@ FLAIR is a Python library that generates task-specific datasets for ICU predicti
 | ✅ Task-specific cohort filtering | 🔧 Your feature engineering |
 | ✅ Consistent label extraction    | 🔧 Your model architecture  |
 | ✅ Temporal train/test splits     | 🔧 Your training pipeline   |
-| ✅ Demographics & time windows    | 🔧 Your evaluation          |
+| ✅ Demographics & prediction times | 🔧 Your evaluation          |
 
 ### Cohort parquet (what `flair load-task` emits)
 
 | Column               | Type      | Description                                |
 |--------------------|------------------|-----------------------------------|
 | `hospitalization_id` | str       | Unique identifier                          |
-| `window_start`       | datetime  | Start of the input window                  |
-| `window_end`         | datetime  | Prediction time — no data beyond this      |
+| `prediction_dttm`    | datetime  | Prediction time — no data beyond this      |
 | `{task_label}`       | int/float | Task-specific label (see each task's META) |
 | `split`              | str       | "train" or "test"                          |
 | `age_at_admission`   | int       | Patient age                                |
 | `sex_category`       | str       | Patient sex                                |
 | `race_category`      | str       | Patient race                               |
 | `ethnicity_category` | str       | Patient ethnicity                          |
+| `window_number`      | int       | 1-based k-th prediction timestep per stay (1 for one-per-stay tasks) |
+| `prediction_id`      | str       | Stable row key `{patient_id}-{hospitalization_id}[-{window_number}]` — carry it through your predictions parquet |
 
-### Predictions parquet (what you write back, strict schema)
+### Add your predictions to the cohort file
 
-Append to the cohort parquet:
+There is **no separate predictions file**. The cohort parquet already carries the
+label, `split`, demographics, `window_number`, and `prediction_id` — so you just add
+your model output **as a new column on that same file** (one `with_columns` call).
+This keeps every prediction aligned to its row; nothing can drift out of sync.
 
 | Column | When required | Type |
 |-------------------|------------------------------|------------------------|
-| `y_true` | always | int/float |
-| `y_pred` | binary, multiclass | int |
-| `y_prob` | binary (recommended) | float in \[0, 1\] |
+| `y_prob` | binary (the one column to add) | float in \[0, 1\] |
+| `y_pred` | binary: optional — derived from `y_prob` at 0.5 when absent; multiclass: required | int |
 | `class_probs_<class>` | multiclass | float in \[0, 1\] (one column per class) |
 | `y_pred_value` | regression | float |
 
+The label is already in the file (no need to re-supply `y_true`).
+
 ### Report bundle (what `flair build-report` emits)
 
-Four JSON files written to `--out`, each carrying audit metadata (`task_script_sha256`, `flair_version`, `generated_at`):
+Seven JSON files written to `--out`, each carrying audit metadata (`task_script_sha256`, `flair_version`, `generated_at`):
 
 - `table1.json` — cohort characteristics by split and by label (HIPAA cell suppression: counts \< 10 → `"<10"`).
-- `tripod_ai.json` — TRIPOD-AI report auto-populated with discrimination / calibration metrics.
-- `fairness.json` — per-subgroup metrics (sex, race, ethnicity, age bin) plus parity gaps. Subgroups with n \< 10 are dropped entirely.
-- `curves.json` — ROC / PR / calibration as downsampled raw points (no images). The central dashboard renders.
+- `tripod_ai.json` — TRIPOD-AI report auto-populated with discrimination / calibration metrics (incl. calibration slope/intercept, O/E ratio, Brier).
+- `fairness.json` — per-subgroup metrics (sex, race, ethnicity, age bin) plus parity gaps (equalized odds) and a reference group. Subgroups with n \< 10 are dropped entirely.
+- `curves.json` — ROC / PR / calibration as downsampled raw points, plus a smoothed logistic-recalibration calibration curve (no images). The central dashboard renders.
+- `temporal.json` — binned discrimination: AUROC per day-in-stay window (1..7+, one-per-timestep tasks), AUROC trend by year of admission, and the predicted-risk trajectory by eventual outcome.
+- `dca.json` — decision curve analysis: net benefit of the model vs treat-all/treat-none across thresholds 0.01–0.99, with the threshold range where the model is net-beneficial and the net benefit at the task's clinical threshold.
+- `threshold_analysis.json` — fixed clinical-threshold analysis at each task's consulted decision point (task1 mortality > 0.95 → withdraw life support; task2 LTACH > 0.50 → early trach; task3 extubation failure < 0.15 → extubate; task4 sepsis > 0.10 → antibiotics; task5 readmission > 0.20 → keep in ICU): sensitivity/specificity/PPV/NPV + confusion matrix at the threshold, action metrics (direction-aware), partial AUROC within ±0.05 of the threshold, and a ±0.02/±0.05 robustness sweep. `fairness.json` additionally reports equalized-odds parity gaps at this clinical threshold.
+
+Pass `--viz` to also write local sanity-check PNGs rendered from the same JSONs (`pip install flair-benchmark[viz]`). Pass `--cohort cohort.parquet` if your predictions parquet does not carry `window_number` / `prediction_dttm` / `prediction_id` through from the task cohort.
 
 ------------------------------------------------------------------------
 
@@ -184,7 +191,7 @@ FLAIR is a CLI. The whole workflow is **Configure → ① Make a task → ② Ge
 | `flair load-task` | ① | Build a task cohort parquet |
 | `flair fe-meds` | ② | Assist: CLIF → MEDS/ELF med event stream |
 | `flair fe-wide` | ② | Assist: CLIF → wide feature set as ELF events |
-| `flair build-report` | ④ | Aggregate report bundle (4 JSONs) |
+| `flair build-report` | ④ | Aggregate report bundle (7 JSONs, optional `--viz` PNGs) |
 | `flair extract-metadata` | — | Per-site cohort metadata for the leaderboard |
 
 ### Configure the CLIF data source
@@ -214,7 +221,7 @@ flair load-task task1_icu_daily_mortality \
 ```
 
 The cohort parquet (schema in [Cohort parquet](#cohort-parquet-what-flair-load-task-emits))
-carries `hospitalization_id`, `window_start`, `window_end` (= prediction time),
+carries `hospitalization_id`, `prediction_dttm` (the no-data-after time),
 the label, `split`, and demographics. Every downstream stage keys off it.
 
 ------------------------------------------------------------------------
@@ -347,16 +354,13 @@ Both `fe-meds` and `fe-wide` emit the same MEDS/ELF long event table:
 
 ### ③ Train a model (your code)
 
-Train on your features → produce predictions, then append them to the cohort:
+Train on your features → add a single `y_prob` column to the cohort file:
 
 ``` python
 import polars as pl
 cohort = pl.read_parquet("cohort.parquet")
-preds = cohort.with_columns([
-    pl.Series("y_true", y_true),
-    pl.Series("y_pred", y_pred),
-    pl.Series("y_prob", y_prob),  # binary tasks
-])
+preds = cohort.with_columns(pl.Series("y_prob", y_prob))  # binary tasks
+# y_pred is derived from y_prob at 0.5; add your own pl.Series("y_pred", ...) to override.
 preds.write_parquet("preds.parquet")
 ```
 
@@ -367,13 +371,16 @@ preds.write_parquet("preds.parquet")
 ``` bash
 flair build-report preds.parquet \
     --task task1_icu_daily_mortality \
-    --out ./report/
+    --out ./report/ \
+    --viz                       # optional sanity-check PNGs (flair-benchmark[viz])
 # → report/table1.json  tripod_ai.json  fairness.json  curves.json
+#   temporal.json  dca.json  [viz/*.png]
 ```
 
 Emits the aggregate-only [report bundle](#report-bundle-what-flair-build-report-emits)
-— four JSONs of cohort, TRIPOD-AI, fairness, and curve statistics, with HIPAA
-cell suppression. Patient-level data never leaves the site.
+— seven JSONs of cohort, TRIPOD-AI, fairness, curve, temporal-discrimination, threshold, and
+decision-curve statistics, with HIPAA cell suppression. Patient-level data never
+leaves the site.
 
 See [examples/end_to_end.py](examples/end_to_end.py) for a runnable demo.
 
@@ -384,13 +391,14 @@ See [examples/end_to_end.py](examples/end_to_end.py) for a runnable demo.
 FLAIR-Bench is one component of a larger federated stack. The library itself is intentionally minimal — it does not enforce network isolation or PHI runtime checks. Those guarantees come from two other layers:
 
 1.  **CLIF-WorkBench container** — every site runs FLAIR inside a Singularity container with no internet, no root, immutable read-only image. That is where network egress is blocked at the kernel level.
-2.  **Aggregate-only outputs** — patient-level data never leaves the site. `flair build-report` emits four JSON files of aggregated statistics; that is the only artifact a site shares.
+2.  **Aggregate-only outputs** — patient-level data never leaves the site. `flair build-report` emits seven JSON files of aggregated statistics; that is the only artifact a site shares.
 
 What the library *does* enforce:
 
 - HIPAA cell suppression in `table1.json` (counts \< 10 → `"<10"`).
 - Subgroup drop in `fairness.json` (any group with n \< 10 is omitted entirely).
 - Calibration bin suppression in `curves.json` (bins with count \< 10 report `null` for the true rate).
+- Temporal bin drop in `temporal.json` (window/year bins with n \< 10 omitted; AUROC requires ≥ 10 of each class) and DCA point suppression in `dca.json` (thresholds flagging \< 10 patients report `null`).
 - Per-task script SHA-256 stamped into every output JSON so the central aggregator can verify two sites ran byte-identical task code.
 
 PIs at each site still audit code before running it and have final approval. The simplicity of the new layout — each task = one polars file — makes that audit tractable.
@@ -410,7 +418,7 @@ flair_benchmark/
 ├── _split.py                   # temporal date split / MIMIC 70-30 fallback
 ├── _icu_timing.py              # rank-based first/second ICU stay (shared default)
 ├── _hash.py                    # SHA-256 of a task .py for audit metadata
-├── _aki.py                     # KDIGO stage-2 logic + Koyner exclusions (used by task5)
+├── _readmission.py             # ICU/Ward/ER/Procedural ADT collapse + sandwich-merge first/second ICU stay (used by task5)
 ├── _ventilation_episodes.py    # consensus-window IMV episode detector (used by task3)
 ├── tasks/                      # one polars script per task — add a new task = drop a .py
 │   ├── __init__.py             # importlib auto-discovery (no registry dict)
@@ -418,7 +426,7 @@ flair_benchmark/
 │   ├── task2_icu_daily_ltach.py
 │   ├── task3_extubation_failure_24h.py
 │   ├── task4_sepsis_abx_6h.py
-│   └── task5_aki_kdigo2_24h.py
+│   └── task5_icu_readmission.py
 ├── features/                   # CLIF → MEDS/ELF feature extractors (config-driven)
 │   ├── __init__.py             # get_wide_feature_dataset, get_meds_stream
 │   ├── _config.py              # load feature_config.yaml + mCIDE category validation
@@ -450,7 +458,7 @@ META = { "name": ...,
 def build(clif_config: str,
           train_end: str | None,
           test_start: str | None) -> pl.DataFrame:
-    """Return columns: hospitalization_id, window_start, window_end,
+    """Return columns: hospitalization_id, prediction_dttm,
     <META['label_column']>, split, age_at_admission, sex_category,
     race_category, ethnicity_category."""
 ```

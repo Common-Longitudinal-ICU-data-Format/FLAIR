@@ -52,6 +52,18 @@ def get_task(name: str) -> ModuleType:
 
 
 def _validate_taxonomy(task_name: str, meta: dict) -> None:
+    if meta.get("task_type") == "binary":
+        t = meta.get("clinical_threshold")
+        if not isinstance(t, (int, float)) or not 0 < t < 1:
+            raise ValueError(
+                f"Task {task_name!r}: META['clinical_threshold'] must be a float "
+                f"in (0, 1); got {t!r}."
+            )
+        if meta.get("clinical_direction") not in ("above", "below"):
+            raise ValueError(
+                f"Task {task_name!r}: META['clinical_direction'] must be "
+                f"'above' or 'below'; got {meta.get('clinical_direction')!r}."
+            )
     for field, allowed in _TAXONOMY_ENUMS.items():
         if field not in meta:
             raise TypeError(

@@ -5,3 +5,5 @@ clif_config.json
 presentation/
 __pycache__
 #paper/
+tests/artifacts/
+

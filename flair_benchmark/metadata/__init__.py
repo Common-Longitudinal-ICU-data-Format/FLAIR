@@ -17,8 +17,7 @@ from datetime import datetime, timezone
 
 import polars as pl
 
-from flair_benchmark._clif import (base_icu_cohort, load_hospitalization,
-                                    read_clif_config)
+from flair_benchmark._clif import base_icu_cohort, load_hospitalization, read_clif_config
 from flair_benchmark._icu_timing import compute_icu_timing
 from flair_benchmark.metadata._comorbidity import compute_cci_elix
 from flair_benchmark.metadata._severity import compute_hospitalization_sofa_max

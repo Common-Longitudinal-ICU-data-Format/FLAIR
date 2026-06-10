@@ -82,8 +82,13 @@ def build_tripod_ai(preds: pl.DataFrame, meta: dict, table1_json: dict) -> dict:
 
 def _binary_metrics(test: pl.DataFrame, label_col: str) -> dict:
     from sklearn.metrics import (
-        accuracy_score, average_precision_score, confusion_matrix,
-        f1_score, precision_score, recall_score, roc_auc_score,
+        accuracy_score,
+        average_precision_score,
+        confusion_matrix,
+        f1_score,
+        precision_score,
+        recall_score,
+        roc_auc_score,
     )
     y_true = test[label_col].to_numpy()
     y_pred = test["y_pred"].to_numpy()
@@ -108,7 +113,10 @@ def _binary_metrics(test: pl.DataFrame, label_col: str) -> dict:
 def _multiclass_metrics(test: pl.DataFrame, label_col: str,
                         class_names: list | None) -> dict:
     from sklearn.metrics import (
-        accuracy_score, confusion_matrix, f1_score, precision_recall_fscore_support,
+        accuracy_score,
+        confusion_matrix,
+        f1_score,
+        precision_recall_fscore_support,
     )
     y_true = test[label_col].to_numpy()
     y_pred = test["y_pred"].to_numpy()
@@ -138,8 +146,10 @@ def _multiclass_metrics(test: pl.DataFrame, label_col: str,
 
 def _regression_metrics(test: pl.DataFrame, label_col: str) -> dict:
     from sklearn.metrics import (
-        explained_variance_score, mean_absolute_error,
-        mean_squared_error, r2_score,
+        explained_variance_score,
+        mean_absolute_error,
+        mean_squared_error,
+        r2_score,
     )
     y_true = test[label_col].to_numpy()
     y_pred = test["y_pred_value"].to_numpy()
@@ -169,4 +179,9 @@ def _calibration_summary(test: pl.DataFrame, label_col: str,
         if not mask.any():
             continue
         ece += (mask.sum() / n) * abs(y_true[mask].mean() - y_prob[mask].mean())
-    return {"n_bins": n_bins, "ece": round(float(ece), 4)}
+
+    from flair_benchmark.report._calib import calibration_extended
+    ext = calibration_extended(y_true, y_prob)
+    return {"n_bins": n_bins, "ece": round(float(ece), 4),
+            "slope": ext["slope"], "intercept": ext["intercept"],
+            "o_e_ratio": ext["o_e_ratio"], "brier": ext["brier"]}

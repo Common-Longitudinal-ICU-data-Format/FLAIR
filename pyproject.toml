@@ -30,6 +30,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
 
@@ -47,6 +48,9 @@ dependencies = [
 flair = "flair_benchmark.cli:main"
 
 [project.optional-dependencies]
+viz = [
+    "matplotlib>=3.7.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -55,11 +59,22 @@ dev = [
 
 [project.urls]
 Homepage = "https://clif-icu.com"
-Repository = "https://github.com/clif-consortium/flair"
+Repository = "https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR"
 Documentation = "https://clif-icu.com/flair"
 
 [tool.hatch.build.targets.wheel]
 packages = ["flair_benchmark"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the source distribution lean: ship the package, license, readme and
+# pyproject only. Without this, hatchling sweeps in every VCS-tracked file
+# (docs/paper PDFs, assets GIF/MP4, lock file) and the sdist balloons to ~17 MB.
+include = [
+    "/flair_benchmark",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
 
 [tool.ruff]
 line-length = 100

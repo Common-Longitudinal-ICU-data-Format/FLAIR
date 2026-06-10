@@ -76,9 +76,9 @@ from flair_benchmark._clif import (
     read_clif_config,
 )
 from flair_benchmark._split import assign_split
+from flair_benchmark.tasks._finalize import finalize_cohort
 
 LABEL_HORIZON_HOURS = 6
-INPUT_WINDOW_HOURS = 24
 GRID_STEP_HOURS = 1
 
 # ASE onset column from clifpy.utils.ase.compute_ase. The "_w_lactate" arm
@@ -95,10 +95,14 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-timestep",
     "task_type": "binary",
+    "clinical_threshold": 0.1,
+    "clinical_action": "treat with antibiotics",
+    "clinical_direction": "above",  # act when risk of sepsis > 10%
     "label_column": "label_sepsis_6h",
     "positive_class": "ase_onset_within_6h",
-    "input_window_hours": INPUT_WINDOW_HOURS,
+    "input_window_hours": None,
     "prediction_window": [0, LABEL_HORIZON_HOURS],
+    "window_unit": "hour",  # window_number increments one row per hour
     "cohort_description": (
         "Hospital-wide adult cohort (Kamran 2024); psych/rehab units excluded; "
         "already-septic-at-entry excluded; must have at least one vital sign. "
@@ -122,7 +126,6 @@ META = {
 
 OUTPUT_COLS = [
     "hospitalization_id", "prediction_dttm",
-    "window_start", "window_end",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
 ]
@@ -275,13 +278,7 @@ def build(clif_config: str, train_end: str | None,
         ).cast(pl.Int32).alias(META["label_column"])
     )
 
-    df = df.with_columns([
-        (pl.col("prediction_dttm")
-         - pl.duration(hours=INPUT_WINDOW_HOURS)).alias("window_start"),
-        pl.col("prediction_dttm").alias("window_end"),
-    ])
-
     df = assign_split(df, cfg["site"], train_end, test_start,
                       admission_col="prediction_dttm")
     df = df.filter(pl.col("split").is_not_null())
-    return df.select(OUTPUT_COLS)
+    return finalize_cohort(df, OUTPUT_COLS, META)

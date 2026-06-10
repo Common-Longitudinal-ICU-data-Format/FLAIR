@@ -1,9 +1,10 @@
 """get_wide_feature_dataset — clifpy wide dataset → ELF long.
 
 Pulls every configured time-series feature for the task cohort via clifpy
-``create_wide_dataset``, bounding events per stay to ``[min(window_start),
-max(prediction_dttm)]`` (the no-future-data guard), strips tz, then melts the
-pivoted wide frame back to ELF long events.
+``create_wide_dataset``, bounding events per stay to ``time <=
+max(prediction_dttm)`` (the no-future-data guard — all history up to the
+prediction time is allowed), strips tz, then melts the pivoted wide frame
+back to ELF long events.
 """
 
 from __future__ import annotations
@@ -13,7 +14,10 @@ import polars as pl
 from flair_benchmark._clif import pd_to_pl
 from flair_benchmark.features._config import V1_TABLES
 from flair_benchmark.features._elf import (
-    attach_subject_id, build_code, empty_elf, finalize,
+    attach_subject_id,
+    build_code,
+    empty_elf,
+    finalize,
 )
 from flair_benchmark.features._units import RESP_CATEGORICAL, unit_for
 
@@ -31,14 +35,11 @@ _IDX = ["hospitalization_id", "subject_id", "time"]
 
 
 def _cohort_windows(task_df: pl.DataFrame):
-    """Per-stay [start, end] bound + the hospitalization_id list (as strings)."""
+    """Per-stay no-future cutoff + the hospitalization_id list (as strings)."""
     bounds = (
         task_df.with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
         .group_by("hospitalization_id")
-        .agg([
-            pl.col("window_start").min().alias("start_time"),
-            pl.col("prediction_dttm").max().alias("end_time"),
-        ])
+        .agg(pl.col("prediction_dttm").max().alias("end_time"))
     )
     return bounds, bounds["hospitalization_id"].to_list()
 
@@ -114,13 +115,13 @@ def get_wide_feature_dataset(task_df: pl.DataFrame, feature_cfg: dict,
         wide = attach_subject_id(wide, clif_cfg)
     wide = wide.rename({"event_time": "time"})
 
-    # No-future-data guard: keep only events within each stay's
-    # [min(window_start), max(prediction_dttm)] horizon.
+    # No-future-data guard: keep only events at or before each stay's
+    # max(prediction_dttm). No lower bound — all history up to the
+    # prediction time may be used.
     wide = (
         wide.join(bounds, on="hospitalization_id", how="inner")
-        .filter((pl.col("time") >= pl.col("start_time"))
-                & (pl.col("time") <= pl.col("end_time")))
-        .drop(["start_time", "end_time"])
+        .filter(pl.col("time") <= pl.col("end_time"))
+        .drop("end_time")
     )
     if wide.height == 0:
         return empty_elf()

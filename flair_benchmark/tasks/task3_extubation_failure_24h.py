@@ -34,13 +34,12 @@ from __future__ import annotations
 
 import polars as pl
 
-from flair_benchmark._clif import (base_icu_cohort, load_respiratory_support,
-                                    read_clif_config)
+from flair_benchmark._clif import base_icu_cohort, load_respiratory_support, read_clif_config
 from flair_benchmark._split import assign_split
 from flair_benchmark._ventilation_episodes import detect_imv_episodes
+from flair_benchmark.tasks._finalize import finalize_cohort
 
 HORIZON_HOURS = 24
-INPUT_WINDOW_HOURS = 24
 TRACH_CLOSURE_TOLERANCE_MIN = 1
 
 META = {
@@ -50,9 +49,12 @@ META = {
     "temporal_pattern": "episode",
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
+    "clinical_threshold": 0.15,
+    "clinical_action": "extubate",
+    "clinical_direction": "below",  # act when risk of extubation failure < 15%
     "label_column": "label_extubation_failure_24h",
     "positive_class": "vfd_lt_1_in_24h_post_extubation",
-    "input_window_hours": INPUT_WINDOW_HOURS,
+    "input_window_hours": None,
     "prediction_window": [0, HORIZON_HOURS],
     "cohort_description": "Adults with a first confirmed IMV episode closed by "
                           "extubation (not trach, not end-of-record); one row per "
@@ -75,7 +77,6 @@ META = {
 
 OUTPUT_COLS = [
     "hospitalization_id", "prediction_dttm",
-    "window_start", "window_end",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
 ]
@@ -148,16 +149,10 @@ def build(clif_config: str, train_end: str | None,
            + pl.duration(hours=HORIZON_HOURS))
     )
 
-    df = df.with_columns([
-        (pl.col("prediction_dttm")
-         - pl.duration(hours=INPUT_WINDOW_HOURS)).alias("window_start"),
-        pl.col("prediction_dttm").alias("window_end"),
-    ])
-
     df = assign_split(df, cfg["site"], train_end, test_start,
                       admission_col="prediction_dttm")
     df = df.filter(pl.col("split").is_not_null())
-    return df.select(OUTPUT_COLS)
+    return finalize_cohort(df, OUTPUT_COLS, META)
 
 
 def _drop_trach_closed(first_ext: pl.DataFrame,

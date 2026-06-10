@@ -79,16 +79,24 @@ def load_task(
 def build_report_cmd(
     preds: str = typer.Argument(..., help="Predictions parquet path"),
     task: str = typer.Option(..., "--task", help="Task name"),
-    out: str = typer.Option(..., "--out", help="Output directory for the 4 JSONs"),
+    out: str = typer.Option(..., "--out", help="Output directory for the 6 JSONs"),
+    cohort: Optional[str] = typer.Option(
+        None, "--cohort",
+        help="Task cohort parquet (from load-task). Enables window/year binning "
+             "when window_number/prediction_dttm don't flow through the preds."),
+    viz: bool = typer.Option(
+        False, "--viz",
+        help="Also write sanity-check PNGs rendered from the JSONs "
+             "(requires `pip install flair-benchmark[viz]`)."),
 ) -> None:
-    """Generate table1.json, tripod_ai.json, fairness.json, curves.json."""
+    """Generate table1, tripod_ai, fairness, curves, temporal and dca JSONs."""
     from flair_benchmark.report import build_report
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
-    paths = build_report(preds, task_module, out)
+    paths = build_report(preds, task_module, out, cohort_path=cohort, viz=viz)
     for kind, path in paths.items():
-        typer.echo(f"  {kind:10s} → {path}")
+        typer.echo(f"  {kind:24s} → {path}")
 
 
 @app.command("extract-metadata")

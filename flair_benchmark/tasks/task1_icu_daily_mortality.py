@@ -33,8 +33,8 @@ Pipeline:
   5. Daily 07:00 grid via pl.datetime_ranges(..., interval="24h", closed="left")
   6. Broadcast label from hospitalization-level discharge_category
      (null-safe — null and Still Admitted become 0)
-  7. window_end = prediction_dttm; window_start = prediction_dttm - 24h
-  8. assign_split() per-row by prediction_dttm
+  7. assign_split() per-row by prediction_dttm
+     (prediction_dttm is the no-data-after cutoff; all prior history is usable)
 
 Timezone note:
   clifpy returns tz-aware datetimes typed to cfg["timezone"]; flair_benchmark._clif
@@ -49,9 +49,9 @@ import polars as pl
 from flair_benchmark._clif import base_icu_cohort, read_clif_config
 from flair_benchmark._icu_timing import compute_icu_timing
 from flair_benchmark._split import assign_split
+from flair_benchmark.tasks._finalize import finalize_cohort
 
 PRED_HOUR = 7
-INPUT_WINDOW_HOURS = 24
 GRID_STEP = "24h"
 
 META = {
@@ -61,10 +61,14 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-timestep",
     "task_type": "binary",
+    "clinical_threshold": 0.95,
+    "clinical_action": "withdraw life support",
+    "clinical_direction": "above",  # act when risk of in-hospital death > 95%
     "label_column": "label_mortality",
     "positive_class": "in_hospital_mortality",
-    "input_window_hours": INPUT_WINDOW_HOURS,
+    "input_window_hours": None,
     "prediction_window": None,
+    "window_unit": "day",  # window_number increments one row per local-07:00 day
     "cohort_description": (
         "All adult ICU hospitalizations (age >= 18, valid admission/discharge "
         "times, >= 1 ICU ADT record). NO discharge_category filter — every "
@@ -93,7 +97,6 @@ META = {
 
 OUTPUT_COLS = [
     "hospitalization_id", "prediction_dttm",
-    "window_start", "window_end",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
 ]
@@ -136,13 +139,7 @@ def build(clif_config: str, train_end: str | None,
             .alias(META["label_column"])
     )
 
-    df = df.with_columns([
-        (pl.col("prediction_dttm") - pl.duration(hours=INPUT_WINDOW_HOURS))
-            .alias("window_start"),
-        pl.col("prediction_dttm").alias("window_end"),
-    ])
-
     df = assign_split(df, cfg["site"], train_end, test_start,
                       admission_col="prediction_dttm")
     df = df.filter(pl.col("split").is_not_null())
-    return df.select(OUTPUT_COLS)
+    return finalize_cohort(df, OUTPUT_COLS, META)
