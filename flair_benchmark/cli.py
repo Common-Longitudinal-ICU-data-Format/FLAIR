@@ -27,6 +27,30 @@ app = typer.Typer(add_completion=False, no_args_is_help=True,
                   help="FLAIR: CLIF-based federated ICU benchmark CLI")
 
 
+@app.command("init-config")
+def init_config_cmd(
+    out: str = typer.Option(".", "--out", help="Directory to write config templates into"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing files"),
+) -> None:
+    """Scaffold clif_config.json + feature_config.yaml templates.
+
+    Lets a fresh `pip install flair-benchmark` user start entirely from the CLI.
+    Edit clif_config.json with your data path/timezone, then run load-task / fe-*.
+    """
+    from flair_benchmark._templates import TEMPLATES
+
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, content in TEMPLATES.items():
+        path = out_dir / name
+        if path.exists() and not force:
+            typer.echo(f"  skip (exists): {path}  — pass --force to overwrite")
+            continue
+        path.write_text(content)
+        typer.echo(f"  wrote {path}")
+    typer.echo("Edit clif_config.json (data_directory, timezone), then: flair load-task ...")
+
+
 @app.command("load-task")
 def load_task(
     task: str = typer.Argument(..., help="Task name, e.g. task1_icu_daily_mortality"),

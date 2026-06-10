@@ -179,6 +179,7 @@ FLAIR is a CLI. The whole workflow is **Configure → ① Make a task → ② Ge
 
 | Command | Stage | What it does |
 |---|---|---|
+| `flair init-config` | — | Scaffold `clif_config.json` + `feature_config.yaml` templates |
 | `flair list-tasks` | ① | List discovered tasks + taxonomy |
 | `flair load-task` | ① | Build a task cohort parquet |
 | `flair fe-meds` | ② | Assist: CLIF → MEDS/ELF med event stream |
@@ -189,10 +190,11 @@ FLAIR is a CLI. The whole workflow is **Configure → ① Make a task → ② Ge
 ### Configure the CLIF data source
 
 ``` bash
-cp clif_config_template.json clif_config.json
+flair init-config            # writes clif_config.json + feature_config.yaml here
 ```
 
-Edit `clif_config.json` to set your data path, filetype, and timezone.
+Edit `clif_config.json` to set your data path, filetype, and timezone. Edit
+`feature_config.yaml` to pick the mCIDE categories for `fe-wide` / `fe-meds`.
 
 ------------------------------------------------------------------------
 
@@ -400,8 +402,9 @@ PIs at each site still audit code before running it and have final approval. The
 ```         
 flair_benchmark/
 ├── __init__.py                 # tiny: list_tasks, get_task, __version__
-├── cli.py                      # the `flair` CLI: load-task, fe-wide, fe-meds,
-│                               #   build-report, extract-metadata, list-tasks
+├── cli.py                      # the `flair` CLI: init-config, load-task, fe-wide,
+│                               #   fe-meds, build-report, extract-metadata, list-tasks
+├── _templates.py               # config templates shipped in the wheel (flair init-config)
 ├── _clif.py                    # clifpy → polars loaders (Hospitalization, Adt, Patient,
 │                               #   Vitals, Labs, RespiratorySupport, meds) + pd_to_pl (tz strip)
 ├── _split.py                   # temporal date split / MIMIC 70-30 fallback
