@@ -11,6 +11,11 @@ The predictions parquet for `build-report` MUST contain (strict schema):
   - multiclass tasks:  y_pred, class_probs_<class>
   - regression tasks:  y_pred_value
 
+Cohorts from `load-task` carry hospitalization_join_id (the stitched-encounter
+key — one block can span several hospitalizations, see flair_benchmark._stitch).
+Carry it (and prediction_id) through your predictions parquet so the report
+groups by the same logical encounter; it flows in from --cohort when present.
+
 Demographic columns flow through from `load-task` (age_at_admission,
 sex_category, race_category, ethnicity_category) and are required for
 fairness analysis.

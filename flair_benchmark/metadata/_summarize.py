@@ -41,33 +41,42 @@ def summarize_task(task_module,
     task_type = meta["task_type"]
     prediction_unit = meta["prediction_unit"]
 
+    # Entity unit is the stitched encounter (hospitalization_join_id) when present,
+    # so every count/dedup below is per encounter block, not per raw hospitalization.
+    stay = ("hospitalization_join_id"
+            if "hospitalization_join_id" in cohort.columns else "hospitalization_id")
+
     cohort = _attach_age_band(cohort)
     cohort = _attach_admission_year(cohort, admission_dttm)
 
     n_rows = cohort.height
-    n_stays = cohort.select("hospitalization_id").n_unique()
+    n_encounter_blocks = cohort.select(stay).n_unique()
 
     block: dict = {
         "n_rows": n_rows,
-        "n_stays": n_stays,
-        "label": _label_block(cohort, label_col, task_type, prediction_unit, meta),
-        "demographics": _demographics_block(cohort),
+        # n_stays now counts encounter blocks (kept for back-compat); n_encounter_blocks
+        # is the explicit name.
+        "n_stays": n_encounter_blocks,
+        "n_encounter_blocks": n_encounter_blocks,
+        "n_hospitalizations": cohort.select("hospitalization_id").n_unique(),
+        "label": _label_block(cohort, label_col, task_type, prediction_unit, meta, stay),
+        "demographics": _demographics_block(cohort, stay),
         "label_by_subgroup": _label_by_subgroup(
-            cohort, label_col, task_type, prediction_unit
+            cohort, label_col, task_type, prediction_unit, stay
         ),
-        "yearly": _yearly_block(cohort, label_col, task_type, prediction_unit),
+        "yearly": _yearly_block(cohort, label_col, task_type, prediction_unit, stay),
     }
 
     if sofa_per_stay is not None and sofa_per_stay.height > 0:
         block["sofa_hospitalization_max"] = _per_stay_score_summary(
-            cohort, sofa_per_stay, "sofa_max"
+            cohort, sofa_per_stay, "sofa_max", stay
         )
     if comorb_per_stay is not None and comorb_per_stay.height > 0:
         block["charlson_admission"] = _per_stay_score_summary(
-            cohort, comorb_per_stay, "charlson_score"
+            cohort, comorb_per_stay, "charlson_score", stay
         )
         block["elixhauser_admission"] = _per_stay_score_summary(
-            cohort, comorb_per_stay, "elix_score"
+            cohort, comorb_per_stay, "elix_score", stay
         )
 
     return block
@@ -76,9 +85,9 @@ def summarize_task(task_module,
 # ---- label blocks -----------------------------------------------------------
 
 def _label_block(cohort: pl.DataFrame, label_col: str, task_type: str,
-                 prediction_unit: str, meta: dict) -> dict:
+                 prediction_unit: str, meta: dict, stay: str) -> dict:
     if task_type == "binary":
-        return _binary_label_block(cohort, label_col, prediction_unit)
+        return _binary_label_block(cohort, label_col, prediction_unit, stay)
     if task_type == "multiclass":
         return _multiclass_label_block(cohort, label_col, meta)
     if task_type == "regression":
@@ -87,7 +96,7 @@ def _label_block(cohort: pl.DataFrame, label_col: str, task_type: str,
 
 
 def _binary_label_block(cohort: pl.DataFrame, label_col: str,
-                        prediction_unit: str) -> dict:
+                        prediction_unit: str, stay: str) -> dict:
     pos = int(cohort.filter(pl.col(label_col) == 1).height)
     neg = int(cohort.filter(pl.col(label_col) == 0).height)
     n = pos + neg
@@ -103,9 +112,9 @@ def _binary_label_block(cohort: pl.DataFrame, label_col: str,
     # decision-point / timestep
     stays_ever_pos = int(
         cohort.filter(pl.col(label_col) == 1)
-        .select("hospitalization_id").n_unique()
+        .select(stay).n_unique()
     )
-    n_stays = cohort.select("hospitalization_id").n_unique()
+    n_stays = cohort.select(stay).n_unique()
     return {
         "type": "binary",
         "positive_rows": suppress(pos),
@@ -154,10 +163,10 @@ def _regression_label_block(cohort: pl.DataFrame, label_col: str) -> dict:
 
 # ---- demographics -----------------------------------------------------------
 
-def _demographics_block(cohort: pl.DataFrame) -> dict:
+def _demographics_block(cohort: pl.DataFrame, stay: str) -> dict:
     out: dict = {}
     # Aggregate to stay-grain so decision-point tasks don't over-count.
-    stay_grain = cohort.unique(subset=["hospitalization_id"])
+    stay_grain = cohort.unique(subset=[stay])
     for col in SUBGROUP_COLS:
         if col not in stay_grain.columns:
             continue
@@ -171,7 +180,7 @@ def _demographics_block(cohort: pl.DataFrame) -> dict:
 
 
 def _label_by_subgroup(cohort: pl.DataFrame, label_col: str, task_type: str,
-                      prediction_unit: str) -> dict:
+                      prediction_unit: str, stay: str) -> dict:
     if task_type != "binary":
         return {}
 
@@ -183,7 +192,7 @@ def _label_by_subgroup(cohort: pl.DataFrame, label_col: str, task_type: str,
         for level in cohort[col].drop_nulls().unique().to_list():
             sub_rows = cohort.filter(pl.col(col) == level)
             stay_grain = (
-                sub_rows.group_by("hospitalization_id")
+                sub_rows.group_by(stay)
                 .agg(pl.col(label_col).max().alias(label_col))
             )
             n_stays = stay_grain.height
@@ -225,11 +234,17 @@ def _label_by_subgroup(cohort: pl.DataFrame, label_col: str, task_type: str,
 # ---- per-stay scores --------------------------------------------------------
 
 def _per_stay_score_summary(cohort: pl.DataFrame, scores: pl.DataFrame,
-                            score_col: str) -> dict:
-    stay_ids = cohort.select("hospitalization_id").unique()
-    joined = stay_ids.join(scores, on="hospitalization_id", how="left")
-    s = joined[score_col].drop_nulls()
-    n_total = stay_ids.height
+                            score_col: str, stay: str) -> dict:
+    # Scores are keyed on hospitalization_id; reduce to one (worst) score per
+    # encounter block so a stitched stay isn't double-counted.
+    pair_cols = list(dict.fromkeys(["hospitalization_id", stay]))
+    pairs = cohort.select(pair_cols).unique()
+    per_block = (
+        pairs.join(scores, on="hospitalization_id", how="left")
+        .group_by(stay).agg(pl.col(score_col).max().alias(score_col))
+    )
+    s = per_block[score_col].drop_nulls()
+    n_total = per_block.height
     if s.len() == 0:
         return {"n": 0, "n_missing": n_total}
     return {
@@ -245,7 +260,7 @@ def _per_stay_score_summary(cohort: pl.DataFrame, scores: pl.DataFrame,
 # ---- yearly -----------------------------------------------------------------
 
 def _yearly_block(cohort: pl.DataFrame, label_col: str, task_type: str,
-                 prediction_unit: str) -> dict:
+                 prediction_unit: str, stay: str) -> dict:
     if "_admission_year" not in cohort.columns:
         return {}
 
@@ -253,7 +268,7 @@ def _yearly_block(cohort: pl.DataFrame, label_col: str, task_type: str,
     for year in sorted(cohort["_admission_year"].drop_nulls().unique().to_list()):
         sub = cohort.filter(pl.col("_admission_year") == year)
         rows = sub.height
-        stays = sub.select("hospitalization_id").n_unique()
+        stays = sub.select(stay).n_unique()
         entry: dict = {
             "rows": suppress(rows),
             "stays": suppress(stays),
@@ -268,7 +283,7 @@ def _yearly_block(cohort: pl.DataFrame, label_col: str, task_type: str,
             else:
                 ever_pos = int(
                     sub.filter(pl.col(label_col) == 1)
-                    .select("hospitalization_id").n_unique()
+                    .select(stay).n_unique()
                 )
                 entry["positive_rows"] = suppress(pos_rows)
                 entry["stays_ever_positive"] = suppress(ever_pos)

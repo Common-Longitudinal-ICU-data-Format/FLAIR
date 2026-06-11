@@ -24,7 +24,8 @@ from flair_benchmark.report.tripod_ai import build_tripod_ai
 __all__ = ["build_report"]
 
 # cohort columns the report can use when they flow through (or are joined in)
-_CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm"]
+_CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
+                 "hospitalization_join_id"]
 
 
 def build_report(preds_path: str, task_module, out_dir: str,

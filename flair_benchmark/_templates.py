@@ -13,7 +13,9 @@ CLIF_CONFIG_TEMPLATE = """\
     "site": "sitename",
     "data_directory": "/path/to/clif/data",
     "filetype": "parquet",
-    "timezone": "US/Central"
+    "timezone": "US/Central",
+    "stitch_time_interval_hours": 6,
+    "cache_directory": "./output"
 }
 """
 

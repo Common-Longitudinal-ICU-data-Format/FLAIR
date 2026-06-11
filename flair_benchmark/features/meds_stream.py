@@ -15,6 +15,7 @@ from flair_benchmark._clif import (
     load_medication_admin_intermittent,
 )
 from flair_benchmark.features._elf import (
+    attach_join_id,
     attach_subject_id,
     empty_elf,
     finalize,
@@ -111,4 +112,5 @@ def get_meds_stream(task_df: pl.DataFrame, feature_cfg: dict,
 
     elf = pl.concat(parts, how="vertical")
     elf = attach_subject_id(elf, clif_cfg)
+    elf = attach_join_id(elf, clif_cfg)
     return finalize(elf)

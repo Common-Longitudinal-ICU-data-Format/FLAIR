@@ -76,6 +76,7 @@ from flair_benchmark._clif import (
     read_clif_config,
 )
 from flair_benchmark._split import assign_split
+from flair_benchmark._stitch import attach_join_id, load_or_build_encounter_index
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 LABEL_HORIZON_HOURS = 6
@@ -125,7 +126,7 @@ META = {
 }
 
 OUTPUT_COLS = [
-    "hospitalization_id", "prediction_dttm",
+    "hospitalization_id", "hospitalization_join_id", "prediction_dttm",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
 ]
@@ -147,7 +148,7 @@ def _hospital_wide_cohort(cfg: dict, min_age: int = 18) -> pl.DataFrame:
         columns=["patient_id", "sex_category", "race_category",
                  "ethnicity_category", "death_dttm"],
     )
-    return (
+    cohort = (
         hosp.join(patient, on="patient_id", how="inner")
         .filter(pl.col("admission_dttm").is_not_null()
                 & pl.col("discharge_dttm").is_not_null())
@@ -159,6 +160,8 @@ def _hospital_wide_cohort(cfg: dict, min_age: int = 18) -> pl.DataFrame:
             "ethnicity_category", "discharge_category",
         ])
     )
+    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
+    return attach_join_id(cohort, idx)
 
 
 def _exclude_psych_rehab(cohort: pl.DataFrame, cfg: dict) -> pl.DataFrame:

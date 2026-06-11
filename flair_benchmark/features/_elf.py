@@ -6,12 +6,13 @@ ELF long schema (one row per clinical event), mirroring CLIF_MEDS with one extra
     subject_id          Utf8   (= patient_id)        required
     time                Datetime (tz-naive)          required
     code                Utf8   "<DOMAIN>//<cat>//.."  required
-    numeric_value       Float64                       nullable
-    unit                Utf8                           nullable (req. when numeric)
-    text_value          Utf8                           nullable
-    hospitalization_id  Utf8                           required
+    numeric_value          Float64                    nullable
+    unit                   Utf8                       nullable (req. when numeric)
+    text_value             Utf8                       nullable
+    hospitalization_id     Utf8                       required
+    hospitalization_join_id Utf8                      required (stitched-encounter key)
 
-Both identifiers are always present (FE keys every row on subject + stay).
+All identifiers are always present (FE keys every row on subject + stay + block).
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ import polars as pl
 ELF_COLUMNS = [
     "subject_id", "time", "code",
     "numeric_value", "unit", "text_value",
-    "hospitalization_id",
+    "hospitalization_id", "hospitalization_join_id",
 ]
 
 ELF_SCHEMA = {
@@ -32,6 +33,7 @@ ELF_SCHEMA = {
     "unit": pl.Utf8,
     "text_value": pl.Utf8,
     "hospitalization_id": pl.Utf8,
+    "hospitalization_join_id": pl.Utf8,
 }
 
 
@@ -61,6 +63,7 @@ def finalize(df: pl.DataFrame) -> pl.DataFrame:
     df = df.with_columns([
         pl.col("subject_id").cast(pl.Utf8),
         pl.col("hospitalization_id").cast(pl.Utf8),
+        pl.col("hospitalization_join_id").cast(pl.Utf8),
         pl.col("time").cast(pl.Datetime("us")),
         pl.col("code").cast(pl.Utf8),
         pl.col("numeric_value").cast(pl.Float64),
@@ -69,9 +72,13 @@ def finalize(df: pl.DataFrame) -> pl.DataFrame:
     ]).select(ELF_COLUMNS)
 
     if df.select(
-        pl.col("subject_id").is_null().any() | pl.col("hospitalization_id").is_null().any()
+        pl.col("subject_id").is_null().any()
+        | pl.col("hospitalization_id").is_null().any()
+        | pl.col("hospitalization_join_id").is_null().any()
     ).item():
-        raise ValueError("ELF rows with null subject_id or hospitalization_id")
+        raise ValueError(
+            "ELF rows with null subject_id / hospitalization_id / hospitalization_join_id"
+        )
 
     bad_unit = df.filter(
         pl.col("numeric_value").is_not_null() & pl.col("unit").is_null()
@@ -83,6 +90,20 @@ def finalize(df: pl.DataFrame) -> pl.DataFrame:
             "or extend _units.py)."
         )
     return df
+
+
+def attach_join_id(df: pl.DataFrame, clif_cfg: dict) -> pl.DataFrame:
+    """Add hospitalization_join_id (stitched-encounter key) to ELF events.
+
+    Uses the same cached encounter index every task built from, so feature
+    rows carry the identical block key as the cohort.
+    """
+    from flair_benchmark._stitch import attach_join_id as _attach
+    from flair_benchmark._stitch import load_or_build_encounter_index
+
+    idx = load_or_build_encounter_index(
+        clif_cfg, clif_cfg.get("stitch_time_interval_hours", 6))
+    return _attach(df, idx)
 
 
 def attach_subject_id(df: pl.DataFrame, clif_cfg: dict) -> pl.DataFrame:

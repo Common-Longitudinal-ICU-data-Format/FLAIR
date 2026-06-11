@@ -76,7 +76,7 @@ META = {
 }
 
 OUTPUT_COLS = [
-    "hospitalization_id", "prediction_dttm",
+    "hospitalization_id", "hospitalization_join_id", "prediction_dttm",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
 ]

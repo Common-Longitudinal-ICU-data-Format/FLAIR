@@ -14,6 +14,7 @@ import polars as pl
 from flair_benchmark._clif import pd_to_pl
 from flair_benchmark.features._config import V1_TABLES
 from flair_benchmark.features._elf import (
+    attach_join_id,
     attach_subject_id,
     build_code,
     empty_elf,
@@ -175,4 +176,5 @@ def get_wide_feature_dataset(task_df: pl.DataFrame, feature_cfg: dict,
         return empty_elf()
 
     elf = pl.concat(parts, how="vertical")
+    elf = attach_join_id(elf, clif_cfg)
     return finalize(elf)

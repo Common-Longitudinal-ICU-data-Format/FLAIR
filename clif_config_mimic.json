@@ -2,5 +2,7 @@
     "site": "mimic",
     "data_directory": "/Users/sudo_sage/Documents/WORK/clif_mimic",
     "filetype": "parquet",
-    "timezone": "US/Eastern"
+    "timezone": "US/Eastern",
+    "stitch_time_interval_hours": 6,
+    "cache_directory": "./output"
 }

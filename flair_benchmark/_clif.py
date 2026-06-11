@@ -24,15 +24,23 @@ def read_clif_config(path: str) -> dict:
     """Parse a clif_config.json file.
 
     Expected keys: site, data_directory, filetype, timezone.
+    Optional keys:
+      stitch_time_interval_hours  gap (h) for encounter stitching (default 6)
+      cache_directory             where the encounter index parquet is cached
+                                  (default <data_directory>/_flair_cache)
     """
     with open(path) as f:
         cfg = json.load(f)
-    return {
+    out = {
         "site": cfg.get("site", "unknown"),
         "data_directory": cfg["data_directory"],
         "filetype": cfg["filetype"],
         "timezone": cfg.get("timezone", "US/Central"),
+        "stitch_time_interval_hours": cfg.get("stitch_time_interval_hours", 6),
     }
+    if cfg.get("cache_directory"):
+        out["cache_directory"] = cfg["cache_directory"]
+    return out
 
 
 def pd_to_pl(pdf) -> pl.DataFrame:
@@ -181,12 +189,16 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
       3. Load patient filtered to those patient_ids.
       4. Apply null-date / age / LOS filters.
 
+    Both returned frames carry hospitalization_join_id (the stitched-encounter
+    key); the row grain stays one-per-hospitalization_id.
+
     Returns (cohort, adt) where:
       cohort columns:
-        hospitalization_id, patient_id, admission_dttm, discharge_dttm,
-        age_at_admission, sex_category, race_category, ethnicity_category,
-        discharge_category, death_dttm
-      adt columns: as loaded by clifpy (filtered to final cohort hospitalization_ids).
+        hospitalization_id, hospitalization_join_id, patient_id,
+        admission_dttm, discharge_dttm, age_at_admission, sex_category,
+        race_category, ethnicity_category, discharge_category, death_dttm
+      adt columns: as loaded by clifpy (filtered to final cohort
+        hospitalization_ids) plus hospitalization_join_id.
     """
     adt = load_adt(cfg)
     icu_hosp_ids = (
@@ -229,4 +241,10 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
 
     final_ids = cohort["hospitalization_id"].to_list()
     adt = adt.filter(pl.col("hospitalization_id").is_in(final_ids))
+
+    # Stitch encounters once (cached) and tag both frames with the block key.
+    from flair_benchmark._stitch import attach_join_id, load_or_build_encounter_index
+    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
+    cohort = attach_join_id(cohort, idx)
+    adt = attach_join_id(adt, idx)
     return cohort, adt

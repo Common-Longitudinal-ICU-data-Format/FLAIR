@@ -1,0 +1,1074 @@
+{
+  "site": "mimic",
+  "flair_version": "2.0.0",
+  "generated_at": "2026-06-11T18:19:23.438086+00:00",
+  "min_cell_n": 10,
+  "reference_window": "full hospitalization (SOFA max-in-window)",
+  "task": {
+    "name": "task1_icu_daily_mortality",
+    "task_class": "outcome",
+    "temporal_pattern": "continuous",
+    "prediction_unit": "one-per-timestep",
+    "task_type": "binary",
+    "label_column": "label_mortality",
+    "task_script_sha256": "253c515f2b8f5160cbbd373f977dd07a845fc4a41e1c7a992cc0deb289f7d04a"
+  },
+  "n_rows": 198125,
+  "n_stays": 64408,
+  "n_encounter_blocks": 64408,
+  "n_hospitalizations": 64434,
+  "label": {
+    "type": "binary",
+    "positive_rows": 38080,
+    "negative_rows": 160045,
+    "stays_ever_positive": 8377,
+    "prevalence_per_prediction_point": 0.1922,
+    "prevalence_per_hospitalization": 0.1301
+  },
+  "demographics": {
+    "sex_category": {
+      "Female": 27795,
+      "Male": 36613
+    },
+    "race_category": {
+      "American Indian or Alaska Native": 140,
+      "Asian": 1946,
+      "Black or African American": 6854,
+      "Native Hawaiian or Other Pacific Islander": 72,
+      "Other": 4386,
+      "Unknown": 6855,
+      "White": 44155
+    },
+    "ethnicity_category": {
+      "Hispanic": 2521,
+      "Non-Hispanic": 53167,
+      "Unknown": 8720
+    },
+    "age_band": {
+      "18-39": 5551,
+      "40-64": 23208,
+      "65-79": 22393,
+      "80+": 13256
+    }
+  },
+  "label_by_subgroup": {
+    "sex_category": {
+      "Male": {
+        "n_rows": 113172,
+        "positive_rows": 21779,
+        "n_stays": 36613,
+        "stays_ever_positive": 4592,
+        "prevalence_per_prediction_point": 0.1924,
+        "prevalence_per_hospitalization": 0.1254
+      },
+      "Female": {
+        "n_rows": 84953,
+        "positive_rows": 16301,
+        "n_stays": 27795,
+        "stays_ever_positive": 3785,
+        "prevalence_per_prediction_point": 0.1919,
+        "prevalence_per_hospitalization": 0.1362
+      }
+    },
+    "race_category": {
+      "American Indian or Alaska Native": {
+        "n_rows": 498,
+        "positive_rows": 93,
+        "n_stays": 140,
+        "stays_ever_positive": 15,
+        "prevalence_per_prediction_point": 0.1867,
+        "prevalence_per_hospitalization": 0.1071
+      },
+      "White": {
+        "n_rows": 131008,
+        "positive_rows": 23557,
+        "n_stays": 44155,
+        "stays_ever_positive": 5328,
+        "prevalence_per_prediction_point": 0.1798,
+        "prevalence_per_hospitalization": 0.1207
+      },
+      "Other": {
+        "n_rows": 13511,
+        "positive_rows": 2170,
+        "n_stays": 4386,
+        "stays_ever_positive": 485,
+        "prevalence_per_prediction_point": 0.1606,
+        "prevalence_per_hospitalization": 0.1106
+      },
+      "Unknown": {
+        "n_rows": 25376,
+        "positive_rows": 7474,
+        "n_stays": 6855,
+        "stays_ever_positive": 1495,
+        "prevalence_per_prediction_point": 0.2945,
+        "prevalence_per_hospitalization": 0.2181
+      },
+      "Native Hawaiian or Other Pacific Islander": {
+        "n_rows": 210,
+        "positive_rows": 32,
+        "n_stays": 72,
+        "stays_ever_positive": 11,
+        "prevalence_per_prediction_point": 0.1524,
+        "prevalence_per_hospitalization": 0.1528
+      },
+      "Black or African American": {
+        "n_rows": 21526,
+        "positive_rows": 3610,
+        "n_stays": 6854,
+        "stays_ever_positive": 775,
+        "prevalence_per_prediction_point": 0.1677,
+        "prevalence_per_hospitalization": 0.1131
+      },
+      "Asian": {
+        "n_rows": 5996,
+        "positive_rows": 1144,
+        "n_stays": 1946,
+        "stays_ever_positive": 268,
+        "prevalence_per_prediction_point": 0.1908,
+        "prevalence_per_hospitalization": 0.1377
+      }
+    },
+    "ethnicity_category": {
+      "Non-Hispanic": {
+        "n_rows": 159238,
+        "positive_rows": 28436,
+        "n_stays": 53167,
+        "stays_ever_positive": 6397,
+        "prevalence_per_prediction_point": 0.1786,
+        "prevalence_per_hospitalization": 0.1203
+      },
+      "Hispanic": {
+        "n_rows": 7600,
+        "positive_rows": 1140,
+        "n_stays": 2521,
+        "stays_ever_positive": 257,
+        "prevalence_per_prediction_point": 0.15,
+        "prevalence_per_hospitalization": 0.1019
+      },
+      "Unknown": {
+        "n_rows": 31287,
+        "positive_rows": 8504,
+        "n_stays": 8720,
+        "stays_ever_positive": 1723,
+        "prevalence_per_prediction_point": 0.2718,
+        "prevalence_per_hospitalization": 0.1976
+      }
+    },
+    "age_band": {
+      "18-39": {
+        "n_rows": 16578,
+        "positive_rows": 1506,
+        "n_stays": 5551,
+        "stays_ever_positive": 297,
+        "prevalence_per_prediction_point": 0.0908,
+        "prevalence_per_hospitalization": 0.0535
+      },
+      "65-79": {
+        "n_rows": 70483,
+        "positive_rows": 14602,
+        "n_stays": 22393,
+        "stays_ever_positive": 3063,
+        "prevalence_per_prediction_point": 0.2072,
+        "prevalence_per_hospitalization": 0.1368
+      },
+      "80+": {
+        "n_rows": 38377,
+        "positive_rows": 10443,
+        "n_stays": 13256,
+        "stays_ever_positive": 2712,
+        "prevalence_per_prediction_point": 0.2721,
+        "prevalence_per_hospitalization": 0.2046
+      },
+      "40-64": {
+        "n_rows": 72687,
+        "positive_rows": 11529,
+        "n_stays": 23208,
+        "stays_ever_positive": 2305,
+        "prevalence_per_prediction_point": 0.1586,
+        "prevalence_per_hospitalization": 0.0993
+      }
+    }
+  },
+  "yearly": {
+    "2105": {
+      "rows": "<10",
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.0,
+      "prevalence_per_hospitalization": 0.0
+    },
+    "2109": {
+      "rows": 11,
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.0,
+      "prevalence_per_hospitalization": 0.0
+    },
+    "2110": {
+      "rows": 1332,
+      "stays": 433,
+      "positive_rows": 254,
+      "stays_ever_positive": 54,
+      "prevalence_per_prediction_point": 0.1907,
+      "prevalence_per_hospitalization": 0.1247
+    },
+    "2111": {
+      "rows": 1589,
+      "stays": 506,
+      "positive_rows": 244,
+      "stays_ever_positive": 66,
+      "prevalence_per_prediction_point": 0.1536,
+      "prevalence_per_hospitalization": 0.1304
+    },
+    "2112": {
+      "rows": 1671,
+      "stays": 552,
+      "positive_rows": 311,
+      "stays_ever_positive": 70,
+      "prevalence_per_prediction_point": 0.1861,
+      "prevalence_per_hospitalization": 0.1268
+    },
+    "2113": {
+      "rows": 1789,
+      "stays": 550,
+      "positive_rows": 403,
+      "stays_ever_positive": 80,
+      "prevalence_per_prediction_point": 0.2253,
+      "prevalence_per_hospitalization": 0.1455
+    },
+    "2114": {
+      "rows": 1722,
+      "stays": 603,
+      "positive_rows": 328,
+      "stays_ever_positive": 74,
+      "prevalence_per_prediction_point": 0.1905,
+      "prevalence_per_hospitalization": 0.1227
+    },
+    "2115": {
+      "rows": 1839,
+      "stays": 591,
+      "positive_rows": 316,
+      "stays_ever_positive": 83,
+      "prevalence_per_prediction_point": 0.1718,
+      "prevalence_per_hospitalization": 0.1404
+    },
+    "2116": {
+      "rows": 1821,
+      "stays": 582,
+      "positive_rows": 394,
+      "stays_ever_positive": 85,
+      "prevalence_per_prediction_point": 0.2164,
+      "prevalence_per_hospitalization": 0.146
+    },
+    "2117": {
+      "rows": 1748,
+      "stays": 611,
+      "positive_rows": 330,
+      "stays_ever_positive": 85,
+      "prevalence_per_prediction_point": 0.1888,
+      "prevalence_per_hospitalization": 0.1391
+    },
+    "2118": {
+      "rows": 1782,
+      "stays": 597,
+      "positive_rows": 350,
+      "stays_ever_positive": 87,
+      "prevalence_per_prediction_point": 0.1964,
+      "prevalence_per_hospitalization": 0.1457
+    },
+    "2119": {
+      "rows": 2046,
+      "stays": 703,
+      "positive_rows": 369,
+      "stays_ever_positive": 99,
+      "prevalence_per_prediction_point": 0.1804,
+      "prevalence_per_hospitalization": 0.1408
+    },
+    "2120": {
+      "rows": 1958,
+      "stays": 635,
+      "positive_rows": 451,
+      "stays_ever_positive": 74,
+      "prevalence_per_prediction_point": 0.2303,
+      "prevalence_per_hospitalization": 0.1165
+    },
+    "2121": {
+      "rows": 2230,
+      "stays": 684,
+      "positive_rows": 336,
+      "stays_ever_positive": 81,
+      "prevalence_per_prediction_point": 0.1507,
+      "prevalence_per_hospitalization": 0.1184
+    },
+    "2122": {
+      "rows": 2217,
+      "stays": 687,
+      "positive_rows": 414,
+      "stays_ever_positive": 100,
+      "prevalence_per_prediction_point": 0.1867,
+      "prevalence_per_hospitalization": 0.1456
+    },
+    "2123": {
+      "rows": 2327,
+      "stays": 735,
+      "positive_rows": 405,
+      "stays_ever_positive": 84,
+      "prevalence_per_prediction_point": 0.174,
+      "prevalence_per_hospitalization": 0.1143
+    },
+    "2124": {
+      "rows": 2082,
+      "stays": 714,
+      "positive_rows": 350,
+      "stays_ever_positive": 79,
+      "prevalence_per_prediction_point": 0.1681,
+      "prevalence_per_hospitalization": 0.1106
+    },
+    "2125": {
+      "rows": 2664,
+      "stays": 774,
+      "positive_rows": 577,
+      "stays_ever_positive": 95,
+      "prevalence_per_prediction_point": 0.2166,
+      "prevalence_per_hospitalization": 0.1227
+    },
+    "2126": {
+      "rows": 2302,
+      "stays": 738,
+      "positive_rows": 462,
+      "stays_ever_positive": 103,
+      "prevalence_per_prediction_point": 0.2007,
+      "prevalence_per_hospitalization": 0.1396
+    },
+    "2127": {
+      "rows": 2640,
+      "stays": 776,
+      "positive_rows": 359,
+      "stays_ever_positive": 98,
+      "prevalence_per_prediction_point": 0.136,
+      "prevalence_per_hospitalization": 0.1263
+    },
+    "2128": {
+      "rows": 2449,
+      "stays": 779,
+      "positive_rows": 446,
+      "stays_ever_positive": 99,
+      "prevalence_per_prediction_point": 0.1821,
+      "prevalence_per_hospitalization": 0.1271
+    },
+    "2129": {
+      "rows": 2369,
+      "stays": 776,
+      "positive_rows": 507,
+      "stays_ever_positive": 108,
+      "prevalence_per_prediction_point": 0.214,
+      "prevalence_per_hospitalization": 0.1392
+    },
+    "2130": {
+      "rows": 2758,
+      "stays": 828,
+      "positive_rows": 551,
+      "stays_ever_positive": 119,
+      "prevalence_per_prediction_point": 0.1998,
+      "prevalence_per_hospitalization": 0.1437
+    },
+    "2131": {
+      "rows": 2331,
+      "stays": 765,
+      "positive_rows": 523,
+      "stays_ever_positive": 115,
+      "prevalence_per_prediction_point": 0.2244,
+      "prevalence_per_hospitalization": 0.1503
+    },
+    "2132": {
+      "rows": 2240,
+      "stays": 773,
+      "positive_rows": 491,
+      "stays_ever_positive": 97,
+      "prevalence_per_prediction_point": 0.2192,
+      "prevalence_per_hospitalization": 0.1255
+    },
+    "2133": {
+      "rows": 2439,
+      "stays": 802,
+      "positive_rows": 481,
+      "stays_ever_positive": 109,
+      "prevalence_per_prediction_point": 0.1972,
+      "prevalence_per_hospitalization": 0.1359
+    },
+    "2134": {
+      "rows": 2412,
+      "stays": 782,
+      "positive_rows": 493,
+      "stays_ever_positive": 100,
+      "prevalence_per_prediction_point": 0.2044,
+      "prevalence_per_hospitalization": 0.1279
+    },
+    "2135": {
+      "rows": 2746,
+      "stays": 818,
+      "positive_rows": 621,
+      "stays_ever_positive": 121,
+      "prevalence_per_prediction_point": 0.2261,
+      "prevalence_per_hospitalization": 0.1479
+    },
+    "2136": {
+      "rows": 2554,
+      "stays": 815,
+      "positive_rows": 500,
+      "stays_ever_positive": 101,
+      "prevalence_per_prediction_point": 0.1958,
+      "prevalence_per_hospitalization": 0.1239
+    },
+    "2137": {
+      "rows": 2501,
+      "stays": 800,
+      "positive_rows": 445,
+      "stays_ever_positive": 95,
+      "prevalence_per_prediction_point": 0.1779,
+      "prevalence_per_hospitalization": 0.1187
+    },
+    "2138": {
+      "rows": 2572,
+      "stays": 852,
+      "positive_rows": 423,
+      "stays_ever_positive": 98,
+      "prevalence_per_prediction_point": 0.1645,
+      "prevalence_per_hospitalization": 0.115
+    },
+    "2139": {
+      "rows": 2592,
+      "stays": 837,
+      "positive_rows": 458,
+      "stays_ever_positive": 111,
+      "prevalence_per_prediction_point": 0.1767,
+      "prevalence_per_hospitalization": 0.1326
+    },
+    "2140": {
+      "rows": 2660,
+      "stays": 842,
+      "positive_rows": 456,
+      "stays_ever_positive": 100,
+      "prevalence_per_prediction_point": 0.1714,
+      "prevalence_per_hospitalization": 0.1188
+    },
+    "2141": {
+      "rows": 2670,
+      "stays": 847,
+      "positive_rows": 519,
+      "stays_ever_positive": 99,
+      "prevalence_per_prediction_point": 0.1944,
+      "prevalence_per_hospitalization": 0.1169
+    },
+    "2142": {
+      "rows": 2450,
+      "stays": 786,
+      "positive_rows": 485,
+      "stays_ever_positive": 95,
+      "prevalence_per_prediction_point": 0.198,
+      "prevalence_per_hospitalization": 0.1209
+    },
+    "2143": {
+      "rows": 2601,
+      "stays": 803,
+      "positive_rows": 427,
+      "stays_ever_positive": 92,
+      "prevalence_per_prediction_point": 0.1642,
+      "prevalence_per_hospitalization": 0.1146
+    },
+    "2144": {
+      "rows": 2398,
+      "stays": 801,
+      "positive_rows": 408,
+      "stays_ever_positive": 103,
+      "prevalence_per_prediction_point": 0.1701,
+      "prevalence_per_hospitalization": 0.1286
+    },
+    "2145": {
+      "rows": 2316,
+      "stays": 824,
+      "positive_rows": 318,
+      "stays_ever_positive": 90,
+      "prevalence_per_prediction_point": 0.1373,
+      "prevalence_per_hospitalization": 0.1092
+    },
+    "2146": {
+      "rows": 2625,
+      "stays": 853,
+      "positive_rows": 444,
+      "stays_ever_positive": 96,
+      "prevalence_per_prediction_point": 0.1691,
+      "prevalence_per_hospitalization": 0.1125
+    },
+    "2147": {
+      "rows": 2822,
+      "stays": 820,
+      "positive_rows": 498,
+      "stays_ever_positive": 117,
+      "prevalence_per_prediction_point": 0.1765,
+      "prevalence_per_hospitalization": 0.1427
+    },
+    "2148": {
+      "rows": 2456,
+      "stays": 792,
+      "positive_rows": 445,
+      "stays_ever_positive": 94,
+      "prevalence_per_prediction_point": 0.1812,
+      "prevalence_per_hospitalization": 0.1187
+    },
+    "2149": {
+      "rows": 2657,
+      "stays": 841,
+      "positive_rows": 506,
+      "stays_ever_positive": 120,
+      "prevalence_per_prediction_point": 0.1904,
+      "prevalence_per_hospitalization": 0.1427
+    },
+    "2150": {
+      "rows": 2448,
+      "stays": 773,
+      "positive_rows": 526,
+      "stays_ever_positive": 105,
+      "prevalence_per_prediction_point": 0.2149,
+      "prevalence_per_hospitalization": 0.1358
+    },
+    "2151": {
+      "rows": 2456,
+      "stays": 800,
+      "positive_rows": 476,
+      "stays_ever_positive": 103,
+      "prevalence_per_prediction_point": 0.1938,
+      "prevalence_per_hospitalization": 0.1288
+    },
+    "2152": {
+      "rows": 2375,
+      "stays": 797,
+      "positive_rows": 402,
+      "stays_ever_positive": 106,
+      "prevalence_per_prediction_point": 0.1693,
+      "prevalence_per_hospitalization": 0.133
+    },
+    "2153": {
+      "rows": 2420,
+      "stays": 797,
+      "positive_rows": 420,
+      "stays_ever_positive": 100,
+      "prevalence_per_prediction_point": 0.1736,
+      "prevalence_per_hospitalization": 0.1255
+    },
+    "2154": {
+      "rows": 2409,
+      "stays": 831,
+      "positive_rows": 416,
+      "stays_ever_positive": 104,
+      "prevalence_per_prediction_point": 0.1727,
+      "prevalence_per_hospitalization": 0.1252
+    },
+    "2155": {
+      "rows": 2456,
+      "stays": 828,
+      "positive_rows": 505,
+      "stays_ever_positive": 104,
+      "prevalence_per_prediction_point": 0.2056,
+      "prevalence_per_hospitalization": 0.1256
+    },
+    "2156": {
+      "rows": 2471,
+      "stays": 810,
+      "positive_rows": 469,
+      "stays_ever_positive": 109,
+      "prevalence_per_prediction_point": 0.1898,
+      "prevalence_per_hospitalization": 0.1346
+    },
+    "2157": {
+      "rows": 2280,
+      "stays": 782,
+      "positive_rows": 447,
+      "stays_ever_positive": 102,
+      "prevalence_per_prediction_point": 0.1961,
+      "prevalence_per_hospitalization": 0.1304
+    },
+    "2158": {
+      "rows": 2214,
+      "stays": 819,
+      "positive_rows": 415,
+      "stays_ever_positive": 103,
+      "prevalence_per_prediction_point": 0.1874,
+      "prevalence_per_hospitalization": 0.1258
+    },
+    "2159": {
+      "rows": 2648,
+      "stays": 808,
+      "positive_rows": 456,
+      "stays_ever_positive": 101,
+      "prevalence_per_prediction_point": 0.1722,
+      "prevalence_per_hospitalization": 0.125
+    },
+    "2160": {
+      "rows": 2736,
+      "stays": 852,
+      "positive_rows": 610,
+      "stays_ever_positive": 115,
+      "prevalence_per_prediction_point": 0.223,
+      "prevalence_per_hospitalization": 0.135
+    },
+    "2161": {
+      "rows": 2591,
+      "stays": 833,
+      "positive_rows": 462,
+      "stays_ever_positive": 107,
+      "prevalence_per_prediction_point": 0.1783,
+      "prevalence_per_hospitalization": 0.1285
+    },
+    "2162": {
+      "rows": 2449,
+      "stays": 822,
+      "positive_rows": 417,
+      "stays_ever_positive": 94,
+      "prevalence_per_prediction_point": 0.1703,
+      "prevalence_per_hospitalization": 0.1144
+    },
+    "2163": {
+      "rows": 2755,
+      "stays": 822,
+      "positive_rows": 652,
+      "stays_ever_positive": 122,
+      "prevalence_per_prediction_point": 0.2367,
+      "prevalence_per_hospitalization": 0.1484
+    },
+    "2164": {
+      "rows": 2380,
+      "stays": 813,
+      "positive_rows": 503,
+      "stays_ever_positive": 113,
+      "prevalence_per_prediction_point": 0.2113,
+      "prevalence_per_hospitalization": 0.139
+    },
+    "2165": {
+      "rows": 2444,
+      "stays": 759,
+      "positive_rows": 412,
+      "stays_ever_positive": 98,
+      "prevalence_per_prediction_point": 0.1686,
+      "prevalence_per_hospitalization": 0.1291
+    },
+    "2166": {
+      "rows": 2456,
+      "stays": 776,
+      "positive_rows": 471,
+      "stays_ever_positive": 105,
+      "prevalence_per_prediction_point": 0.1918,
+      "prevalence_per_hospitalization": 0.1353
+    },
+    "2167": {
+      "rows": 2480,
+      "stays": 867,
+      "positive_rows": 558,
+      "stays_ever_positive": 123,
+      "prevalence_per_prediction_point": 0.225,
+      "prevalence_per_hospitalization": 0.1419
+    },
+    "2168": {
+      "rows": 2280,
+      "stays": 773,
+      "positive_rows": 571,
+      "stays_ever_positive": 105,
+      "prevalence_per_prediction_point": 0.2504,
+      "prevalence_per_hospitalization": 0.1358
+    },
+    "2169": {
+      "rows": 1953,
+      "stays": 743,
+      "positive_rows": 332,
+      "stays_ever_positive": 89,
+      "prevalence_per_prediction_point": 0.17,
+      "prevalence_per_hospitalization": 0.1198
+    },
+    "2170": {
+      "rows": 2271,
+      "stays": 773,
+      "positive_rows": 475,
+      "stays_ever_positive": 107,
+      "prevalence_per_prediction_point": 0.2092,
+      "prevalence_per_hospitalization": 0.1384
+    },
+    "2171": {
+      "rows": 2245,
+      "stays": 796,
+      "positive_rows": 292,
+      "stays_ever_positive": 93,
+      "prevalence_per_prediction_point": 0.1301,
+      "prevalence_per_hospitalization": 0.1168
+    },
+    "2172": {
+      "rows": 2630,
+      "stays": 835,
+      "positive_rows": 593,
+      "stays_ever_positive": 101,
+      "prevalence_per_prediction_point": 0.2255,
+      "prevalence_per_hospitalization": 0.121
+    },
+    "2173": {
+      "rows": 2301,
+      "stays": 779,
+      "positive_rows": 432,
+      "stays_ever_positive": 98,
+      "prevalence_per_prediction_point": 0.1877,
+      "prevalence_per_hospitalization": 0.1258
+    },
+    "2174": {
+      "rows": 2494,
+      "stays": 814,
+      "positive_rows": 477,
+      "stays_ever_positive": 106,
+      "prevalence_per_prediction_point": 0.1913,
+      "prevalence_per_hospitalization": 0.1302
+    },
+    "2175": {
+      "rows": 2731,
+      "stays": 825,
+      "positive_rows": 538,
+      "stays_ever_positive": 105,
+      "prevalence_per_prediction_point": 0.197,
+      "prevalence_per_hospitalization": 0.1273
+    },
+    "2176": {
+      "rows": 2391,
+      "stays": 796,
+      "positive_rows": 522,
+      "stays_ever_positive": 107,
+      "prevalence_per_prediction_point": 0.2183,
+      "prevalence_per_hospitalization": 0.1344
+    },
+    "2177": {
+      "rows": 2459,
+      "stays": 800,
+      "positive_rows": 383,
+      "stays_ever_positive": 102,
+      "prevalence_per_prediction_point": 0.1558,
+      "prevalence_per_hospitalization": 0.1275
+    },
+    "2178": {
+      "rows": 2499,
+      "stays": 778,
+      "positive_rows": 626,
+      "stays_ever_positive": 109,
+      "prevalence_per_prediction_point": 0.2505,
+      "prevalence_per_hospitalization": 0.1401
+    },
+    "2179": {
+      "rows": 2376,
+      "stays": 755,
+      "positive_rows": 576,
+      "stays_ever_positive": 106,
+      "prevalence_per_prediction_point": 0.2424,
+      "prevalence_per_hospitalization": 0.1404
+    },
+    "2180": {
+      "rows": 2593,
+      "stays": 828,
+      "positive_rows": 556,
+      "stays_ever_positive": 119,
+      "prevalence_per_prediction_point": 0.2144,
+      "prevalence_per_hospitalization": 0.1437
+    },
+    "2181": {
+      "rows": 2380,
+      "stays": 838,
+      "positive_rows": 348,
+      "stays_ever_positive": 98,
+      "prevalence_per_prediction_point": 0.1462,
+      "prevalence_per_hospitalization": 0.1169
+    },
+    "2182": {
+      "rows": 2527,
+      "stays": 793,
+      "positive_rows": 478,
+      "stays_ever_positive": 109,
+      "prevalence_per_prediction_point": 0.1892,
+      "prevalence_per_hospitalization": 0.1375
+    },
+    "2183": {
+      "rows": 2546,
+      "stays": 831,
+      "positive_rows": 452,
+      "stays_ever_positive": 102,
+      "prevalence_per_prediction_point": 0.1775,
+      "prevalence_per_hospitalization": 0.1227
+    },
+    "2184": {
+      "rows": 2312,
+      "stays": 759,
+      "positive_rows": 512,
+      "stays_ever_positive": 96,
+      "prevalence_per_prediction_point": 0.2215,
+      "prevalence_per_hospitalization": 0.1265
+    },
+    "2185": {
+      "rows": 2578,
+      "stays": 842,
+      "positive_rows": 537,
+      "stays_ever_positive": 111,
+      "prevalence_per_prediction_point": 0.2083,
+      "prevalence_per_hospitalization": 0.1318
+    },
+    "2186": {
+      "rows": 2483,
+      "stays": 805,
+      "positive_rows": 533,
+      "stays_ever_positive": 113,
+      "prevalence_per_prediction_point": 0.2147,
+      "prevalence_per_hospitalization": 0.1404
+    },
+    "2187": {
+      "rows": 2349,
+      "stays": 809,
+      "positive_rows": 334,
+      "stays_ever_positive": 94,
+      "prevalence_per_prediction_point": 0.1422,
+      "prevalence_per_hospitalization": 0.1162
+    },
+    "2188": {
+      "rows": 2544,
+      "stays": 753,
+      "positive_rows": 524,
+      "stays_ever_positive": 109,
+      "prevalence_per_prediction_point": 0.206,
+      "prevalence_per_hospitalization": 0.1448
+    },
+    "2189": {
+      "rows": 2426,
+      "stays": 786,
+      "positive_rows": 519,
+      "stays_ever_positive": 108,
+      "prevalence_per_prediction_point": 0.2139,
+      "prevalence_per_hospitalization": 0.1374
+    },
+    "2190": {
+      "rows": 1042,
+      "stays": 340,
+      "positive_rows": 246,
+      "stays_ever_positive": 50,
+      "prevalence_per_prediction_point": 0.2361,
+      "prevalence_per_hospitalization": 0.1471
+    },
+    "2191": {
+      "rows": 759,
+      "stays": 281,
+      "positive_rows": 151,
+      "stays_ever_positive": 35,
+      "prevalence_per_prediction_point": 0.1989,
+      "prevalence_per_hospitalization": 0.1246
+    },
+    "2192": {
+      "rows": 763,
+      "stays": 262,
+      "positive_rows": 164,
+      "stays_ever_positive": 38,
+      "prevalence_per_prediction_point": 0.2149,
+      "prevalence_per_hospitalization": 0.145
+    },
+    "2193": {
+      "rows": 608,
+      "stays": 243,
+      "positive_rows": 113,
+      "stays_ever_positive": 33,
+      "prevalence_per_prediction_point": 0.1859,
+      "prevalence_per_hospitalization": 0.1358
+    },
+    "2194": {
+      "rows": 556,
+      "stays": 226,
+      "positive_rows": 77,
+      "stays_ever_positive": 21,
+      "prevalence_per_prediction_point": 0.1385,
+      "prevalence_per_hospitalization": 0.0929
+    },
+    "2195": {
+      "rows": 653,
+      "stays": 213,
+      "positive_rows": 98,
+      "stays_ever_positive": 21,
+      "prevalence_per_prediction_point": 0.1501,
+      "prevalence_per_hospitalization": 0.0986
+    },
+    "2196": {
+      "rows": 704,
+      "stays": 189,
+      "positive_rows": 186,
+      "stays_ever_positive": 25,
+      "prevalence_per_prediction_point": 0.2642,
+      "prevalence_per_hospitalization": 0.1323
+    },
+    "2197": {
+      "rows": 523,
+      "stays": 155,
+      "positive_rows": 94,
+      "stays_ever_positive": 22,
+      "prevalence_per_prediction_point": 0.1797,
+      "prevalence_per_hospitalization": 0.1419
+    },
+    "2198": {
+      "rows": 501,
+      "stays": 142,
+      "positive_rows": 75,
+      "stays_ever_positive": 21,
+      "prevalence_per_prediction_point": 0.1497,
+      "prevalence_per_hospitalization": 0.1479
+    },
+    "2199": {
+      "rows": 396,
+      "stays": 152,
+      "positive_rows": 54,
+      "stays_ever_positive": 19,
+      "prevalence_per_prediction_point": 0.1364,
+      "prevalence_per_hospitalization": 0.125
+    },
+    "2200": {
+      "rows": 450,
+      "stays": 142,
+      "positive_rows": 79,
+      "stays_ever_positive": 22,
+      "prevalence_per_prediction_point": 0.1756,
+      "prevalence_per_hospitalization": 0.1549
+    },
+    "2201": {
+      "rows": 331,
+      "stays": 111,
+      "positive_rows": 59,
+      "stays_ever_positive": 13,
+      "prevalence_per_prediction_point": 0.1782,
+      "prevalence_per_hospitalization": 0.1171
+    },
+    "2202": {
+      "rows": 339,
+      "stays": 123,
+      "positive_rows": 67,
+      "stays_ever_positive": 15,
+      "prevalence_per_prediction_point": 0.1976,
+      "prevalence_per_hospitalization": 0.122
+    },
+    "2203": {
+      "rows": 302,
+      "stays": 103,
+      "positive_rows": 48,
+      "stays_ever_positive": 12,
+      "prevalence_per_prediction_point": 0.1589,
+      "prevalence_per_hospitalization": 0.1165
+    },
+    "2204": {
+      "rows": 155,
+      "stays": 65,
+      "positive_rows": 17,
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.1097,
+      "prevalence_per_hospitalization": 0.0615
+    },
+    "2205": {
+      "rows": 184,
+      "stays": 67,
+      "positive_rows": 47,
+      "stays_ever_positive": 10,
+      "prevalence_per_prediction_point": 0.2554,
+      "prevalence_per_hospitalization": 0.1493
+    },
+    "2206": {
+      "rows": 193,
+      "stays": 69,
+      "positive_rows": 41,
+      "stays_ever_positive": 11,
+      "prevalence_per_prediction_point": 0.2124,
+      "prevalence_per_hospitalization": 0.1594
+    },
+    "2207": {
+      "rows": 159,
+      "stays": 36,
+      "positive_rows": 48,
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.3019,
+      "prevalence_per_hospitalization": 0.1944
+    },
+    "2208": {
+      "rows": 104,
+      "stays": 34,
+      "positive_rows": 38,
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.3654,
+      "prevalence_per_hospitalization": 0.2647
+    },
+    "2209": {
+      "rows": 42,
+      "stays": 16,
+      "positive_rows": 25,
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.5952,
+      "prevalence_per_hospitalization": 0.375
+    },
+    "2210": {
+      "rows": 53,
+      "stays": 12,
+      "positive_rows": 22,
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.4151,
+      "prevalence_per_hospitalization": 0.3333
+    },
+    "2211": {
+      "rows": 47,
+      "stays": 13,
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.1277,
+      "prevalence_per_hospitalization": 0.1538
+    },
+    "2212": {
+      "rows": 24,
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.0,
+      "prevalence_per_hospitalization": 0.0
+    },
+    "2213": {
+      "rows": "<10",
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.0,
+      "prevalence_per_hospitalization": 0.0
+    },
+    "2214": {
+      "rows": "<10",
+      "stays": "<10",
+      "positive_rows": "<10",
+      "stays_ever_positive": "<10",
+      "prevalence_per_prediction_point": 0.0,
+      "prevalence_per_hospitalization": 0.0
+    }
+  },
+  "sofa_hospitalization_max": {
+    "n": 64395,
+    "n_missing": 13,
+    "mean": 5.585,
+    "median": 5.0,
+    "p25": 2.0,
+    "p75": 8.0
+  },
+  "charlson_admission": {
+    "n": 30109,
+    "n_missing": 34299,
+    "mean": 2.4662,
+    "median": 2.0,
+    "p25": 0.0,
+    "p75": 4.0
+  },
+  "elixhauser_admission": {
+    "n": 30109,
+    "n_missing": 34299,
+    "mean": 13.9045,
+    "median": 13.0,
+    "p25": 5.0,
+    "p75": 21.0
+  }
+}
