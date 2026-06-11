@@ -75,7 +75,7 @@ def test_window_number_and_prediction_id():
     df = make_synth(n_stays=20)
     one = df.filter(pl.col("hospitalization_id") == "h0").sort("prediction_dttm")
     assert one["window_number"].to_list() == list(range(1, one.height + 1))
-    assert one["prediction_id"][0] == "p0-h0-1"
+    assert one["prediction_id"][0] == "h0-h0-p0-1"
 
 
 def test_prediction_id_one_per_stay():
@@ -83,7 +83,7 @@ def test_prediction_id_one_per_stay():
     df = pl.DataFrame({"patient_id": ["p1"], "hospitalization_id": ["h1"],
                        "label": [0], "split": ["test"]})
     out = finalize_cohort(df, ["hospitalization_id", "label", "split"], meta)
-    assert out["prediction_id"][0] == "p1-h1"
+    assert out["prediction_id"][0] == "h1-h1-p1-1"
     assert out["window_number"][0] == 1
 
 

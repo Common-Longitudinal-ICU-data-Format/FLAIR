@@ -67,7 +67,7 @@ which produces a stable schema:
 | `race_category` | str | clifpy `patient` | demographic |
 | `ethnicity_category` | str | clifpy `patient` | demographic |
 | `window_number` | Int32 | `_finalize` | k-th timestep per stay (1 for one-per-stay tasks) |
-| `prediction_id` | str | `_finalize` | `{patient_id}-{hosp_id}[-{window_number}]` — stable row key |
+| `prediction_id` | str | `_finalize` | `{hospitalization_join_id}-{hospitalization_id}-{patient_id}-{window_number}` (always 4 parts; window=1 when none) — auditable per-row key; join id = stay-level key |
 
 > **Audit note (resolved):** the README "Cohort parquet" table now lists
 > `prediction_dttm` (the single no-data-after cutoff) alongside

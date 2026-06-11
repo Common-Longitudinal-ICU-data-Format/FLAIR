@@ -7,10 +7,19 @@ which selects the task's contract columns and appends:
                          encounter (hospitalization_join_id), ordered by
                          prediction_dttm. Only for one-per-timestep tasks;
                          constant 1 for one-per-stay tasks.
-  prediction_id  str     Stable per-row key sites carry through their
-                         predictions parquet:
-                           {patient_id}-{hospitalization_join_id}-{window_number}
-                         (patient_id segment omitted when unavailable).
+  prediction_id  str     Stable, auditable per-row key sites carry through
+                         their predictions parquet:
+                           {hospitalization_join_id}-{hospitalization_id}-{patient_id}-{window_number}
+                         All four segments are always present (window_number = 1
+                         when the task has no window), so any prediction row
+                         traces back to its stitched stay, the specific
+                         hospitalization inside that join block, the patient, and
+                         the window. (For a non-stitched stay the join id equals
+                         the hospitalization id, so those two segments coincide.)
+
+Two levels of identity: hospitalization_join_id is the *stay-level* key (the
+whole stitched encounter as one entity); prediction_id is the *prediction-level*
+key (per-row prevalence and all per-row report metrics).
 
 These columns let `flair build-report` bin discrimination by window and
 join predictions back to the cohort without datetime arithmetic.
@@ -49,11 +58,14 @@ def finalize_cohort(df: pl.DataFrame, output_cols: list[str], meta: dict) -> pl.
     else:
         df = df.with_columns(pl.lit(1, dtype=pl.Int32).alias("window_number"))
 
-    id_parts = []
+    # Auditable per-row key: join -> hospitalization -> patient -> window, all
+    # always present (window_number = 1 when no window) so a prediction traces
+    # back to its stitched stay, the specific hospitalization, patient, window.
+    id_parts = [pl.col(block_key).cast(pl.Utf8)]            # hospitalization_join_id
+    if "hospitalization_id" in df.columns:
+        id_parts.append(pl.col("hospitalization_id").cast(pl.Utf8))
     if "patient_id" in df.columns:
         id_parts.append(pl.col("patient_id").cast(pl.Utf8))
-    id_parts.append(pl.col(block_key).cast(pl.Utf8))
-    if multi_row:
-        id_parts.append(pl.col("window_number").cast(pl.Utf8))
+    id_parts.append(pl.col("window_number").cast(pl.Utf8))
     df = df.with_columns(pl.concat_str(id_parts, separator="-").alias("prediction_id"))
     return df

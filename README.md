@@ -129,7 +129,7 @@ FLAIR is a Python library that generates task-specific datasets for ICU predicti
 | `race_category`      | str       | Patient race                               |
 | `ethnicity_category` | str       | Patient ethnicity                          |
 | `window_number`      | int       | 1-based k-th prediction timestep per stay (1 for one-per-stay tasks) |
-| `prediction_id`      | str       | Stable row key `{patient_id}-{hospitalization_id}[-{window_number}]` — carry it through your predictions parquet |
+| `prediction_id`      | str       | Auditable per-row key `{hospitalization_join_id}-{hospitalization_id}-{patient_id}-{window_number}` (always 4 parts; window = 1 when no window) — carry it through your predictions parquet. `hospitalization_join_id` is the stay-level key; `prediction_id` is the prediction-level key |
 
 ### Add your predictions to the cohort file
 
