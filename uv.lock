@@ -630,6 +630,7 @@ dependencies = [
     { name = "numpy", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas" },
     { name = "polars" },
+    { name = "pyyaml" },
     { name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "typer" },
@@ -641,20 +642,25 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+viz = [
+    { name = "matplotlib" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "clifpy", specifier = ">=0.4.9" },
+    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "polars", specifier = ">=0.20.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "scikit-learn", specifier = ">=1.3.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["viz", "dev"]
 
 [[package]]
 name = "fonttools"

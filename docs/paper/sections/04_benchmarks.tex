@@ -9,8 +9,8 @@ Every FLAIR task is declared on three axes in a single \texttt{META}
 dictionary: \emph{task class} (\textit{outcome}, \textit{deterioration},
 \textit{intervention}, or \textit{operational}); \emph{temporal
 pattern} (\textit{episode}, \textit{continuous}, or \textit{fixed
-horizon}); and \emph{prediction unit} (\textit{one-per-stay},
-\textit{one-per-decision-point}, or \textit{one-per-timestep}). The
+horizon}); and \emph{prediction unit} (\textit{one-per-stay} or
+\textit{one-per-window}). The
 triple determines the shape of the cohort and prediction parquets,
 which fields are mandatory, and which evaluation primitives the report
 builder invokes. New task authors fill the triple before writing any
@@ -25,32 +25,32 @@ intervention-anchored targets spanning ICU operations, disposition,
 and infectious physiology.
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{T1 --- ICU Daily In-Hospital Mortality (07:00 local).}
-        One-per-timestep, 24-hour input window anchored at daily 07:00.
+  \item \textbf{T1, ICU Daily In-Hospital Mortality (07:00 local).}
+        One-per-window, 24-hour input window anchored at daily 07:00.
         Cohort: first ICU stay with discharge in
         \{long-term acute care, mortality\}. Label: in-hospital death
         or transfer to hospice during that ICU stay.
-  \item \textbf{T2 --- ICU Daily Long-Term Acute Care Discharge
+  \item \textbf{T2, ICU Daily Long-Term Acute Care Discharge
         (07:00 local).} Complementary label to T1 on the same daily
         grid: prediction that the patient will be discharged to
         long-term acute care rather than dying or being discharged
         home. Together T1 and T2 capture the disposition decision
         that anchors much downstream ICU planning.
-  \item \textbf{T3 --- Extubation Failure within 24~h.} One-per-stay,
+  \item \textbf{T3, Extubation Failure within 24~h.} One-per-stay,
         anchored at the first confirmed invasive-mechanical-ventilation
         extubation event identified by the consensus-window episode
         detector. Label: death or reintubation within 24~hours.
         Benchmark targets the classic respiratory liberation question
         \citep{thille2011extubation}.
-  \item \textbf{T4 --- Sepsis (antibiotic-anchored) within 6~h.}
-        One-per-timestep on an hourly grid; $t_{\mathrm{zero}}$ is the
+  \item \textbf{T4, Sepsis (antibiotic-anchored) within 6~h.}
+        One-per-window on an hourly grid; $t_{\mathrm{zero}}$ is the
         first qualifying systemic intravenous antibiotic. Cohort follows
         the Sepsis-3 hospital-wide pattern \citep{singer2016sepsis3,seymour2016assessment,rhee2019sepsis};
         leakage prevention drops decision points at or after
         $t_{\mathrm{zero}}$. The implementation mirrors the
         antibiotic-anchored evaluation framing of
         \citet{kamran2024sepsis}.
-  \item \textbf{T5 --- Unplanned ICU Readmission.} One-per-stay,
+  \item \textbf{T5, Unplanned ICU Readmission.} One-per-stay,
         anchored at first-ICU discharge; the label is a return to the
         ICU later in the same hospitalization through a non-procedural
         path. Working from the CLIF \texttt{ADT} location stream,
@@ -61,8 +61,8 @@ and infectious physiology.
         \citep{rojas2018readmission}.
 \end{itemize}
 
-Each cohort parquet carries a fixed ten-column schema --- identifiers,
-window endpoints, label, split, age, sex, race, and ethnicity --- so
+Each cohort parquet carries a fixed ten-column schema, identifiers,
+window endpoints, label, split, age, sex, race, and ethnicity, so
 that downstream feature engineering and evaluation code is shared
 across tasks.
 
@@ -76,11 +76,11 @@ adapted to CLIF. Every row of a CLIF event table (\texttt{vitals},
 \texttt{<table>.<category>} token (e.g., \texttt{vitals.heart\_rate},
 \texttt{labs.creatinine}), and each cohort window is reduced to a
 sparse integer count vector over those tokens. The featurizer is
-config-free and exhaustive --- every schema-locked category flows
+config-free and exhaustive, every schema-locked category flows
 through with no per-task curation, so the same code runs unchanged on
 MIMIC-CLIF and at every consortium site. Two simple heads consume the
-count vectors: L2-penalized logistic regression and XGBoost, each
-emitting a calibrated \texttt{y\_prob}. Both are trained on MIMIC-CLIF
+count vectors: a single XGBoost head, emitting a probability score
+\texttt{y\_prob}. It is trained on MIMIC-CLIF
 and shipped frozen to sites; hyperparameter grids, the token
 dictionary, and the missingness convention (absent token $=$ zero
 count) are given in the supplementary appendix
@@ -89,21 +89,20 @@ summarized in Table~\ref{tab:baseline}.
 
 \begin{table}[t]
 \centering
-\caption{Count-featurization baseline performance on the MIMIC-CLIF
-internal test split (70/30 temporal hold-out). Cells are placeholders
-pending the final run.}
+\caption{XGBoost count-featurization baseline on the MIMIC-CLIF
+internal test split (75/25 hold-out on stitched encounters,
+\texttt{hospitalization\_join\_id}, so an encounter never spans train and
+test). AUROC shown with 1{,}000-iteration bootstrap 95\% CI.}
 \label{tab:baseline}
-\begin{tabular}{l cc cc}
+\begin{tabular}{l c c}
 \toprule
-& \multicolumn{2}{c}{Logistic regression} & \multicolumn{2}{c}{XGBoost} \\
-\cmidrule(lr){2-3}\cmidrule(lr){4-5}
-Task & AUROC & AUPRC & AUROC & AUPRC \\
+Task & AUROC (95\% CI) & AUPRC \\
 \midrule
-T1 --- ICU daily mortality      & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T2 --- LTAC discharge           & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T3 --- Extubation failure 24\,h & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T4 --- Sepsis 6\,h              & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T5 --- Unplanned ICU readmission & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T1, ICU daily mortality       & 0.790 (0.784--0.795) & 0.502 \\
+T2, LTAC discharge            & 0.757 (0.751--0.762) & 0.377 \\
+T3, Extubation failure 24\,h  & 0.701 (0.672--0.729) & 0.124 \\
+T4, Sepsis 6\,h               & 0.812 (0.792--0.854) & 0.021 \\
+T5, Unplanned ICU readmission & 0.645 (0.628--0.660) & 0.252 \\
 \bottomrule
 \end{tabular}
 \end{table}

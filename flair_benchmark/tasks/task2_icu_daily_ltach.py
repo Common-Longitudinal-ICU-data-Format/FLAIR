@@ -1,5 +1,5 @@
 """
-Task 2: ICU Daily LTACH Discharge (binary, one-per-timestep at 07:00 local).
+Task 2: ICU Daily LTACH Discharge (binary, one-per-window at 07:00 local).
 
 Clinical question:
   Given everything we know about this ICU patient up to today's 07:00 rounds,
@@ -18,7 +18,7 @@ Label (label_ltach):
   retained as negatives. T1 and T2 are NOT a partition: a Home discharge
   is 0 in both; an Expired discharge is 1 in T1 and 0 in T2.
 
-Row shape (one-per-timestep):
+Row shape (one-per-window):
   prediction_dttm = 07:00 on day-of-admission + 1, +2, +3, ... while the
   timestamp is < min(first_icu_end_time, discharge_dttm, death_dttm).
   The label is the eventual hospitalization outcome and is constant across
@@ -58,7 +58,7 @@ META = {
     "display_name": "ICU Daily LTACH Discharge (7AM, binary)",
     "task_class": "outcome",
     "temporal_pattern": "continuous",
-    "prediction_unit": "one-per-timestep",
+    "prediction_unit": "one-per-window",
     "task_type": "binary",
     "clinical_threshold": 0.5,
     "clinical_action": "early tracheostomy",

@@ -3,7 +3,46 @@ clif_config.json
 *.parquet
 *.log
 presentation/
-__pycache__
 #paper/
 tests/artifacts/
 
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---- Run outputs / pipeline artifacts (regenerated, large) ----
+out/
+out_external/
+output/
+flair_baseline/out/
+flair_baseline/out_external/
+
+# ---- Datasets / data files (raw data lives outside the repo) ----
+*.csv
+*.tsv
+*.feather
+*.arrow
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.parquet
+data/
+**/MEDS.parquet
+**/data/MEDS.parquet
+
+# ---- Vendored external repos (not part of this codebase) ----
+CLIF_MEDS/
+ehrshot-benchmark/
+femr/
+
+# ---- Generated documents ----
+*.docx

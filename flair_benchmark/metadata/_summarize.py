@@ -3,7 +3,7 @@
 Takes a task module, its materialized cohort, and per-stay SOFA /
 comorbidity tables; returns a JSON-ready dict describing the cohort.
 Branches on `task_type` (binary / multiclass / regression) and
-`prediction_unit` (one-per-stay / decision-point / timestep) to choose
+`prediction_unit` (one-per-stay / one-per-window) to choose
 the right label-block shape.
 
 HIPAA conventions:
@@ -109,7 +109,7 @@ def _binary_label_block(cohort: pl.DataFrame, label_col: str,
             "prevalence_per_prediction_point": _safe_div(pos, n),
         }
 
-    # decision-point / timestep
+    # one-per-window
     stays_ever_pos = int(
         cohort.filter(pl.col(label_col) == 1)
         .select(stay).n_unique()
@@ -165,7 +165,7 @@ def _regression_label_block(cohort: pl.DataFrame, label_col: str) -> dict:
 
 def _demographics_block(cohort: pl.DataFrame, stay: str) -> dict:
     out: dict = {}
-    # Aggregate to stay-grain so decision-point tasks don't over-count.
+    # Aggregate to stay-grain so one-per-window tasks don't over-count.
     stay_grain = cohort.unique(subset=[stay])
     for col in SUBGROUP_COLS:
         if col not in stay_grain.columns:

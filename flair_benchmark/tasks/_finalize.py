@@ -5,7 +5,7 @@ which selects the task's contract columns and appends:
 
   window_number  Int32   1-based k-th prediction timestep per stitched
                          encounter (hospitalization_join_id), ordered by
-                         prediction_dttm. Only for one-per-timestep tasks;
+                         prediction_dttm. Only for one-per-window tasks;
                          constant 1 for one-per-stay tasks.
   prediction_id  str     Stable, auditable per-row key sites carry through
                          their predictions parquet:
@@ -32,7 +32,7 @@ import polars as pl
 
 def finalize_cohort(df: pl.DataFrame, output_cols: list[str], meta: dict) -> pl.DataFrame:
     """Select contract columns and append window_number + prediction_id."""
-    multi_row = meta["prediction_unit"] == "one-per-timestep"
+    multi_row = meta["prediction_unit"] == "one-per-window"
 
     # The stitched-encounter key is the entity for window numbering + prediction_id;
     # fall back to hospitalization_id if a task somehow didn't carry it.

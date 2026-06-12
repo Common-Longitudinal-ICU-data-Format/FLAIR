@@ -12,8 +12,8 @@ single-author fiat.
 \paragraph{Saturation resistance through siloed data.} A side effect of
 the model-to-data design is that the data underlying FLAIR's leaderboard
 never enters public hands. Test-set contamination of pretraining
-corpora --- now a recurring problem for open benchmarks
-\citep{recht2019imagenet,chekroud2024illusory} --- is structurally
+corpora, now a recurring problem for open benchmarks
+\citep{recht2019imagenet,chekroud2024illusory}, is structurally
 limited, and the incentive for a single developer to overfit the
 leaderboard is weak because the data they would overfit to are not
 accessible to them. We view this not as a feature of FLAIR per se but
@@ -23,11 +23,11 @@ as an emergent property of the access model.
 federates evaluation rather than training, and the distinction is
 load-bearing for risk: aggregate metrics leak orders of magnitude less
 about patients than the weight updates exchanged in federated learning
-\citep{karargyris2023medperf}, and no live network connection is held
-open during a run. The reciprocal risk --- exposing a submitted model to
-sites --- is contained by the immutable, no-internet, site-approved
-container, so model intellectual property and inversion risk stay
-bounded. Because those safeguards are fixed by design, participation can
+\citep{karargyris2023medperf}. The reciprocal risk, exposing a submitted
+model to sites, is bounded by central governance: the Benchmark Committee
+security-reviews the submitted code and model and validates it on synthetic
+data before any site runs it, so model intellectual property and inversion
+risk stay contained. Because those safeguards are fixed by design, participation can
 move from a per-pair data use agreement to a templated agreement,
 shrinking the legal latency that has historically capped multi-site
 validation at a handful of sites.
@@ -38,10 +38,7 @@ without an ETL effort. The current task suite is restricted to binary
 classification on structured EHR variables and excludes notes,
 waveforms, and images. Aggregate-only outputs constrain some
 fine-grained bias analyses; subgroups below the suppression threshold
-are not visible. T5's planned-versus-unplanned readmission distinction
-rests on CLIF ADT location categories (a procedural-sandwich heuristic)
-rather than coded reason-for-transfer, and T4's antibiotic vocabulary
-is an open dependency.
+are not visible.
 
 \paragraph{Roadmap.} Near-term work extends the suite to opt-in
 prospective silent-trial evaluation \citep{joshi2025silenttrials},

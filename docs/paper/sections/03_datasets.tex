@@ -13,9 +13,9 @@ categories, medication routes, and respiratory support modes
 \est{$\sim$9} health systems, \est{$\sim$39} hospitals, and
 \est{$\sim$111{,}000} ICU admissions; the consortium has since grown
 to 12+ academic medical centers covering \est{$\sim$2{,}000} ICU beds.
-The schema is intentionally narrow --- vitals, labs, medications,
+The schema is intentionally narrow, vitals, labs, medications,
 respiratory support, admission--discharge--transfer, and patient
-demographics --- so that contributing sites can map their EHR exports
+demographics, so that contributing sites can map their EHR exports
 once and reuse the mapping across studies. In spirit, CLIF is to
 critical care what mCODE \citep{mcode2024hl7} is to oncology: a
 clinically scoped common-data-element layer that makes downstream
@@ -28,7 +28,7 @@ via the maintained CLIF$\rightarrow$MEDS bridge (\texttt{CLIF\_MEDS},
 \texttt{github.com/Common-Longitudinal-ICU-data-Format/CLIF\_MEDS}), so
 adoption never requires schema lock-in. Crucially, because CLIF
 standardizes the data \emph{elements} themselves through its minimum
-common ICU data elements (mCIDE) --- not merely the table layout ---
+common ICU data elements (mCIDE), not merely the table layout, 
 transportability is not only syntactic: a model meets the same coded
 vocabularies at every site, so FLAIR measures genuine cross-site
 generalizability of trained models rather than an artifact of differing
@@ -82,7 +82,7 @@ Charlson (median, IQR)      & 2 (0--4)          & 2 (0--4)          & 2 (0--4)  
 (\texttt{flair\_benchmark} v2.0.0; HIPAA cell-suppression at $n{<}10$).
 \emph{Decision rows} are one-per-stay for T3 (extubation episode) and
 T5 (ICU readmission, anchored at first-ICU discharge), and
-one-per-timestep otherwise (daily at 07:00 local for T1/T2; hourly for
+one-per-window otherwise (daily at 07:00 local for T1/T2; hourly for
 T4). Counts are per stitched encounter
 (\texttt{hospitalization\_join\_id}; hospitalizations $\le$6\,h apart are
 merged), so \emph{ICU encounters} $\le$ the raw hospitalization count.
@@ -105,12 +105,11 @@ below 10 in cohort tables become \texttt{"<10"} in
 \texttt{table1.json}; demographic subgroups with $n<10$ are dropped
 entirely from \texttt{fairness.json}; calibration bins with fewer than
 10 observations report a null event rate in \texttt{curves.json}.
-\emph{Verifiable execution}: a SHA-256 digest of the task script and
-the FLAIR library version are stamped into every output JSON, so the
-central aggregator can confirm that the same code ran byte-for-byte at
-each site. Network isolation is enforced one layer below, by the
-CLIF-WorkBench container in which the library runs --- no internet,
-no root, immutable read-only image --- consistent with the spirit of
+\emph{Pre-release governance review}: before any submission is
+dispatched to sites, the Benchmark Committee security-reviews the submitted
+code and model and validates the task code against synthetic (fake) data, so
+only audited artifacts, whether shipped as raw code or wrapped in a
+container, ever execute against patient data, consistent with the spirit of
 analysis platforms such as OpenSAFELY \citep{opensafely2021naturemedicine}
 in which the code travels and the data does not. Together these
 properties move evidence generation from the slow, bilateral DUA path

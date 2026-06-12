@@ -18,10 +18,17 @@ vector, following the count-featurization recipe of EHRSHOT and FEMR
         \texttt{<table>.<category>} token. The dictionary is built by
         enumerating every schema-locked category present in MIMIC-CLIF;
         no per-task curation is applied.
-  \item \textbf{Window.} For each cohort row, the featurizer counts the
-        events whose time falls in
-        $[\texttt{window\_start}, \texttt{window\_end}]$, the same
-        window the task definition emits.
+  \item \textbf{Window.} For each cohort row, the featurizer counts
+        every event in the same stitched encounter
+        (\texttt{hospitalization\_join\_id}) recorded strictly before
+        that row's \texttt{prediction\_dttm}. This is a cumulative,
+        point-in-time window --- all prior history in the stay, from the
+        encounter's first recorded event up to (but excluding) the
+        prediction time --- with no fixed look-back, matching the
+        EHRSHOT/FEMR recipe. The exclusive \texttt{prediction\_dttm}
+        cutoff is the no-data-after boundary that prevents label
+        leakage; note it is the \emph{feature} cutoff, distinct from
+        each task's prediction-grid start.
   \item \textbf{Representation.} Counts are accumulated into a
         \texttt{scipy} CSR sparse matrix (rows $=$ cohort windows,
         columns $=$ tokens); only non-zero counts are stored.
@@ -37,17 +44,12 @@ vector, following the count-featurization recipe of EHRSHOT and FEMR
 
 \subsection*{S2. Baseline hyperparameter grids}
 
-Both heads are trained on MIMIC-CLIF using a 70/30 temporal split, with
-model selection by validation AUROC over a grid search. Search spaces
-mirror the EHRSHOT count-baseline configuration.
+The XGBoost head is trained on MIMIC-CLIF using a 75/25 split on
+\texttt{hospitalization\_join\_id} (a stitched encounter never spans
+train and test), with model selection by validation AUROC over a grid
+search. Search spaces mirror the EHRSHOT count-baseline configuration.
 
 \begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Logistic regression.} \texttt{sklearn}
-        \texttt{LogisticRegression}, L2 penalty, LBFGS solver,
-        \texttt{max\_iter}~$=1000$, \texttt{tol}~$=10^{-4}$; features
-        scaled with \texttt{MaxAbsScaler}; inverse-regularization
-        $C \in \{10^{-8}, 10^{-6}, 10^{-4}, 10^{-2}, 10^{-1}, 1,
-        10^{2}, 10^{4}\}$.
   \item \textbf{XGBoost.} Gradient-boosted trees with
         \texttt{max\_depth} $\in \{3, 6, \infty\}$,
         \texttt{learning\_rate} $\in \{0.02, 0.1, 0.5\}$, and
@@ -56,28 +58,133 @@ mirror the EHRSHOT count-baseline configuration.
 
 \subsection*{S3. Full baseline results on MIMIC-CLIF}
 
-Per-task, per-model internal-test discrimination and calibration on the
-70/30 temporal hold-out. Cells are placeholders pending the final run.
+Per-task internal-test discrimination and calibration for the XGBoost
+baseline on the 75/25 stitched-encounter hold-out. Calibration slope
+$<1$ and a negative intercept indicate over-confident scores
+(\texttt{scale\_pos\_weight} inflates risk on rare events); ranking is
+valid but probabilities need recalibration before use as decision
+thresholds.
 
 \begin{table}[h]
 \centering
-\caption{Count-featurization baseline: full per-task metrics on the
-MIMIC-CLIF internal test split.}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{XGBoost count-featurization baseline: full per-task metrics on
+the MIMIC-CLIF internal test split (75/25 hold-out on
+\texttt{hospitalization\_join\_id}).}
 \label{tab:supp-baseline-full}
-\begin{tabular}{l l ccccc}
+\begin{tabular}{l rr ccccc}
 \toprule
-Task & Model & AUROC & AUPRC & Cal.\ slope & Cal.\ intercept & Brier \\
+Task & $n_{\mathrm{test}}$ & Prev. & AUROC & AUPRC & Cal.\ slope & Cal.\ intercept & Brier \\
 \midrule
-T1 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T1 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T2 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T2 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T3 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T3 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T4 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T4 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T5 & Logistic regression & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
-T5 & XGBoost             & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} & \est{0.00} \\ % TODO-NUMBERS
+T1, ICU daily mortality       & 49{,}362    & 0.199  & 0.790 & 0.502 & 0.79 & $-1.08$ & 0.164 \\
+T2, LTAC discharge            & 49{,}362    & 0.145  & 0.757 & 0.377 & 0.85 & $-1.31$ & 0.150 \\
+T3, Extubation failure 24\,h  & 6{,}694     & 0.054  & 0.701 & 0.124 & 0.46 & $-1.82$ & 0.068 \\
+T4, Sepsis 6\,h               & 3{,}608{,}449 & 0.0015 & 0.812 & 0.021 & 0.73 & $-5.53$ & 0.065 \\
+T5, Unplanned ICU readmission & 16{,}814    & 0.093  & 0.645 & 0.252 & 0.69 & $-1.88$ & 0.150 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\clearpage
+\subsection*{S4. MIMIC-CLIF baseline curves}
+
+The per-task report PNGs the FLAIR library renders from the aggregate
+report JSONs (the same artifacts each consortium site emits). All plots
+are XGBoost on the MIMIC-CLIF 75/25 stitched-encounter test split.
+Continuous, one-per-window tasks (T1, T2, T4) additionally carry the
+encounter-level operating curve and lead-time distribution; the
+one-per-stay tasks (T3, T5) do not.
+
+% --- Figure S1: ROC / PR ---------------------------------------------
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t2}\caption{T2 LTAC discharge}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
+  \caption{\textbf{ROC and precision--recall curves.} Each panel pairs
+  ROC (left) and PR (right); the PR dashed line marks the task
+  prevalence baseline. AUPRC is most informative relative to that
+  baseline (lift): T4 has low absolute AUPRC (0.021) but a $13.6\times$
+  lift over its 0.15\% prevalence.}
+  \label{fig:supp-roc-pr}
+\end{figure}
+
+% --- Figure S2: Calibration ------------------------------------------
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t2}\caption{T2 LTAC discharge}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
+  \caption{\textbf{Reliability (calibration) curves.} Reliability points
+  (bins with $n\ge10$) against the diagonal, with the logistic
+  recalibration slope/intercept in each title. All slopes are $<1$:
+  \texttt{scale\_pos\_weight} over-inflates predicted risk, so the
+  baseline ranks well but is not calibrated out of the box.}
+  \label{fig:supp-calibration}
+\end{figure}
+
+% --- Figure S3: Decision curve analysis ------------------------------
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t2}\caption{T2 LTAC discharge}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
+  \caption{\textbf{Decision curve analysis.} Net benefit of the model
+  vs.\ treat-all / treat-none, zoomed to the rare-event decision region
+  ($x$-axis capped near $10\times$ prevalence); the red dotted line is
+  the task's clinical threshold. The model beats both defaults across
+  the useful threshold band where it sits above them.}
+  \label{fig:supp-dca}
+\end{figure}
+
+% --- Figure S4: Encounter operating curve (continuous tasks) ---------
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/enc_opcurve_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/enc_opcurve_t2}\caption{T2 LTAC discharge}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/enc_opcurve_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
+  \caption{\textbf{Encounter operating curve (continuous tasks).}
+  Stay-level sensitivity (any alarm before the event) against alarms per
+  patient-day as the threshold sweeps; the red marker is the clinical
+  threshold. This is the alarm-burden view a unit actually experiences,
+  collapsing the many per-window predictions of one stay into a single
+  caught/missed outcome.}
+  \label{fig:supp-enc-opcurve}
+\end{figure}
+
+% --- Figure S5: Lead time (continuous tasks) -------------------------
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/lead_time_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/lead_time_t2}\caption{T2 LTAC discharge}\end{subfigure}
+
+  \medskip
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/lead_time_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
+  \caption{\textbf{Lead-time distribution (continuous tasks).} For
+  caught event stays, the time from first alarm to the event over fixed
+  clinical bins ($0$--$6$\,h, $6$--$12$\,h, $12$--$24$\,h, $1$--$2$\,d,
+  $2$--$7$\,d, $>7$\,d); the title reports the median. Fixed bins make
+  the histogram poolable across sites.}
+  \label{fig:supp-lead-time}
+\end{figure}

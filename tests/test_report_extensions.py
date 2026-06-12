@@ -21,7 +21,7 @@ META = {
     "display_name": "Synthetic Task",
     "task_class": "outcome",
     "temporal_pattern": "continuous",
-    "prediction_unit": "one-per-timestep",
+    "prediction_unit": "one-per-window",
     "task_type": "binary",
     "label_column": "label",
     "clinical_threshold": 0.20,

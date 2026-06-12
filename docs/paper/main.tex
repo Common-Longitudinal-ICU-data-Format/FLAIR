@@ -22,12 +22,20 @@
 \usepackage{array}
 \usepackage{enumitem}
 \usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, shapes.geometric, shapes.symbols, fit, backgrounds, calc}
 \usepackage[hidelinks]{hyperref}
 \usepackage{xcolor}
 \usepackage[round]{natbib}
 
 \setlength{\parskip}{0.4em}
 \setlength{\parindent}{0pt}
+
+% Let a tall full-width figure float to the top of a text page.
+\renewcommand{\topfraction}{0.92}
+\renewcommand{\floatpagefraction}{0.85}
+\setcounter{topnumber}{2}
 
 % Drafting macros (kept from outline.tex):
 \definecolor{notecolor}{RGB}{120,120,120}
@@ -38,7 +46,7 @@
 \newcommand{\est}[1]{{\color{blue!60!black}#1}}
 
 \title{\textbf{FLAIR: A Federated Benchmark for ICU Clinical Decision
-Support Across 12+ Academic Medical Centers Using the Common Longitudinal
+Support Across Multiple Academic Medical Centers Using the Common Longitudinal
 ICU Format}}
 \author{CLIF Consortium \\ FLAIR Working Group}
 \date{\today}

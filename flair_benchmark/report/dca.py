@@ -21,7 +21,11 @@ import polars as pl
 
 from flair_benchmark.report._suppress import MIN_CELL_COUNT
 
-THRESHOLDS = np.round(np.arange(0.01, 1.00, 0.01), 2)
+# Uniform 0.01..0.99 grid, plus a denser low-threshold tail (0.001..0.05) so the
+# rare-event decision region — where a 0.15%-prevalence model actually operates —
+# is resolved instead of collapsing into one suppressed point near 0.
+_LOW = np.round(np.arange(0.001, 0.05, 0.002), 3)
+THRESHOLDS = np.unique(np.concatenate([_LOW, np.round(np.arange(0.01, 1.00, 0.01), 2)]))
 _TOL = 1e-9
 
 
@@ -63,6 +67,11 @@ def build_dca(preds: pl.DataFrame, meta: dict) -> dict:
 
     intervals = _contiguous_intervals(THRESHOLDS, useful_mask)
     clinical = _clinical_marker(meta, nb_model, nb_all, intervals)
+    # zoom the plot to where rare-event decisions live (treating at ~10x prevalence
+    # already implies a high alarm rate), but always include the clinical threshold;
+    # capped at 1.0. Keeps the full grid in JSON.
+    clin = meta.get("clinical_threshold") or 0.0
+    focus_hi = min(1.0, max(0.05, round(10 * prev, 3), round(clin + 0.05, 3)))
     return {
         **clinical,
         "task_type": "binary",
@@ -71,12 +80,14 @@ def build_dca(preds: pl.DataFrame, meta: dict) -> dict:
         "net_benefit_all": nb_all,
         "net_benefit_none": 0.0,
         "prevalence": round(prev, 4),
+        "focus_range": [0.0, focus_hi],
         "n_test": n,
         "useful_range": max(intervals, key=lambda iv: iv["high"] - iv["low"],
                             default=None) if intervals else None,
         "all_useful_intervals": [[iv["low"], iv["high"]] for iv in intervals],
         "suppressed_thresholds": suppressed,
-        "metadata": {"threshold_step": 0.01, "min_flagged_n": MIN_CELL_COUNT},
+        "metadata": {"grid": "0.001-0.05 step .002 + 0.01-0.99 step .01",
+                     "min_flagged_n": MIN_CELL_COUNT},
     }
 
 

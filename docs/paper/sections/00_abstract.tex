@@ -4,11 +4,11 @@
 tools are proliferating in practice, yet external validation remains
 concentrated on a handful of public ICU electronic health record
 datasets. Three problems result: (i)~\emph{benchmark
-saturation}---repeated tuning on the same public test sets inflates
-reported performance; (ii)~a \emph{reproducibility gap}---few
+saturation}, repeated tuning on the same public test sets inflates
+reported performance; (ii)~a \emph{reproducibility gap}, few
 publications release runnable code, so retrospective re-execution at a
 new site is slow or infeasible; and (iii)~\emph{incomplete
-reporting}---most studies omit full TRIPOD+AI items and subgroup
+reporting}, most studies omit full TRIPOD+AI items and subgroup
 fairness metrics that regulators increasingly require. Bilateral data
 use agreements stretch multi-site validation over years and rarely
 reach more than a few sites.
@@ -20,11 +20,11 @@ critical-care schema adopted by 12+ academic medical centers. Five
 binary classification tasks span outcome, deterioration, and
 intervention targets (ICU daily mortality, daily discharge to
 long-term acute care, extubation failure, sepsis, unplanned ICU
-readmission). Models run in an immutable container at each site and
-emit aggregate-only JSON reports (cohort characteristics, full
+readmission). Models run as committee-reviewed code or containers at each
+site and emit aggregate-only JSON reports (cohort characteristics, full
 TRIPOD+AI metrics, subgroup fairness gaps, calibration curves) with
-HIPAA cell suppression. The full FLAIR stack---library, task
-definitions, container specification, and report generators---is
+HIPAA cell suppression. The full FLAIR stack, library, task
+definitions, container/code specification, and report generators, is
 released open source (Apache~2.0) at
 \texttt{github.com/clif-consortium/FLAIR}, and the task catalog is
 designed to grow: any contributor can add a new benchmark task as a
@@ -39,7 +39,7 @@ drift} on external sites \todo{populate from federated run}.
 CDSS validation from years to weeks, exposes models to a growing
 federated cohort that resists public-benchmark saturation, and
 produces the TRIPOD+AI and fairness evidence package regulators
-increasingly require---without patient-level data leaving any site.
+increasingly require, without patient-level data leaving any site.
 The initial five-task suite is a seed, not a ceiling: the open
 governance model invites the community to extend the benchmark to
 new clinical questions over time.

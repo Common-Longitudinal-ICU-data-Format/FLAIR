@@ -1,0 +1,26 @@
+# FLAIR ELF concept config — the event concepts FE-meds extracts for the
+# count-feature baseline (POC). Each key is a CLIF/ELF domain; the value is
+# per-domain options. {} means "all categories of that domain".
+#
+# SINGLE SOURCE OF TRUTH: the domains listed here are *exactly* what gets
+# extracted into MEDS.parquet AND *exactly* what the model can use as features.
+# To exclude something, remove it here (it is then neither extracted nor
+# featured); to include it, add it. There is no separate feature-exclude list.
+#
+# concepts_dir is optional — defaults to the bundled
+# flair_benchmark/meds_etl/concepts/ YAMLs.
+#
+# NOTE: HOSP_DX (hospital discharge diagnoses) is intentionally omitted — it is
+# timestamped at discharge and assigned for the whole stay, so it would leak into
+# real-time predictions. Add it back here only for non-predictive analyses.
+
+domains:
+  VITAL: {}            # all vital signs
+  LAB: {}              # all labs
+  RESP: {}             # respiratory support settings
+  PA:                  # patient assessments — GCS + RASS only
+    category_col: assessment_category
+    categories: [gcs_total, gcs_eye, gcs_verbal, gcs_motor, rass]
+  CRRT: {}             # CRRT — presence (count > 0 ⇒ on CRRT)
+  MED_CON: {}          # continuous medications (vasopressors, sedatives, …)
+  MED_INT: {}          # intermittent medications (antibiotics, …)

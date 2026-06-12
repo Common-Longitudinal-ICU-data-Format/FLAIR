@@ -6,7 +6,7 @@ Three sections (binary tasks, test split only):
                         window unit is grid-dependent and reported as
                         by_window.unit, sourced from META["window_unit"]
                         ("day" for T1/T2, "hour" for T4). Continuous
-                        (one-per-timestep) tasks only.
+                        (one-per-window) tasks only.
   by_year               AUROC trend by year of admission. The year is derived
                         from min(prediction_dttm) per stay (exact admission
                         year except for stays straddling Dec 31), unless an
@@ -31,6 +31,7 @@ import polars as pl
 from flair_benchmark.report._suppress import MIN_CELL_COUNT, suppress
 
 MAX_WINDOW = 7
+MAX_YEARS = 25            # above this, "by year" is date-shifted noise — skip
 BOOTSTRAP_REPS = 200
 BOOTSTRAP_MIN_N = 100
 BOOTSTRAP_SEED = 20260610
@@ -57,12 +58,14 @@ def build_temporal(preds: pl.DataFrame, meta: dict) -> dict:
 
     test = _attach_window_bucket(test, continuous)
     if "window_bucket" in test.columns:
+        bins = _binned_discrimination(test, label_col, "window_bucket",
+                                      order=_window_order())
         out["by_window"] = {
             "bin_col": "window_number",
             "unit": meta.get("window_unit"),  # "day"/"hour"; grid-dependent per task
             "cap": MAX_WINDOW,
-            "bins": _binned_discrimination(test, label_col, "window_bucket",
-                                           order=_window_order()),
+            "bins": bins,
+            "totals": _window_totals(test, label_col, bins),
         }
         out["trajectory_by_outcome"] = _trajectory(test, label_col)
     elif not continuous:
@@ -71,12 +74,22 @@ def build_temporal(preds: pl.DataFrame, meta: dict) -> dict:
 
     test = _attach_admission_year(test)
     if "admission_year" in test.columns:
-        years = _binned_discrimination(test, label_col, "admission_year")
-        out["by_year"] = {
-            "year_source": ("admission_dttm" if "admission_dttm" in preds.columns
-                            else "derived_from_min_prediction_dttm"),
-            "bins": sorted(years, key=lambda b: b["bin"]),
-        }
+        yr = test["admission_year"].drop_nulls()
+        n_yr = yr.n_unique()
+        lo, hi = (int(yr.min()), int(yr.max())) if yr.len() else (None, None)
+        # MIMIC and many CLIF sites shift admission dates for de-identification
+        # (e.g. years 2105-2214) — "year of admission" is then meaningless and the
+        # plot is an unreadable cloud. Only emit when years are real + low-cardinality.
+        if n_yr > MAX_YEARS or (lo is not None and (lo < 1990 or hi > 2035)):
+            out["by_year"] = {"reason": "dates_shifted_or_high_cardinality",
+                              "n_distinct_years": n_yr, "year_range": [lo, hi]}
+        else:
+            years = _binned_discrimination(test, label_col, "admission_year")
+            out["by_year"] = {
+                "year_source": ("admission_dttm" if "admission_dttm" in preds.columns
+                                else "derived_from_min_prediction_dttm"),
+                "bins": sorted(years, key=lambda b: b["bin"]),
+            }
     return out
 
 
@@ -116,6 +129,21 @@ def _attach_admission_year(test: pl.DataFrame) -> pl.DataFrame:
 
 def _window_order() -> list[str]:
     return [str(k) for k in range(1, MAX_WINDOW)] + [f"{MAX_WINDOW}+"]
+
+
+def _window_totals(test: pl.DataFrame, label_col: str, bins: list[dict]) -> dict:
+    """Roll-up over the bucketed test (pre-suppression) feeding by_window."""
+    bucketed = test.filter(pl.col("window_bucket").is_not_null())
+    n = bucketed.height
+    n_pos = int(bucketed[label_col].cast(pl.Int64).sum() or 0)
+    n_stays = bucketed["hospitalization_id"].n_unique()
+    return {
+        "n": n,
+        "n_pos": suppress(n_pos),
+        "prevalence": round(n_pos / n, 4) if n else None,
+        "n_windows_reported": len(bins),
+        "n_stays": n_stays,
+    }
 
 
 def _binned_discrimination(test: pl.DataFrame, label_col: str, bin_col: str,

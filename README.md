@@ -85,10 +85,10 @@ FLAIR provides **5 clinically relevant prediction tasks** organised by a two-axi
 
 | \# | Name | task_class | temporal_pattern | prediction_unit | Type | Cohort filter |
 |-----------|-----------|-----------|-----------|-----------|-----------|-----------|
-| 1 | ICU Daily In-Hospital Mortality (7AM) | outcome | continuous | one-per-timestep | Binary | First ICU stay, discharge ∈ {LTACH, mortality} |
-| 2 | ICU Daily LTACH Discharge (7AM) | outcome | continuous | one-per-timestep | Binary | First ICU stay, discharge ∈ {LTACH, mortality} |
+| 1 | ICU Daily In-Hospital Mortality (7AM) | outcome | continuous | one-per-window | Binary | First ICU stay, discharge ∈ {LTACH, mortality} |
+| 2 | ICU Daily LTACH Discharge (7AM) | outcome | continuous | one-per-window | Binary | First ICU stay, discharge ∈ {LTACH, mortality} |
 | 3 | Extubation Failure within 24h | intervention | episode | one-per-stay | Binary | Confirmed first IMV extubation |
-| 4 | Sepsis (antibiotic-anchored) within 6h | intervention | continuous | one-per-timestep | Binary | Adults, no psych/rehab, not admitted-on-treatment |
+| 4 | Sepsis (antibiotic-anchored) within 6h | intervention | continuous | one-per-window | Binary | Adults, no psych/rehab, not admitted-on-treatment |
 | 5 | Unplanned ICU Readmission (end of first ICU stay) | outcome | episode | one-per-stay | Binary | First ICU stay ≥ 1h, survives first stay, not direct-discharged from ICU, no intermediate ER |
 
 ### Understanding the Prediction Time
@@ -97,7 +97,7 @@ Each row carries a single **`prediction_dttm`** — the moment the model makes i
 
 **Critical**: You may use **ALL** data with `time ≤ prediction_dttm` (the entire available history for that stay — there is no fixed lookback window). You **CANNOT** use any data after `prediction_dttm`. Using data beyond the prediction time would be data leakage.
 
-The prediction anchor varies by `prediction_unit`: - **`one-per-stay`** (T3, T5): one prediction per hospitalization. T3 anchors at the first confirmed extubation (`prediction_dttm = first_extubation_dttm`); T5 anchors at the end of the first ICU stay (`prediction_dttm = first_icu_end_time`). - **`one-per-timestep`** (T1, T2, T4): each row carries its own `prediction_dttm`. T1/T2 anchor on local-07:00 daily; T4 is hourly until first qualifying antibiotic.
+The prediction anchor varies by `prediction_unit`: - **`one-per-stay`** (T3, T5): one prediction per hospitalization. T3 anchors at the first confirmed extubation (`prediction_dttm = first_extubation_dttm`); T5 anchors at the end of the first ICU stay (`prediction_dttm = first_icu_end_time`). - **`one-per-window`** (T1, T2, T4): each row carries its own `prediction_dttm`. T1/T2 anchor on local-07:00 daily; T4 is hourly until first qualifying antibiotic.
 
 > **Community-Driven**: These tasks are driven by community needs. Have a cool prediction task idea? Open a [PR](https://github.com/clif-consortium/FLAIR/pulls) or [Issue](https://github.com/clif-consortium/FLAIR/issues)! We're actively working on adding more tasks.
 
@@ -155,7 +155,7 @@ Seven JSON files written to `--out`, each carrying audit metadata (`task_script_
 - `tripod_ai.json` — TRIPOD-AI report auto-populated with discrimination / calibration metrics (incl. calibration slope/intercept, O/E ratio, Brier).
 - `fairness.json` — per-subgroup metrics (sex, race, ethnicity, age bin) plus parity gaps (equalized odds) and a reference group. Subgroups with n \< 10 are dropped entirely.
 - `curves.json` — ROC / PR / calibration as downsampled raw points, plus a smoothed logistic-recalibration calibration curve (no images). The central dashboard renders.
-- `temporal.json` — binned discrimination: AUROC per day-in-stay window (1..7+, one-per-timestep tasks), AUROC trend by year of admission, and the predicted-risk trajectory by eventual outcome.
+- `temporal.json` — binned discrimination: AUROC per day-in-stay window (1..7+, one-per-window tasks), AUROC trend by year of admission, and the predicted-risk trajectory by eventual outcome.
 - `dca.json` — decision curve analysis: net benefit of the model vs treat-all/treat-none across thresholds 0.01–0.99, with the threshold range where the model is net-beneficial and the net benefit at the task's clinical threshold.
 - `threshold_analysis.json` — fixed clinical-threshold analysis at each task's consulted decision point (task1 mortality > 0.95 → withdraw life support; task2 LTACH > 0.50 → early trach; task3 extubation failure < 0.15 → extubate; task4 sepsis > 0.10 → antibiotics; task5 readmission > 0.20 → keep in ICU): sensitivity/specificity/PPV/NPV + confusion matrix at the threshold, action metrics (direction-aware), partial AUROC within ±0.05 of the threshold, and a ±0.02/±0.05 robustness sweep. `fairness.json` additionally reports equalized-odds parity gaps at this clinical threshold.
 
@@ -451,7 +451,7 @@ Drop a new module under `flair_benchmark/tasks/` exposing:
 META = { "name": ...,
          "task_class":       "outcome"|"deterioration"|"intervention"|"operational",
          "temporal_pattern": "episode"|"fixed_horizon"|"continuous",
-         "prediction_unit":  "one-per-stay"|"one-per-decision-point"|"one-per-timestep",
+         "prediction_unit":  "one-per-stay"|"one-per-window",
          "task_type": "binary"|"multiclass"|"regression",
          "label_column": ..., "input_window_hours": ..., ... }
 

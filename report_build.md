@@ -110,6 +110,11 @@ calibration slope `0.969`, intercept `-0.080`, O:E `0.973`, Brier `0.104`.
 > means the predicted probabilities are trustworthy as stated. *O:E* is the average
 > predicted risk vs. the actual event rate — close to 1 is good.
 
+> ⚠️ **Continuous tasks: the headline AUROC/AUPRC here is row-pooled and optimistic.**
+> Every row of a stay carries the same eventual label, so long stays are counted many
+> times and the pooled prevalence skews positive (see §7b). Prefer the **landmark-averaged**
+> discrimination over this pooled number for one-per-window tasks.
+
 ### curves.json — points to draw the curves
 
 The actual `(fpr, tpr)` and `(recall, precision)` arrays for ROC and PR, plus the
@@ -135,12 +140,17 @@ Three sections (binary tasks only):
 
 - **`by_window`** — AUROC/AUPRC for each prediction window in the stay (windows
   `1`–`6`, then a `7+` bucket), with a bootstrap confidence interval when a window
-  has ≥100 rows. *Only populated for one-per-timestep tasks.*
+  has ≥100 rows. *Only populated for one-per-window tasks.* This view is
+  **admission-anchored** (window = day/hour-of-stay, ascending): one row per stay per
+  window for `1`–`6`, but the `7+` bucket **pools** the tail (several rows per long stay),
+  so it is not a clean landmark. The *approach-to-event* complement — an
+  **outcome-anchored landmark** view (one row per stay at each window *before* the outcome)
+  — is the recommended fix for the row-skew described in §7b (not yet implemented).
 - **`by_year`** — AUROC trend by year of admission (drift detection). The year comes
   from `admission_dttm` if present, otherwise from `min(prediction_dttm)` per stay.
 - **`trajectory_by_outcome`** — the "two-line" chart: mean predicted risk per window,
   split into patients who **did** vs **did not** have the event — so you can see risk
-  diverge over the stay. *One-per-timestep tasks only.*
+  diverge over the stay. *One-per-window tasks only.*
 
 ### dca.json — is the model worth acting on?
 
@@ -232,6 +242,10 @@ test rows; `p` = predicted probability `y_prob`; `y` = true label (0/1);
 > AUROC can look flattering when positives are rare (a model gets the easy negatives
 > right). AUPRC doesn't let it — that's why both are reported.
 
+> For **continuous (one-per-window) tasks** there is a second inflation: the table above
+> pools all rows, so long stays count many times and AUROC/prevalence skew optimistic. The
+> unbiased reading is the **landmark-averaged** AUROC (one row per stay per landmark) — see §7b.
+
 ### Calibration — *are the probabilities honest?*
 
 Refit a logistic regression of the outcome on the model's log-odds:
@@ -317,7 +331,7 @@ over-time charts can exist at all.
   `temporal.json`, `by_window` and `trajectory_by_outcome` are `null` with
   `reason: "one_per_stay_task"`; only `by_year` is produced. Everything else
   (overall metrics, calibration, fairness, DCA, threshold analysis) is identical.
-- **One-per-timestep** tasks (task1, task2, task4): multiple predictions per stay,
+- **One-per-window** tasks (task1, task2, task4): multiple predictions per stay,
   so the window charts populate fully.
 
 > ⚠️ **Important — what a "window" means depends on the task's grid.** The window
@@ -331,6 +345,120 @@ over-time charts can exist at all.
 > Same JSON key, different physical unit. Read `by_window` against the task's grid,
 > not as "days" by default.
 
+### 7b. Landmark evaluation for continuous tasks (the row-skew fix)
+
+> **Status.** Admission-anchored `by_window` and the stay-level `encounter.json` are
+> **implemented today**. The **outcome-anchored landmark table** and the
+> **landmark-averaged headline** described here are a **reporting recommendation, not yet
+> in code** — no JSON field below exists yet. This section documents what continuous-task
+> discrimination *should* report and why.
+
+**The problem — one stay, many correlated rows.** A continuous (one-per-window) task emits
+one row per stay per timestep, and the label is the *eventual* outcome **broadcast to every
+row** (task1: in-hospital death is copied onto all daily 07:00 rows). So a decedent who lingers
+10 ICU days contributes **10 positive rows**, while a survivor discharged in 3 days contributes
+3 negative rows. Two things break when you pool all rows:
+
+- **Prevalence skews positive.** Decedents accrue more rows than they "deserve" → the pooled
+  row-prevalence is higher than the true per-stay base rate.
+- **AUROC is inflated.** The extra positive rows are highly correlated and the late-stay ones sit
+  right next to death (trivially separable), so pooled discrimination looks better than the model
+  would behave one-decision-per-patient.
+
+Every row-pooled block (`tripod_ai`, `curves`, `dca`, `threshold_analysis`, `fairness`) carries
+this skew for continuous tasks. `encounter.json` already sidesteps it on the deployment side
+(one alarm per stay). The discrimination side needs the same one-row-per-stay discipline:
+**landmarking.**
+
+**The fix — outcome-anchored landmarks.** Index each stay's windows *backward from its outcome*:
+`w=1` is the **last** window before the outcome (death for positives; discharge/cutoff for
+negatives), `w=2` the one before, … up to `w=7`. At each landmark `w` you take **exactly one row
+per stay** (the one `w` windows from its outcome) and evaluate on that set. A 30-day decedent now
+contributes 7 rows total — one per landmark — not 30, so the length-driven skew is gone, and
+positives/negatives are aligned by *time-to-outcome* (the clinically meaningful "how early can we
+tell?" question). This is distinct from `by_window`, which is **admission-anchored** (day-of-stay
+ascending, "early warning from admission"); keep both — they answer different questions.
+
+**OLD (row-pooled) vs NEW (landmark) — the formulas.**
+
+Notation: test stays `s`; stay `s` has rows at windows `r = 1..W_s` (ascending from admission);
+constant label `y_s ∈ {0,1}`; score `p_{s,r}`.
+
+```
+OLD — row-pooled (current tripod_ai / curves / dca / threshold)
+  R = { (s,r) : all test rows }                  # |R| = Σ_s W_s
+  AUROC_pooled   = P(p_a > p_b | y_a=1, y_b=0)    over ALL row pairs a,b ∈ R
+  prevalence_row = (1/|R|) Σ y_s                  # stay s weighted ∝ W_s  → skew
+
+NEW — outcome-anchored landmark.  distance w = W_s − r + 1   (w=1 = last window; keep w ≤ 7)
+  L_w     = { the one row of each stay with distance w }   for stays with W_s ≥ w
+  AUROC_w = AUROC over L_w           (one row per stay → every stay counts once)
+  n_w     = |L_w|                    (stays at risk at distance w)
+  prev_w  = (1/n_w) Σ_{s∈L_w} y_s    (true stay-level prevalence reaching distance w)
+  AUROC_LM = Σ_w n_w·AUROC_w / Σ_w n_w     # at-risk-weighted average = the HEADLINE
+  median_LM = median_w(AUROC_w)
+```
+
+Suppress any landmark with `n_w < 10` (same HIPAA floor as everywhere else); add a bootstrap CI
+when `n_w ≥ 100` (the same rule `by_window` already uses).
+
+**How it's computed** (reverse ordinal rank per stay — rows already stop at the outcome, so the
+last row *is* the outcome edge):
+
+```python
+# distance-to-outcome: 1 = last window before the outcome
+test = test.with_columns(
+    pl.col("prediction_dttm").rank("ordinal", descending=True)
+      .over(stay_key).cast(pl.Int32).alias("lm_dist"))
+test = test.filter(pl.col("lm_dist") <= 7)        # cap; older rows DROPPED, not pooled
+# unique ordinal rank ⇒ exactly one row per stay per landmark;
+# for w in 1..7: roc_auc_score over rows with lm_dist == w  → AUROC_w, n_w, prev_w
+```
+
+In one line: **OLD** groups by `window_number` ascending and *pools* the `7+` tail; **NEW** groups
+by `lm_dist` descending-from-outcome and *drops* beyond 7 to stay strictly one-row-per-stay.
+
+**How it should look.**
+
+```
+(1) Landmark AUROC vs distance-to-outcome — replaces the single optimistic pooled number
+
+AUROC by landmark (windows BEFORE outcome)        row-pooled headline = 0.91  (optimistic)
+1.0|
+0.9|                                        ●0.88
+0.8|                        ●0.79   ●0.83
+0.7|          ●0.71  ●0.74
+0.6|    ●0.66
+0.5+---+------+------+------+------+------+------
+    w=7    w=6    w=5    w=4    w=3    w=2   w=1
+  far from outcome ──────────────►  at outcome
+ n: 540    610    680    760    850   980  1150     (stays — one row each)
+ ── landmark-averaged AUROC = 0.80 (at-risk weighted)  ◄◄ vs 0.91 pooled
+```
+
+```
+(2) Skew disclosure — row vs stay prevalence, shown side by side
+
+prevalence_row  ████████████████████  0.31   (decedents counted W_s times)
+prevalence_stay █████████             0.14   (one count per stay)  ← true base rate
+n_rows = 8,420     n_stays = 2,209
+```
+
+```
+(3) OLD vs NEW headline, at a glance
+
+                   AUROC    prevalence   per-stay weight
+OLD row-pooled      0.91       0.31       ∝ stay length (biased)
+NEW landmark-avg    0.80       0.14       uniform (1 row/stay/landmark)
+```
+
+**What to report, concretely.** For continuous tasks: (a) a per-landmark table — `auroc`, `auprc`,
+`prevalence_stay`, `n_atrisk`, CI — keyed by distance-to-outcome `1..7`; (b) the at-risk-weighted
+`AUROC_LM` (+ median) as the headline discrimination, **in place of** the pooled `tripod_ai.auroc`;
+(c) wherever a row-pooled number is still shown, print `n_rows`/`n_stays` and
+`prevalence_row`/`prevalence_stay` beside it and label it *"row-level (correlated; optimistic for
+continuous tasks)."* `encounter.json` remains the deployment/alarm complement.
+
 ---
 
 ## 8. What each of the five tasks produces
@@ -341,10 +469,10 @@ frequency (which sets the over-time charts) and in the clinical threshold the
 
 | Task | frequency | clinical threshold | direction | action |
 |---|---|---|---|---|
-| task1 ICU daily mortality | daily (one-per-timestep) | 0.95 | above | withdraw life support |
-| task2 ICU daily LTACH | daily (one-per-timestep) | 0.50 | above | early tracheostomy |
+| task1 ICU daily mortality | daily (one-per-window) | 0.95 | above | withdraw life support |
+| task2 ICU daily LTACH | daily (one-per-window) | 0.50 | above | early tracheostomy |
 | task3 extubation failure 24h | once (one-per-stay) | 0.15 | **below** | extubate |
-| task4 sepsis (CDC ASE) 6h | hourly (one-per-timestep) | 0.10 | above | treat with antibiotics |
+| task4 sepsis (CDC ASE) 6h | hourly (one-per-window) | 0.10 | above | treat with antibiotics |
 | task5 ICU readmission | once (one-per-stay) | 0.20 | above | keep in ICU |
 
 A few task-specific things to know:

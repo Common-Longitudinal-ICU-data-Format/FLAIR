@@ -1,4 +1,4 @@
-"""Report bundle builder. Emits 7 JSON files; never images.
+"""Report bundle builder. Emits 9 JSON files; never images.
 
 Optional --viz renders local sanity-check PNGs from the same JSON dicts
 (see report/_viz.py); the FLAIR website renders the JSONs interactively.
@@ -15,7 +15,9 @@ import polars as pl
 
 from flair_benchmark.report.curves import build_curves
 from flair_benchmark.report.dca import build_dca
+from flair_benchmark.report.encounter import build_encounter
 from flair_benchmark.report.fairness import build_fairness
+from flair_benchmark.report.scorecard import build_scorecard
 from flair_benchmark.report.table1 import build_table1
 from flair_benchmark.report.temporal import build_temporal
 from flair_benchmark.report.threshold_analysis import build_threshold_analysis
@@ -23,15 +25,18 @@ from flair_benchmark.report.tripod_ai import build_tripod_ai
 
 __all__ = ["build_report"]
 
-# cohort columns the report can use when they flow through (or are joined in)
+# cohort columns the report can use when they flow through (or are joined in).
+# Demographics feed fairness.py / table1.py; without them fairness emits no subgroups.
 _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
-                 "hospitalization_join_id"]
+                 "hospitalization_join_id",
+                 "age_at_admission", "sex_category", "race_category",
+                 "ethnicity_category"]
 
 
 def build_report(preds_path: str, task_module, out_dir: str,
                  cohort_path: str | None = None,
-                 viz: bool = False) -> dict[str, Path]:
-    """Read preds parquet, look up META on task_module, write 6 JSONs."""
+                 viz: bool = False, site: str | None = None) -> dict[str, Path]:
+    """Read preds parquet, look up META on task_module, write 9 JSONs."""
     from flair_benchmark import __version__
     from flair_benchmark._hash import task_script_sha256
 
@@ -69,9 +74,18 @@ def build_report(preds_path: str, task_module, out_dir: str,
     threshold = build_threshold_analysis(preds, meta)
     threshold["metadata"] = {**audit, **threshold["metadata"]}
 
+    encounter = build_encounter(preds, meta)
+    encounter["metadata"] = {**audit, **encounter["metadata"]}
+
+    # scorecard reads the already-computed dicts (no recompute) → the flat,
+    # cross-site-poolable headline row.
+    scorecard = build_scorecard(meta, curves, threshold, encounter, site=site)
+    scorecard["metadata"] = {**audit, **scorecard.get("metadata", {})}
+
     reports = {"table1": table1, "tripod_ai": tripod, "fairness": fairness,
                "curves": curves, "temporal": temporal, "dca": dca,
-               "threshold_analysis": threshold}
+               "threshold_analysis": threshold, "encounter": encounter,
+               "scorecard": scorecard}
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

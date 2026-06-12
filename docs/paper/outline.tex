@@ -98,7 +98,7 @@ drafting prose is paint-by-numbers. Hard envelope: 3000 main-text words,
         maps every clinical event into a token and emits per-window
         count features, and (ii) two reference models --- L2-penalized
         logistic regression and XGBoost --- trained on MIMIC-CLIF and
-        shipped inside the CLIF-WorkBench container for federated
+        shipped as code or container for federated
         evaluation. Sites emit four aggregated JSON reports
         (\texttt{table1}, \texttt{tripod\_ai}, \texttt{fairness},
         \texttt{curves}).
@@ -307,9 +307,11 @@ across consortium sites with site-level median/IQR.}
 
 \subsection*{Federated protocol}
 \begin{itemize}[leftmargin=1.5em]
-  \item Two-layer privacy model: (i) CLIF-WorkBench Singularity container
-        --- no internet, no root, immutable read-only image; (ii)
-        aggregate-only outputs from \texttt{flair build-report}.
+  \item Two-layer privacy model: (i) pre-release governance --- the
+        Benchmark Committee security-reviews submitted code and model and
+        validates the task on synthetic (fake) data before release, whether
+        shipped as code or container; (ii) aggregate-only outputs from
+        \texttt{flair build-report}.
   \item Library-enforced HIPAA safeguards: cell suppression in
         \texttt{table1.json} for counts $<$10; subgroup drop in
         \texttt{fairness.json} for subgroups with $n<10$; calibration-bin
@@ -359,9 +361,8 @@ XGBoost classifier with default depth and learning rate; submitted as
 \texttt{y\_prob}.
 
 Both models are trained on MIMIC-CLIF (70/30 temporal split via
-\texttt{\_split.py}) for each of T1--T5, serialized into the
-CLIF-WorkBench Singularity container, and shipped to each consortium
-site. Hyperparameters, the token dictionary, and the missingness
+\texttt{\_split.py}) for each of T1--T5, then shipped to each consortium
+site as committee-reviewed code or a container. Hyperparameters, the token dictionary, and the missingness
 convention (absent token $=$ zero count) are deferred to the Supplement
 (Model Cards + Datasheet).
 

@@ -1,6 +1,6 @@
 """
 Task 4: Sepsis prediction with CDC Adult Sepsis Event (ASE) time-zero
-(binary classification, one-per-timestep).
+(binary classification, one-per-window).
 
 Clinical question:
   Will this hospitalized patient meet the CDC Adult Sepsis Event (ASE)
@@ -94,7 +94,7 @@ META = {
     "display_name": "Sepsis (CDC ASE onset) within 6h",
     "task_class": "intervention",
     "temporal_pattern": "continuous",
-    "prediction_unit": "one-per-timestep",
+    "prediction_unit": "one-per-window",
     "task_type": "binary",
     "clinical_threshold": 0.1,
     "clinical_action": "treat with antibiotics",

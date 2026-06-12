@@ -1,7 +1,12 @@
-"""ROC / PR / calibration as downsampled raw points.
+"""ROC / PR / calibration as downsampled raw points + a fixed-grid form.
 
 Sites never emit images — the central dashboard renders. JSON is kept
 under ~200 kB by downsampling roc/pr to ≤500 points.
+
+Cross-site pooling: the raw points sit at site-specific FPR/threshold values and
+cannot be averaged across sites. So ROC also carries `grid_fpr` / `tpr_at_grid`
+on a fixed FPR grid (0:1 step 0.01) — a coordinator vertical-averages `tpr_at_grid`
+(n-weighted) to pool ROC. Calibration already uses 10 fixed bins with counts.
 """
 
 from __future__ import annotations
@@ -10,6 +15,9 @@ import numpy as np
 import polars as pl
 
 MAX_POINTS = 500
+GRID_FPR = np.round(np.arange(0.0, 1.0001, 0.01), 2)   # fixed, site-invariant
+_BOOT_REPS = 200
+_BOOT_SEED = 20260612
 
 
 def build_curves(preds: pl.DataFrame, meta: dict) -> dict:
@@ -24,8 +32,9 @@ def build_curves(preds: pl.DataFrame, meta: dict) -> dict:
     if task_type == "binary" and "y_prob" in test.columns:
         y_true = test[label_col].to_numpy().astype(int)
         y_prob = test["y_prob"].to_numpy().astype(float)
+        out["prevalence"] = round(float(y_true.mean()), 6) if len(y_true) else None
         out["roc"] = _roc_points(y_true, y_prob)
-        out["pr"] = _pr_points(y_true, y_prob)
+        out["pr"] = _pr_points(y_true, y_prob, out["prevalence"])
         out["calibration"] = _calibration_bins(y_true, y_prob, n_bins=10)
         from flair_benchmark.report._calib import calibration_extended
         out["calibration_extended"] = calibration_extended(y_true.astype(float), y_prob)
@@ -37,19 +46,58 @@ def build_curves(preds: pl.DataFrame, meta: dict) -> dict:
 
 
 def _roc_points(y_true: np.ndarray, y_prob: np.ndarray) -> dict:
-    from sklearn.metrics import roc_curve
+    from sklearn.metrics import roc_auc_score, roc_curve
     fpr, tpr, thr = roc_curve(y_true, y_prob)
-    fpr, tpr, thr = _downsample3(fpr, tpr, thr, MAX_POINTS)
-    return {"fpr": _r(fpr), "tpr": _r(tpr), "thresholds": _r(thr)}
+    auroc = (round(float(roc_auc_score(y_true, y_prob)), 4)
+             if len(np.unique(y_true)) > 1 else None)
+    # fixed-grid TPR for cross-site vertical averaging (fpr is increasing).
+    tpr_at_grid = np.interp(GRID_FPR, fpr, tpr)
+    dfpr, dtpr, dthr = _downsample3(fpr, tpr, thr, MAX_POINTS)
+    return {
+        "fpr": _r(dfpr), "tpr": _r(dtpr), "thresholds": _r(dthr),
+        "auroc": auroc, "auroc_ci": _bootstrap_auroc_ci(y_true, y_prob),
+        "grid_fpr": _r(GRID_FPR), "tpr_at_grid": _r(tpr_at_grid),
+    }
 
 
-def _pr_points(y_true: np.ndarray, y_prob: np.ndarray) -> dict:
-    from sklearn.metrics import precision_recall_curve
+def _pr_points(y_true: np.ndarray, y_prob: np.ndarray,
+               prevalence: float | None) -> dict:
+    from sklearn.metrics import average_precision_score, precision_recall_curve
     prec, rec, thr = precision_recall_curve(y_true, y_prob)
     # precision_recall_curve returns thr with one fewer element than prec/rec; pad
     thr = np.concatenate([thr, [1.0]])
     rec, prec, thr = _downsample3(rec, prec, thr, MAX_POINTS)
-    return {"recall": _r(rec), "precision": _r(prec), "thresholds": _r(thr)}
+    auprc = (round(float(average_precision_score(y_true, y_prob)), 4)
+             if len(np.unique(y_true)) > 1 else None)
+    # baseline = prevalence (a no-skill classifier's precision); lift decouples
+    # discrimination from how rare the event is — the cross-site comparable number.
+    lift = (round(auprc / prevalence, 2)
+            if auprc is not None and prevalence else None)
+    return {"recall": _r(rec), "precision": _r(prec), "thresholds": _r(thr),
+            "auprc": auprc, "baseline": prevalence, "auprc_lift": lift}
+
+
+def _bootstrap_auroc_ci(y_true: np.ndarray, y_prob: np.ndarray) -> list | None:
+    from sklearn.metrics import roc_auc_score
+    if len(np.unique(y_true)) < 2:
+        return None
+    rng = np.random.default_rng(_BOOT_SEED)
+    # cap the resample base so the CI stays cheap on million-row tasks (task4).
+    if len(y_true) > 100_000:
+        base = rng.choice(len(y_true), 100_000, replace=False)
+        y_true, y_prob = y_true[base], y_prob[base]
+    n = len(y_true)
+    aucs = []
+    for _ in range(_BOOT_REPS):
+        idx = rng.integers(0, n, n)
+        yt = y_true[idx]
+        if yt.min() == yt.max():
+            continue
+        aucs.append(roc_auc_score(yt, y_prob[idx]))
+    if len(aucs) < _BOOT_REPS // 2:
+        return None
+    lo, hi = np.percentile(aucs, [2.5, 97.5])
+    return [round(float(lo), 4), round(float(hi), 4)]
 
 
 def _calibration_bins(y_true: np.ndarray, y_prob: np.ndarray,

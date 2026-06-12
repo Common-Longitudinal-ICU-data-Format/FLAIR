@@ -233,7 +233,7 @@ task_module, out_dir, cohort_path, viz)`. The function:
 
 **`curves.calibration`** — 10 equal-width bins; suppresses `bin_true_prob` when count<10. `calibration_extended.smoothed` is a fitted-logistic recalibration curve evaluated on a 50-point grid (2 parameters → no PHI).
 
-**`temporal.by_window`** — bins predictions by `window_number` (cap at 7+). Requires a continuous (`one-per-timestep`) task; for `one-per-stay` tasks it returns `{"reason": "one_per_stay_task"}`. Uses `_attach_window_bucket` which falls back to deriving `window_number` from `prediction_dttm` if needed.
+**`temporal.by_window`** — bins predictions by `window_number` (cap at 7+). Requires a continuous (`one-per-window`) task; for `one-per-stay` tasks it returns `{"reason": "one_per_stay_task"}`. Uses `_attach_window_bucket` which falls back to deriving `window_number` from `prediction_dttm` if needed.
 
 **`temporal.by_year`** — bins by admission year; derives the year from `min(prediction_dttm) per stay` if `admission_dttm` is absent.
 

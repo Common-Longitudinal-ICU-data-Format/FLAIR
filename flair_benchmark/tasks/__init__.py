@@ -7,7 +7,7 @@ Each task module must expose:
 META taxonomy fields (required, enum-validated):
     task_class       ∈ {outcome, deterioration, intervention, operational}
     temporal_pattern ∈ {episode, fixed_horizon, continuous}
-    prediction_unit  ∈ {one-per-stay, one-per-decision-point, one-per-timestep}
+    prediction_unit  ∈ {one-per-stay, one-per-window}
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from types import ModuleType
 
 TASK_CLASS_VALUES = {"outcome", "deterioration", "intervention", "operational"}
 TEMPORAL_PATTERN_VALUES = {"episode", "fixed_horizon", "continuous"}
-PREDICTION_UNIT_VALUES = {"one-per-stay", "one-per-decision-point", "one-per-timestep"}
+PREDICTION_UNIT_VALUES = {"one-per-stay", "one-per-window"}
 
 _TAXONOMY_ENUMS = {
     "task_class": TASK_CLASS_VALUES,
