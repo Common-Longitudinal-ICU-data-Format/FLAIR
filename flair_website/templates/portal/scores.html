@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}My scores — FLAIR{% endblock %}
+{% block content %}
+{% set active = 'scores' %}
+{% include "portal/_subnav.html" %}
+
+<h2>My <span class="accent">scores</span></h2>
+<p class="lead">Your site's own unblinded metrics, per model and task. Private to you until you opt in publicly.</p>
+
+{% for ms in model_scores %}
+<h3>{{ ms.model.name }}{% if ms.model.is_baseline %} <span class="pill sage">baseline</span>{% endif %}</h3>
+<table>
+  <thead><tr>
+    <th>Task</th><th class="num">n test</th><th class="num">Prev.</th>
+    <th class="num">AUROC</th><th class="num">95% CI</th><th class="num">AUPRC</th>
+    <th class="num">Cal. slope</th><th class="num">Brier</th>
+  </tr></thead>
+  <tbody>
+    {% for r in ms.rows %}
+    <tr>
+      <td><span class="dot {{ r.task.color }}"></span>T{{ r.task.n }} · {{ r.task.display_name }}</td>
+      {% if r.score %}
+      <td class="num">{{ "{:,}".format(r.score.n_test) }}</td>
+      <td class="num">{{ "%.3f"|format(r.score.prevalence) }}</td>
+      <td class="num">{{ "%.3f"|format(r.score.auroc) }}</td>
+      <td class="num ci">{{ "%.3f"|format(r.score.auroc_ci[0]) }}–{{ "%.3f"|format(r.score.auroc_ci[1]) }}</td>
+      <td class="num">{{ "%.3f"|format(r.score.auprc) }}</td>
+      <td class="num">{{ "%.2f"|format(r.score.cal_slope) }}</td>
+      <td class="num">{{ "%.3f"|format(r.score.brier) }}</td>
+      {% else %}
+      <td class="num muted" colspan="7">no submission yet</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+
+{% endblock %}

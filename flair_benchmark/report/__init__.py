@@ -1,4 +1,9 @@
-"""Report bundle builder. Emits 9 JSON files; never images.
+"""Report bundle builder, keyed on the unit of prediction.
+
+Episodic tasks (one prediction per stay, `--episodic`) get a slim four-file
+bundle: discrimination, calibration, dca, fairness — all at the task's fixed
+clinical threshold, all as JSON with raw curve arrays + 95% CIs. The continuous
+(windowed) path is rebuilt in a later phase.
 
 Optional --viz renders local sanity-check PNGs from the same JSON dicts
 (see report/_viz.py); the FLAIR website renders the JSONs interactively.
@@ -13,15 +18,7 @@ from pathlib import Path
 
 import polars as pl
 
-from flair_benchmark.report.curves import build_curves
-from flair_benchmark.report.dca import build_dca
-from flair_benchmark.report.encounter import build_encounter
-from flair_benchmark.report.fairness import build_fairness
-from flair_benchmark.report.scorecard import build_scorecard
-from flair_benchmark.report.table1 import build_table1
-from flair_benchmark.report.temporal import build_temporal
-from flair_benchmark.report.threshold_analysis import build_threshold_analysis
-from flair_benchmark.report.tripod_ai import build_tripod_ai
+from flair_benchmark.report.episodic import build_episodic_report
 
 __all__ = ["build_report"]
 
@@ -34,9 +31,15 @@ _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
 
 
 def build_report(preds_path: str, task_module, out_dir: str,
+                 split: str = "test", episodic: bool = False,
                  cohort_path: str | None = None,
                  viz: bool = False, site: str | None = None) -> dict[str, Path]:
-    """Read preds parquet, look up META on task_module, write 9 JSONs."""
+    """Read preds parquet, look up META, write the episodic 4-JSON bundle.
+
+    `split` selects which split to analyze (default "test"). `episodic` forces
+    the one-per-stay path; it is also auto-enabled when META marks the task
+    episodic. The continuous/windowed path is not yet rebuilt.
+    """
     from flair_benchmark import __version__
     from flair_benchmark._hash import task_script_sha256
 
@@ -46,46 +49,57 @@ def build_report(preds_path: str, task_module, out_dir: str,
     preds = _attach_cohort_context(preds, cohort_path, meta)
     preds = _ensure_y_pred(preds, meta)
 
+    available = sorted(preds["split"].unique().drop_nulls().to_list())
+    if split not in available:
+        raise ValueError(
+            f"split '{split}' not found in predictions; available: {available}")
+    preds = preds.filter(pl.col("split") == split)
+    if preds.height == 0:
+        raise ValueError(f"split '{split}' is empty after filtering")
+
+    pattern = meta.get("temporal_pattern")
+    episodic_mode = episodic or pattern == "episode"
+    if episodic and pattern == "continuous":
+        warnings.warn(
+            "--episodic set but task META temporal_pattern=='continuous'; "
+            "proceeding episodic per the flag.", stacklevel=2)
+    elif not episodic and pattern == "episode":
+        warnings.warn(
+            "Task META temporal_pattern=='episode'; enabling episodic mode "
+            "(pass --episodic to silence this).", stacklevel=2)
+
+    if not episodic_mode:
+        raise NotImplementedError(
+            "Continuous/windowed report rebuild pending; run with --episodic "
+            "for one-per-stay tasks.")
+
+    n_stays = preds["hospitalization_id"].n_unique()
+    if n_stays != preds.height:
+        raise ValueError(
+            f"Episodic report expects one row per stay, but split '{split}' has "
+            f"{preds.height} rows for {n_stays} stays. Deduplicate to one "
+            f"prediction per stay, or this is a continuous task (drop --episodic).")
+
+    prevalence = (round(float(preds[meta["label_column"]].mean()), 6)
+                  if meta["task_type"] == "binary" else None)
     audit = {
         "task": meta["name"],
         "task_script_sha256": task_script_sha256(task_module),
         "flair_version": __version__,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "report_mode": "episodic",
+        "split": split,
+        "n_stays": n_stays,
+        "prevalence": prevalence,
+        # operating threshold the threshold-dependent sections (discrimination
+        # confusion point, dca clinical point, fairness) were evaluated at;
+        # null for tasks with no clinical_threshold in META.
+        "evaled_at": meta.get("clinical_threshold"),
     }
 
-    table1 = build_table1(preds, meta)
-    table1["metadata"] = {**audit, "min_cell_count": 10}
-
-    fairness = build_fairness(preds, meta)
-    fairness["metadata"] = {**audit, **fairness["metadata"]}
-
-    tripod = build_tripod_ai(preds, meta, table1)
-    tripod["metadata"] = audit
-
-    curves = build_curves(preds, meta)
-    curves["metadata"] = {**audit, **curves["metadata"]}
-
-    temporal = build_temporal(preds, meta)
-    temporal["metadata"] = {**audit, **temporal["metadata"]}
-
-    dca = build_dca(preds, meta)
-    dca["metadata"] = {**audit, **dca["metadata"]}
-
-    threshold = build_threshold_analysis(preds, meta)
-    threshold["metadata"] = {**audit, **threshold["metadata"]}
-
-    encounter = build_encounter(preds, meta)
-    encounter["metadata"] = {**audit, **encounter["metadata"]}
-
-    # scorecard reads the already-computed dicts (no recompute) → the flat,
-    # cross-site-poolable headline row.
-    scorecard = build_scorecard(meta, curves, threshold, encounter, site=site)
-    scorecard["metadata"] = {**audit, **scorecard.get("metadata", {})}
-
-    reports = {"table1": table1, "tripod_ai": tripod, "fairness": fairness,
-               "curves": curves, "temporal": temporal, "dca": dca,
-               "threshold_analysis": threshold, "encounter": encounter,
-               "scorecard": scorecard}
+    reports = build_episodic_report(preds, meta)
+    for payload in reports.values():
+        payload["metadata"] = {**audit, **payload.get("metadata", {})}
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

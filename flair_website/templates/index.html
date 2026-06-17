@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="hero">
+  <h1>FLAIR <span class="accent">Benchmark</span></h1>
+  <p class="lead">A federated benchmark for ICU clinical prediction across CLIF sites — develop on public data, validate on private data, pool only aggregates.</p>
+  <div class="stats count">{{ stats.n_models }} model(s) · {{ stats.n_tasks }} tasks · {{ stats.n_sites }} participating site(s) · model ships to data</div>
+  <div class="bars">
+    <span style="background:var(--c-blue)"></span>
+    <span style="background:var(--c-purple)"></span>
+    <span style="background:var(--c-sage)"></span>
+    <span style="background:var(--c-terracotta)"></span>
+  </div>
+  <div class="cta">
+    <a class="primary" href="/leaderboard">View leaderboard</a>
+    <a class="ghost" href="/submit">Submit a model</a>
+    <a class="ghost" href="/tasks">Browse tasks</a>
+  </div>
+</section>
+
+<div class="features">
+  <div class="feature b"><div class="big">5</div><div class="desc">Clinical prediction tasks</div></div>
+  <div class="feature p"><div class="big">Federated</div><div class="desc">Model + code ship to sites; only JSON returns</div></div>
+  <div class="feature s"><div class="big">No PHI</div><div class="desc">Cell-suppressed aggregates (n&lt;10) only</div></div>
+  <div class="feature t"><div class="big">Open</div><div class="desc">Task not listed? PR it against MIMIC-CLIF</div></div>
+</div>
+
+<h2>Prediction <span class="accent">tasks</span></h2>
+<div class="count">Click any task for its cohort, label, and operating threshold.</div>
+<div class="grid">
+  {% for t in tasks %}
+  <div class="item">
+    <div class="name"><span class="dot {{ t.color }}"></span><a href="/tasks/{{ t.id }}">{{ t.display_name }}</a></div>
+    <div class="meta">
+      <span class="pill {{ t.color }}">{{ t.task_class }}</span>
+      <span class="pill {{ t.color }}">{{ t.temporal_pattern }}</span>
+      <span class="pill {{ t.color }}">{{ t.prediction_unit }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

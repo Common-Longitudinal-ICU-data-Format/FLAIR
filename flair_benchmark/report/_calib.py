@@ -40,9 +40,10 @@ def calibration_extended(y_true: np.ndarray, y_prob: np.ndarray,
     slope / intercept : logistic recalibration (weak calibration)
     o_e_ratio         : observed / expected event ratio (calibration-in-the-large)
     brier             : Brier score
-    smoothed          : the fitted recalibration curve evaluated on a fixed
-                        probability grid (Cox logistic calibration curve) —
-                        smooth, PHI-safe (2 fitted parameters, no raw points).
+    smoothed          : a simple straight calibration line — least-squares fit of
+                        observed event on predicted probability (no logistic
+                        recalibration), evaluated on a fixed probability grid.
+                        Model-derived (2 fitted params), PHI-safe.
     """
     from sklearn.metrics import brier_score_loss
 
@@ -61,13 +62,16 @@ def calibration_extended(y_true: np.ndarray, y_prob: np.ndarray,
         "brier": round(float(brier_score_loss(y_true, y_prob)), 4),
         "smoothed": None,
     }
-    if slope is not None:
+    if len(np.unique(y_true)) >= 2 and np.std(y_prob) > 0:
+        # plain straight line: observed ~ a + b * predicted, clipped to [0, 1].
+        b, a = np.polyfit(y_prob, y_true, 1)
         grid = np.linspace(0.01, 0.99, grid_points)
-        z = intercept + slope * _logit(grid)
-        obs_smoothed = 1.0 / (1.0 + np.exp(-z))
+        line = np.clip(a + b * grid, 0.0, 1.0)
         out["smoothed"] = {
-            "method": "logistic_recalibration",
+            "method": "linear_fit",
+            "fit_slope": round(float(b), 4),
+            "fit_intercept": round(float(a), 4),
             "pred_grid": [round(float(x), 4) for x in grid],
-            "obs_smoothed": [round(float(x), 4) for x in obs_smoothed],
+            "obs_smoothed": [round(float(x), 4) for x in line],
         }
     return out

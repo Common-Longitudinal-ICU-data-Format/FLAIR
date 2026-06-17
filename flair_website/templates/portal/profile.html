@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Profile & visibility — FLAIR{% endblock %}
+{% block content %}
+{% set active = 'profile' %}
+{% include "portal/_subnav.html" %}
+
+{% if saved %}<div class="notice">Saved.</div>{% endif %}
+
+<h2>Site <span class="accent">profile</span></h2>
+<p class="lead">Fill in your site details and control exactly what is shown publicly. Everything has a visibility switch.</p>
+
+<form class="stack" method="post" action="/portal/profile">
+  <input type="hidden" name="csrf" value="{{ csrf_token(request) }}">
+
+  <div class="panel">
+    <h3>Details</h3>
+    <label for="site_name">Site name</label>
+    <input type="text" id="site_name" name="site_name" value="{{ site.site_name }}" placeholder="e.g. Rush University Medical Center">
+    <label for="abbreviation">Abbreviation</label>
+    <input type="text" id="abbreviation" name="abbreviation" value="{{ site.abbreviation }}" placeholder="e.g. RUMC">
+    <label for="pi_name">Principal investigator</label>
+    <input type="text" id="pi_name" name="pi_name" value="{{ site.pi_name }}" placeholder="e.g. Dr. Jane Doe">
+    <label for="contact">Contact email</label>
+    <input type="text" id="contact" name="contact" value="{{ site.contact }}">
+  </div>
+
+  <div class="panel">
+    <h3>Public visibility</h3>
+    <div class="toggle-row">
+      <span class="label"><strong>Opt in to the public leaderboard</strong>
+        <div class="sub">When off, your site is hidden entirely from the public board.</div></span>
+      <input type="checkbox" name="opted_in" {{ 'checked' if site.opted_in }}>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Reveal site identity
+        <div class="sub">Show your real name / abbreviation / PI publicly. Off → shown as “{{ site.anon_label }}”.</div></span>
+      <input type="checkbox" name="vis_identity" {{ 'checked' if site.visibility.identity }}>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Show AUROC metrics
+        <div class="sub">Include your AUROC column on the public leaderboard.</div></span>
+      <input type="checkbox" name="vis_metrics" {{ 'checked' if site.visibility.metrics }}>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Show calibration
+        <div class="sub">Expose calibration slope / Brier in detail views.</div></span>
+      <input type="checkbox" name="vis_calibration" {{ 'checked' if site.visibility.calibration }}>
+    </div>
+    <div class="toggle-row">
+      <span class="label">Show fairness breakdown
+        <div class="sub">Expose per-subgroup parity numbers in detail views.</div></span>
+      <input type="checkbox" name="vis_fairness" {{ 'checked' if site.visibility.fairness }}>
+    </div>
+  </div>
+
+  <button class="btn" type="submit">Save</button>
+</form>
+
+{% endblock %}

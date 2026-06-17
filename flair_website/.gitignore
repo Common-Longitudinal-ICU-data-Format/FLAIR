@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db
+*.db-journal
+.env
+.DS_Store
+
+# The repo-root .gitignore has a generic `data/` rule (raw datasets). This
+# folder's data/ is committed site content (leaderboard + task catalog +
+# exported report bundles), so re-include it here.
+!/data/
+!/data/**

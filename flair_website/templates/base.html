@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}FLAIR — Federated ICU Benchmark{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/site.css">
+{% block head %}{% endblock %}
+</head>
+<body>
+{% set site = current_site(request) %}
+<nav class="top">
+  <a class="brand" href="/"><span class="logo"></span>FLAIR</a>
+  <div class="links">
+    <a href="/leaderboard">Leaderboard</a>
+    <a href="/tasks">Tasks</a>
+    <a href="/submit">Submit a model</a>
+    {% if is_admin(request) %}<a href="/admin">Admin</a>{% endif %}
+    <a href="https://github.com/clif-consortium/FLAIR">GitHub</a>
+  </div>
+  <div class="spacer"></div>
+  {% if site %}
+    <a class="signin" href="/portal">Portal</a>
+  {% else %}
+    <a class="signin" href="/login">Site sign in</a>
+  {% endif %}
+</nav>
+
+<main>
+{% block content %}{% endblock %}
+</main>
+
+<footer>
+  FLAIR · Federated Learning &amp; AI Research on ICU data · the code travels, the data does not.
+  Aggregate, cell-suppressed outputs only — no PHI leaves any site.
+</footer>
+</body>
+</html>

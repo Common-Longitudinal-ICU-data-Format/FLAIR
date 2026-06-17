@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Submit a model — FLAIR{% endblock %}
+{% block content %}
+
+<h1>Submit a <span class="accent">model</span></h1>
+<p class="lead">Propose a model for federated evaluation. The benchmark committee reviews each submission, security-checks the code against synthetic data, then ships it to participating sites. No data ever leaves a site — only aggregate JSON returns.</p>
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<form class="stack" method="post" action="/submit">
+  <input type="hidden" name="csrf" value="{{ csrf_token(request) }}">
+
+  <div class="panel">
+    <h3>Model</h3>
+    <label for="model_name">Model name *</label>
+    <input type="text" id="model_name" name="model_name" value="{{ form.get('model_name','') }}" required>
+    <label for="model_type">Model type / short description</label>
+    <input type="text" id="model_type" name="model_type" value="{{ form.get('model_type','') }}" placeholder="e.g. tabular foundation model, gradient-boosted trees, LSTM">
+    <label for="github_url">GitHub / code URL *</label>
+    <input type="text" id="github_url" name="github_url" value="{{ form.get('github_url','') }}" placeholder="https://github.com/...">
+    <label for="docker_url">Docker image (optional)</label>
+    <input type="text" id="docker_url" name="docker_url" value="{{ form.get('docker_url','') }}" placeholder="docker.io/org/image:tag">
+    <label for="model_url">Model weights / link (optional)</label>
+    <input type="text" id="model_url" name="model_url" value="{{ form.get('model_url','') }}" placeholder="https://huggingface.co/...">
+  </div>
+
+  <div class="panel">
+    <h3>Tasks to run *</h3>
+    <div class="check-grid">
+      {% for t in tasks %}
+      <label class="check"><input type="checkbox" name="task_{{ t.id }}" {{ 'checked' if t.id in (selected or []) }}>
+        <span class="dot {{ t.color }}"></span>T{{ t.n }} · {{ t.display_name }}</label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Target sites</h3>
+    <label class="check"><input type="checkbox" name="target_all" {{ 'checked' if form.get('target_all') or not form }}> Run at all participating sites</label>
+    <label for="target_sites">…or specific site keys (comma-separated, if not all)</label>
+    <input type="text" id="target_sites" name="target_sites" value="{{ form.get('target_sites','') }}" placeholder="e.g. mimic, rush">
+  </div>
+
+  <div class="panel">
+    <h3>About you</h3>
+    <label for="owner_name">Your name</label>
+    <input type="text" id="owner_name" name="owner_name" value="{{ form.get('owner_name','') }}">
+    <label for="owner_email">Contact email *</label>
+    <input type="email" id="owner_email" name="owner_email" value="{{ form.get('owner_email','') }}" required>
+    <label class="check"><input type="checkbox" name="is_site_lead" {{ 'checked' if form.get('is_site_lead') }}> I am a lead at an existing FLAIR site</label>
+    <label class="check"><input type="checkbox" name="wants_site_reg" {{ 'checked' if form.get('wants_site_reg') }}> I also want to register my site with FLAIR</label>
+
+    <div class="kv" style="margin-top:10px">
+      <div></div><div class="count">If registering a site, the committee will follow up to provision your login:</div>
+    </div>
+    <label for="reg_site_name">Site name</label>
+    <input type="text" id="reg_site_name" name="reg_site_name" value="{{ form.get('reg_site_name','') }}">
+    <label for="reg_abbrev">Abbreviation</label>
+    <input type="text" id="reg_abbrev" name="reg_abbrev" value="{{ form.get('reg_abbrev','') }}">
+    <label for="reg_pi">Principal investigator</label>
+    <input type="text" id="reg_pi" name="reg_pi" value="{{ form.get('reg_pi','') }}">
+  </div>
+
+  <div class="panel">
+    <label for="notes">Notes for the committee</label>
+    <input type="text" id="notes" name="notes" value="{{ form.get('notes','') }}" placeholder="anything the reviewers should know">
+  </div>
+
+  <button class="btn" type="submit">Submit for review</button>
+</form>
+
+{% endblock %}

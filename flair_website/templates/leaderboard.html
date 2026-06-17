@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard — FLAIR{% endblock %}
+{% block content %}
+
+<h1>FLAIR <span class="accent">Leaderboard</span></h1>
+<p class="lead">Models ranked per task by pooled AUROC across opted-in sites. Pick a task; expand a model to compare sites.</p>
+<div class="count">{{ board.by_task.values()|list|first|length if board.by_task else 0 }} model(s) · {{ board.columns|length }} site(s) reporting · pooled = n-weighted mean AUROC</div>
+
+{% if board.columns|length == 0 %}
+  <div class="notice">No site has opted into the public leaderboard yet. Sites opt in from their portal.</div>
+{% endif %}
+
+<div class="tabs" id="task-tabs">
+  {% for t in board.tasks %}
+  <button class="tab{% if loop.first %} active{% endif %}" data-task="{{ t.id }}">
+    <span class="dot {{ t.color }}"></span>T{{ t.n }} · {{ t.display_name }}
+  </button>
+  {% endfor %}
+</div>
+
+<div id="board"></div>
+
+<div class="demo-note">
+  <code>flair-xgboost-baseline</code> on site <code>mimic</code> shows real MIMIC-CLIF numbers.
+  Other models and <code>demo_*</code> sites are synthetic, shown only to demonstrate the multi-model / multi-site view.
+  Want your model evaluated? <a href="/submit">Submit it →</a>
+</div>
+
+<script id="board-data" type="application/json">{{ board|tojson }}</script>
+<script src="/static/js/leaderboard.js"></script>
+
+{% endblock %}

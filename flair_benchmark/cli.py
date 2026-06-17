@@ -88,22 +88,31 @@ def load_task(
 def build_report_cmd(
     preds: str = typer.Argument(..., help="Predictions parquet path"),
     task: str = typer.Option(..., "--task", help="Task name"),
-    out: str = typer.Option(..., "--out", help="Output directory for the 6 JSONs"),
+    out: str = typer.Option(..., "--out",
+                            help="Output directory for the report JSONs"),
+    split: str = typer.Option("test", "--split",
+                              help="Which split to analyze (default: test)."),
+    episodic: bool = typer.Option(
+        False, "--episodic",
+        help="One-prediction-per-stay task: emit the slim discrimination / "
+             "calibration / dca / fairness bundle. Auto-enabled for tasks META-"
+             "marked episodic."),
     cohort: Optional[str] = typer.Option(
         None, "--cohort",
-        help="Task cohort parquet (from load-task). Enables window/year binning "
-             "when window_number/prediction_dttm don't flow through the preds."),
+        help="Task cohort parquet (from load-task). Joins demographics for "
+             "fairness when they don't flow through the preds."),
     viz: bool = typer.Option(
         False, "--viz",
         help="Also write sanity-check PNGs rendered from the JSONs "
              "(requires `pip install flair-benchmark[viz]`)."),
 ) -> None:
-    """Generate table1, tripod_ai, fairness, curves, temporal and dca JSONs."""
+    """Generate the episodic report bundle: discrimination, calibration, dca, fairness."""
     from flair_benchmark.report import build_report
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
-    paths = build_report(preds, task_module, out, cohort_path=cohort, viz=viz)
+    paths = build_report(preds, task_module, out, split=split, episodic=episodic,
+                         cohort_path=cohort, viz=viz)
     for kind, path in paths.items():
         typer.echo(f"  {kind:24s} → {path}")
 

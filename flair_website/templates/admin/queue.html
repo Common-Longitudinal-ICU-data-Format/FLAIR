@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Committee queue — FLAIR{% endblock %}
+{% block content %}
+
+<div class="count">Benchmark committee</div>
+<h1>Review <span class="accent">queue</span></h1>
+<p class="lead">Model submissions awaiting review. Approve and push to dispatch a run request (with the model's links) to sites.</p>
+
+{% if not submissions %}
+<p class="muted">No submissions yet.</p>
+{% else %}
+<table>
+  <thead><tr><th>#</th><th>Model</th><th>Owner</th><th>Tasks</th><th>Sites</th><th>Status</th><th>Submitted</th></tr></thead>
+  <tbody>
+    {% for s in submissions %}
+    <tr>
+      <td>{{ s.id }}</td>
+      <td><a href="/admin/submission/{{ s.id }}">{{ s.model_name }}</a></td>
+      <td class="muted">{{ s.owner_name or s.owner_email }}</td>
+      <td class="num">{{ s.tasks|length }}</td>
+      <td>{% if s.target_sites == 'all' %}all{% else %}{{ s.target_sites|join(', ') }}{% endif %}</td>
+      <td><span class="badge status-{{ s.status }}">{{ s.status }}</span></td>
+      <td class="count">{{ s.created_at }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{% endblock %}

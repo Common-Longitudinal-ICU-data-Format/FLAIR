@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ task.display_name }} — FLAIR{% endblock %}
+{% block content %}
+
+<div class="count"><a href="/tasks">← all tasks</a></div>
+<h1><span class="dot {{ task.color }}"></span>{{ task.display_name }}</h1>
+<p class="lead">{{ task.summary }}</p>
+
+<div class="panel">
+  <div class="kv">
+    <div class="k">Task ID</div><div><code>{{ task.id }}</code></div>
+    <div class="k">Task class</div><div>{{ task.task_class }}</div>
+    <div class="k">Temporal pattern</div><div>{{ task.temporal_pattern }}</div>
+    <div class="k">Prediction unit</div><div>{{ task.prediction_unit }}</div>
+    <div class="k">Task type</div><div>{{ task.task_type }}</div>
+    <div class="k">Label column</div><div><code>{{ task.label_column }}</code></div>
+    <div class="k">Clinical threshold</div><div>{{ task.clinical_threshold }} ({{ task.clinical_direction }})</div>
+    <div class="k">Clinical action</div><div>{{ task.clinical_action }}</div>
+  </div>
+</div>
+
+<h2>Models <span class="accent">evaluated</span></h2>
+<p class="lead">Full report — discrimination, calibration, decision curve, fairness, temporal drift, cohort — re-rendered from each site's exported JSON. Pick a model + site.</p>
+
+{% if not task_models %}
+<p class="muted">No model reports this task on the public board yet.</p>
+{% else %}
+<div class="model-list">
+  {% for m in task_models %}
+  <div class="model-row">
+    <div class="model-head">
+      <span class="model-name">{{ m.name }}{% if m.is_baseline %} <span class="pill sage">baseline</span>{% endif %}</span>
+      <span class="muted count">{{ m.owner }} · pooled AUROC {{ "%.3f"|format(m.pooled.auroc) }} ({{ m.pooled.n_sites }} site{{ 's' if m.pooled.n_sites != 1 }})</span>
+    </div>
+    <div class="site-buttons">
+      {% for s in m.sites %}
+        {% if s.has_report %}
+        <button class="site-rep" data-model="{{ m.id }}" data-site="{{ s.key }}" data-task="{{ task.id }}" data-label="{{ m.name }} · {{ s.label }}">{{ s.label }} · full report</button>
+        {% else %}
+        <span class="site-rep pending" title="Full report available after this site runs the model">{{ s.label }} · pending</span>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div id="report" class="report-panel" hidden></div>
+<script src="/static/js/report.js"></script>
+{% endif %}
+
+{% endblock %}

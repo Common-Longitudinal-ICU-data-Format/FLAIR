@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Portal — FLAIR{% endblock %}
+{% block content %}
+{% set active = 'dashboard' %}
+{% include "portal/_subnav.html" %}
+
+{% if not site.opted_in %}
+<div class="notice">Your site is currently <strong>private</strong> — your results are not on the public leaderboard.
+  Opt in from <a href="/portal/profile">Profile &amp; visibility</a>.</div>
+{% endif %}
+
+<h2>Run <span class="accent">requests</span></h2>
+<p class="lead">Models the committee approved and dispatched to your site. Each carries the code/image/weights you need to run it.</p>
+{% if requests %}
+  {% for req in requests %}
+  <div class="panel req-card">
+    <div class="req-head">
+      <span class="req-model">{{ req.model_name }}</span>
+      <span class="badge status-{{ req.status }}">{{ req.status }}</span>
+      {% if req.site_id is none %}<span class="pill">all sites</span>{% endif %}
+    </div>
+    <div class="count">Requested by {{ req.owner_name or 'committee' }} · {{ req.requested_at }}</div>
+    <div class="req-tasks">
+      {% for tid in req.tasks %}<span class="pill">{{ task_label.get(tid, tid) }}</span>{% endfor %}
+    </div>
+    <div class="req-links">
+      {% if req.github_url %}<a href="{{ req.github_url }}" target="_blank" rel="noopener">code ↗</a>{% endif %}
+      {% if req.docker_url %}<span class="lk">docker: <code>{{ req.docker_url }}</code></span>{% endif %}
+      {% if req.model_url %}<a href="{{ req.model_url }}" target="_blank" rel="noopener">weights ↗</a>{% endif %}
+    </div>
+    {% if req.note %}<div class="count">{{ req.note }}</div>{% endif %}
+  </div>
+  {% endfor %}
+{% else %}
+<p class="muted">No open run requests for your site.</p>
+{% endif %}
+
+<h2>Task <span class="accent">status</span></h2>
+<table>
+  <thead><tr><th>Task</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><span class="dot {{ r.task.color }}"></span>T{{ r.task.n }} · {{ r.task.display_name }}</td>
+      <td>
+        {% if r.status == 'done' %}<span class="badge done">done</span>
+        {% elif r.status == 'pending' %}<span class="badge pending">pending</span>
+        {% else %}<span class="badge notrun">not run</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

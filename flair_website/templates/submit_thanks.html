@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Submitted — FLAIR{% endblock %}
+{% block content %}
+
+<h1>Submission <span class="accent">received</span></h1>
+<div class="notice">Thanks — <strong>{{ model_name }}</strong> is in the review queue as submission #{{ sub_id }}.</div>
+<p class="lead">The benchmark committee will security-review the code against synthetic data, then dispatch it to the requested sites. You'll be contacted at the email you provided.</p>
+<div class="cta">
+  <a class="primary" href="/leaderboard">Back to leaderboard</a>
+  <a class="ghost" href="/submit">Submit another</a>
+</div>
+
+{% endblock %}

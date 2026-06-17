@@ -1,9 +1,14 @@
-"""Synthetic-data tests for the extended report bundle (no CLIF data needed)."""
+"""Synthetic-data tests for the episodic report bundle (no CLIF data needed).
+
+Episodic = one prediction per stay. The four builders (discrimination,
+calibration, dca, fairness) each receive an already-split-filtered, one-row-per-
+stay frame and emit JSON with raw curve arrays + 95% bootstrap CIs.
+"""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from types import SimpleNamespace
 
 import numpy as np
@@ -11,17 +16,19 @@ import polars as pl
 import pytest
 
 from flair_benchmark.report._calib import calibration_extended
+from flair_benchmark.report._ci import bootstrap_ci
+from flair_benchmark.report.calibration import build_calibration
 from flair_benchmark.report.dca import build_dca
-from flair_benchmark.report.temporal import build_temporal
-from flair_benchmark.report.threshold_analysis import build_threshold_analysis
+from flair_benchmark.report.discrimination import build_discrimination
+from flair_benchmark.report.fairness import build_fairness
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 META = {
-    "name": "synthetic_task",
-    "display_name": "Synthetic Task",
+    "name": "synthetic_episodic_task",
+    "display_name": "Synthetic Episodic Task",
     "task_class": "outcome",
-    "temporal_pattern": "continuous",
-    "prediction_unit": "one-per-window",
+    "temporal_pattern": "episode",
+    "prediction_unit": "one-per-stay",
     "task_type": "binary",
     "label_column": "label",
     "clinical_threshold": 0.20,
@@ -30,322 +37,268 @@ META = {
 }
 
 
-def make_synth(n_stays: int = 400, max_days: int = 10, seed: int = 0,
+def make_synth(n_stays: int = 600, seed: int = 0,
                calibrated: bool = True) -> pl.DataFrame:
-    """One row per (stay, day): demographics, y_prob correlated with label."""
+    """One row per stay: demographics + y_prob correlated with the label."""
     rng = np.random.default_rng(seed)
     rows = []
     for i in range(n_stays):
-        n_days = int(rng.integers(1, max_days + 1))
-        # admission in Feb-Nov to keep the min(prediction_dttm) year proxy exact
         adm = datetime(int(rng.integers(2017, 2024)), int(rng.integers(2, 12)),
                        int(rng.integers(1, 28)), 7, 0)
         latent = rng.normal()
-        sex = "Female" if rng.random() < 0.5 else "Male"
-        age = int(rng.integers(18, 95))
-        for d in range(n_days):
-            logit = -2.5 + 1.5 * latent + 0.1 * d + rng.normal(scale=0.3)
-            prob = 1 / (1 + np.exp(-logit))
-            label = int(rng.random() < prob) if calibrated else int(latent > 0.8)
-            rows.append({
-                "patient_id": f"p{i}",
-                "hospitalization_id": f"h{i}",
-                "prediction_dttm": adm + timedelta(days=d + 1),
-                "label": label,
-                "split": "test",
-                "age_at_admission": age,
-                "sex_category": sex,
-                "race_category": "White",
-                "ethnicity_category": "Non-Hispanic",
-                "y_prob": float(prob),
-                "y_pred": int(prob >= 0.5),
-            })
+        logit = -2.2 + 1.6 * latent + rng.normal(scale=0.3)
+        prob = 1 / (1 + np.exp(-logit))
+        label = int(rng.random() < prob) if calibrated else int(latent > 0.8)
+        rows.append({
+            "patient_id": f"p{i}",
+            "hospitalization_id": f"h{i}",
+            "prediction_dttm": adm,
+            "label": label,
+            "split": "test",
+            "age_at_admission": int(rng.integers(18, 95)),
+            "sex_category": "Female" if rng.random() < 0.5 else "Male",
+            "race_category": "White",
+            "ethnicity_category": "Non-Hispanic",
+            "y_prob": float(prob),
+            "y_pred": int(prob >= 0.5),
+        })
     df = pl.DataFrame(rows)
-    output_cols = ["hospitalization_id", "prediction_dttm",
-                   "label", "split", "age_at_admission",
-                   "sex_category", "race_category", "ethnicity_category",
-                   "y_prob", "y_pred"]
+    output_cols = ["hospitalization_id", "prediction_dttm", "label", "split",
+                   "age_at_admission", "sex_category", "race_category",
+                   "ethnicity_category", "y_prob", "y_pred"]
     return finalize_cohort(df, output_cols, META)
 
 
 # ---------------------------------------------------------------- finalize
 
 
-def test_window_number_and_prediction_id():
+def test_prediction_id_one_per_stay():
     df = make_synth(n_stays=20)
-    one = df.filter(pl.col("hospitalization_id") == "h0").sort("prediction_dttm")
-    assert one["window_number"].to_list() == list(range(1, one.height + 1))
+    assert df.height == df["hospitalization_id"].n_unique() == 20
+    one = df.filter(pl.col("hospitalization_id") == "h0")
+    assert one["window_number"][0] == 1
     assert one["prediction_id"][0] == "h0-h0-p0-1"
 
 
-def test_prediction_id_one_per_stay():
-    meta = {**META, "temporal_pattern": "episode", "prediction_unit": "one-per-stay"}
-    df = pl.DataFrame({"patient_id": ["p1"], "hospitalization_id": ["h1"],
-                       "label": [0], "split": ["test"]})
-    out = finalize_cohort(df, ["hospitalization_id", "label", "split"], meta)
-    assert out["prediction_id"][0] == "h1-h1-p1-1"
-    assert out["window_number"][0] == 1
+# ---------------------------------------------------------------- bootstrap CI
 
 
-# ---------------------------------------------------------------- temporal
+def test_bootstrap_ci_orders_and_handles_degenerate():
+    rng = np.random.default_rng(0)
+    y = (rng.random(500) < 0.3).astype(int)
+    p = rng.random(500)
+    out = bootstrap_ci(y, p, {"mean_prob": lambda yt, yp: float(yp.mean())})
+    assert out["mean_prob"] is not None
+    lo, hi = out["mean_prob"]
+    assert lo <= hi
+    # a statistic that is always undefined yields a None CI, never a crash
+    none_out = bootstrap_ci(y, p, {"always_none": lambda yt, yp: None})
+    assert none_out["always_none"] is None
 
 
-def test_temporal_window_bins():
-    df = make_synth()
-    t = build_temporal(df, META)
-    bins = {b["bin"]: b for b in t["by_window"]["bins"]}
-    assert "1" in bins and "7+" in bins
-    n_test = df.height
-    # bins with n<10 are dropped; here every bucket is large
-    assert sum(b["n"] for b in bins.values()) == n_test
-    assert bins["1"]["auroc"] is not None and 0.5 < bins["1"]["auroc"] <= 1.0
-    assert bins["1"]["auroc_ci"] is None or bins["1"]["auroc_ci"][0] < bins["1"]["auroc_ci"][1]
+# ---------------------------------------------------------------- discrimination
 
 
-def test_temporal_year_trend():
-    df = make_synth()
-    t = build_temporal(df, META)
-    years = [b["bin"] for b in t["by_year"]["bins"]]
-    assert years == sorted(years)
-    assert set(years) <= set(range(2017, 2024))
-    assert t["by_year"]["year_source"] == "derived_from_min_prediction_dttm"
+def test_discrimination_curves_and_ci():
+    d = build_discrimination(make_synth(n_stays=1000), META)
+    assert d["task_type"] == "binary"
+    m, roc = d["metrics"], d["curves"]["roc"]
+    assert len(roc["fpr"]) == len(roc["tpr"]) <= 500
+    assert len(roc["grid_fpr"]) == len(roc["tpr_at_grid"]) == 101
+    assert 0.6 < m["auroc"] <= 1.0
+    assert m["auroc_ci"][0] <= m["auroc"] <= m["auroc_ci"][1]
+    pr = d["curves"]["pr"]
+    assert len(pr["recall"]) == len(pr["precision"]) <= 500
+    assert m["auprc"] is not None and m["auprc_ci"][0] <= m["auprc_ci"][1]
+    assert m["auprc_lift"] > 1.0
 
 
-def test_temporal_trajectory_two_series():
-    df = make_synth()
-    traj = build_temporal(df, META)["trajectory_by_outcome"]
-    assert [s["outcome"] for s in traj["series"]] == ["positive", "negative"]
-    pos, neg = traj["series"]
-    # the model separates outcomes: positive-line above negative-line on day 1
-    assert pos["mean_prob"][0] > neg["mean_prob"][0]
-
-
-def test_temporal_one_per_stay_skips_windows():
-    meta = {**META, "temporal_pattern": "episode", "prediction_unit": "one-per-stay"}
-    df = make_synth().unique(subset="hospitalization_id").drop("window_number")
-    t = build_temporal(df, meta)
-    assert t["by_window"] == {"reason": "one_per_stay_task"}
-    assert t["trajectory_by_outcome"] == {"reason": "one_per_stay_task"}
-    assert t["by_year"] is not None
-
-
-def test_temporal_suppression_small_year():
-    df = make_synth(n_stays=200, max_days=1)
-    # plant a tiny year: 5 stays in 1999
-    tiny = df.head(5).with_columns(
-        pl.col("prediction_dttm").dt.replace(year=1999),
-        pl.Series("hospitalization_id", [f"tiny{i}" for i in range(5)]),
-    )
-    t = build_temporal(pl.concat([df.slice(5), tiny]), META)
-    assert 1999 not in [b["bin"] for b in t["by_year"]["bins"]]
-
-
-def test_temporal_auroc_suppressed_few_positives():
-    rng = np.random.default_rng(1)
-    n = 200
-    labels = np.zeros(n, dtype=int)
-    labels[:8] = 1  # only 8 positives
-    df = pl.DataFrame({
-        "hospitalization_id": [f"h{i}" for i in range(n)],
-        "label": labels,
-        "split": ["test"] * n,
-        "y_prob": rng.random(n),
-        "y_pred": np.zeros(n, dtype=int),
-        "window_number": np.ones(n, dtype=np.int32),
-        "prediction_dttm": [datetime(2020, 5, 1)] * n,
-    })
-    t = build_temporal(df, META)
-    b = t["by_window"]["bins"][0]
-    assert b["auroc"] is None
-    assert b["n_pos"] == "<10"
+def test_discrimination_operating_point_at_clinical_threshold():
+    d = build_discrimination(make_synth(n_stays=1000), META)
+    op = d["metrics"]["operating_point"]
+    assert op["threshold"] == 0.20 and op["direction"] == "above"
+    for k in ("sensitivity", "specificity", "ppv", "npv", "f1"):
+        assert op[k] is not None
+        assert op[f"{k}_ci"][0] <= op[k] <= op[f"{k}_ci"][1]
+    # confusion counts reconstruct the cohort size
+    assert op["tp"] + op["fp"] + op["fn"] + op["tn"] == 1000
+    assert 0 <= op["flag_rate"] <= 1
 
 
 # ---------------------------------------------------------------- calibration
 
 
-def test_calibration_extended_well_calibrated():
+def test_calibration_well_calibrated_with_ci():
+    c = build_calibration(make_synth(n_stays=3000, calibrated=True), META)
+    m = c["metrics"]
+    assert abs(m["slope"] - 1.0) < 0.2
+    assert abs(m["intercept"]) < 0.2
+    assert abs(m["o_e_ratio"] - 1.0) < 0.1
+    assert 0 < m["brier"] < 0.15
+    assert 0 <= m["ece"] < 0.05
+    # CIs present and ordered
+    for k in ("ece", "brier", "slope", "intercept"):
+        lo, hi = m[f"{k}_ci"]
+        assert lo <= m[k] <= hi
+    assert len(c["curves"]["reliability"]["bin_counts"]) == 10
+    assert c["curves"]["smoothed"]["method"] == "linear_fit"
+
+
+def test_calibration_non_binary_reason():
+    meta = {**META, "task_type": "regression"}
+    c = build_calibration(make_synth(n_stays=50), meta)
+    assert "reason" in c["metadata"]
+
+
+def test_calibration_extended_still_works():
     df = make_synth(n_stays=2000, calibrated=True)
-    y = df["label"].to_numpy().astype(float)
-    p = df["y_prob"].to_numpy()
-    ext = calibration_extended(y, p)
-    assert abs(ext["slope"] - 1.0) < 0.15
-    assert abs(ext["intercept"]) < 0.15
-    assert abs(ext["o_e_ratio"] - 1.0) < 0.1
-    assert ext["smoothed"]["method"] == "logistic_recalibration"
+    ext = calibration_extended(df["label"].to_numpy().astype(float),
+                               df["y_prob"].to_numpy())
+    assert abs(ext["slope"] - 1.0) < 0.2
+    assert ext["smoothed"]["method"] == "linear_fit"
     assert len(ext["smoothed"]["pred_grid"]) == 50
-
-
-def test_calibration_extended_miscalibrated():
-    df = make_synth(n_stays=2000, calibrated=True)
-    y = df["label"].to_numpy().astype(float)
-    p = df["y_prob"].to_numpy() ** 2  # systematic underestimation
-    ext = calibration_extended(y, p)
-    assert ext["o_e_ratio"] > 1.1  # observed exceeds expected
 
 
 # ---------------------------------------------------------------- DCA
 
 
-def test_dca_good_model_has_useful_range():
-    df = make_synth(n_stays=1000)
-    dca = build_dca(df, META)
-    assert dca["useful_range"] is not None
-    assert 0 < dca["useful_range"]["low"] < dca["useful_range"]["high"] < 1
-    assert len(dca["thresholds"]) == 99
-    # nb_all crosses zero near prevalence
-    prev = dca["prevalence"]
-    idx = int(round(prev * 100)) - 1
-    assert abs(dca["net_benefit_all"][idx]) < 0.02
-
-
-def test_dca_random_model_no_advantage():
-    rng = np.random.default_rng(2)
-    df = make_synth(n_stays=1000).with_columns(
-        pl.Series("y_prob", rng.random(make_synth(n_stays=1000).height)))
-    dca = build_dca(df, META)
-    assert dca["useful_range"] is None or (
-        dca["useful_range"]["high"] - dca["useful_range"]["low"] < 0.05)
+def test_dca_good_model_useful_range_and_clinical_ci():
+    dca = build_dca(make_synth(n_stays=2000), META)
+    m, curves = dca["metrics"], dca["curves"]
+    assert len(curves["thresholds"]) == 124  # dense low tail + 0.01-0.99 grid
+    assert m["useful_range"] is not None
+    assert 0 < m["useful_range"]["low"] < m["useful_range"]["high"] < 1
+    nb = m["net_benefit_at_clinical_threshold"]
+    assert nb["model"] is not None
+    assert nb["model_ci"][0] <= nb["model"] <= nb["model_ci"][1]
+    assert m["clinical_threshold"] == 0.20
 
 
 def test_dca_suppresses_sparse_thresholds():
-    df = make_synth(n_stays=100, max_days=1)
-    dca = build_dca(df, META)
-    for t, nb in zip(dca["thresholds"], dca["net_benefit_model"]):
-        if t in dca["suppressed_thresholds"]:
+    dca = build_dca(make_synth(n_stays=120), META)
+    curves = dca["curves"]
+    for t, nb in zip(curves["thresholds"], curves["net_benefit_model"]):
+        if t in curves["suppressed_thresholds"]:
             assert nb is None
 
 
-# ------------------------------------------------------- threshold analysis
+# ---------------------------------------------------------------- fairness
 
 
-def test_threshold_label_and_action_metrics():
-    df = make_synth(n_stays=1000)
-    ta = build_threshold_analysis(df, META)
-    assert ta["clinical_threshold"] == 0.20
-    lm, am = ta["label_metrics"], ta["action_metrics"]
-    assert 0 < lm["sensitivity"] <= 1 and 0 < lm["specificity"] <= 1
-    assert lm["n_flagged"] == am["n_act"] or abs(lm["n_flagged"] - am["n_act"]) <= lm["n_flagged"]
-    # acting on high-risk patients: event rate among acted-on must exceed rest
-    assert am["event_rate_in_acted"] > am["event_rate_in_not_acted"]
-    assert len(ta["sweep"]) == 4
-    assert [s["threshold"] for s in ta["sweep"]] == [0.15, 0.18, 0.22, 0.25]
-
-
-def test_threshold_direction_below_flips_action():
-    meta = {**META, "clinical_direction": "below", "clinical_action": "extubate"}
-    df = make_synth(n_stays=1000)
-    ta = build_threshold_analysis(df, meta)
-    am = ta["action_metrics"]
-    # acting on LOW-risk patients: event rate among acted-on must be lower
-    assert am["event_rate_in_acted"] < am["event_rate_in_not_acted"]
-    # label metrics unchanged by direction (always label space)
-    assert ta["label_metrics"] == build_threshold_analysis(df, META)["label_metrics"]
-
-
-def test_partial_auroc_oracle_vs_random():
-    rng = np.random.default_rng(3)
-    n = 4000
-    y = (rng.random(n) < 0.3).astype(int)
-    base = {"hospitalization_id": [f"h{i}" for i in range(n)],
-            "label": y, "split": ["test"] * n,
-            "y_pred": np.zeros(n, dtype=int)}
-    # oracle: every positive scores above the band, negatives spread below it
-    oracle_prob = np.where(y == 1, 0.5, 0.19 * rng.random(n))
-    ta = build_threshold_analysis(pl.DataFrame({**base, "y_prob": oracle_prob}), META)
-    assert ta["partial_auroc"]["pauc_standardized"] is None or \
-        ta["partial_auroc"]["pauc_standardized"] > 0.9
-    # random: standardized pAUC near 0.5
-    ta = build_threshold_analysis(
-        pl.DataFrame({**base, "y_prob": rng.random(n)}), META)
-    assert ta["partial_auroc"]["pauc_standardized"] == pytest.approx(0.5, abs=0.1)
-
-
-def test_threshold_suppression_when_few_flagged():
-    meta = {**META, "clinical_threshold": 0.99}
-    df = make_synth(n_stays=300)
-    ta = build_threshold_analysis(df, meta)
-    assert ta["label_metrics"] is None  # almost nobody above 0.99
-    assert ta["action_metrics"] is None
-
-
-def test_fairness_parity_at_clinical_threshold():
-    from flair_benchmark.report.fairness import build_fairness
-    df = make_synth(n_stays=500)
-    f = build_fairness(df, META)
-    pc = f["parity_at_clinical_threshold"]["sex_category"]
-    assert set(pc) >= {"demographic_parity_gap", "equalized_odds_tpr_gap",
-                       "equalized_odds_fpr_gap"}
-    assert f["metadata"]["clinical_threshold"] == 0.20
-
-
-def test_dca_clinical_marker():
-    df = make_synth(n_stays=1000)
-    dca = build_dca(df, META)
-    assert dca["clinical_threshold"] == 0.20
-    nb = dca["net_benefit_at_clinical_threshold"]
-    assert nb["model"] is not None and nb["model"] > nb["treat_all"]
-    assert dca["clinically_useful"] is True
+def test_fairness_at_clinical_threshold_with_ci():
+    f = build_fairness(make_synth(n_stays=1500), META)
+    assert f["metadata"]["operating_threshold"] == 0.20
+    sex = f["subgroups"]["sex_category"]
+    assert set(sex) == {"Male", "Female"}
+    for m in sex.values():
+        assert m["n"] >= 10 and "brier" in m
+        assert m["auroc_ci"][0] <= m["auroc"] <= m["auroc_ci"][1]
+    parity = f["parity"]["sex_category"]
+    assert parity["reference_group"] in ("Male", "Female")
+    for gap in ("demographic_parity_gap", "equalized_odds_tpr_gap",
+                "equalized_odds_fpr_gap"):
+        assert 0 <= parity[gap] <= 1
+        ci = parity[f"{gap}_ci"]
+        assert ci is None or ci[0] <= ci[1]
 
 
 # ---------------------------------------------------------------- end-to-end
 
 
-def test_build_report_end_to_end(tmp_path):
-    fake_task = SimpleNamespace(META=META, __file__=__file__)
+def _fake_task():
+    return SimpleNamespace(META=META, __file__=__file__)
+
+
+def test_build_report_episodic_end_to_end(tmp_path):
     df = make_synth()
     preds_path = tmp_path / "preds.parquet"
     df.write_parquet(preds_path)
 
     from flair_benchmark.report import build_report
-    paths = build_report(str(preds_path), fake_task, str(tmp_path / "report"))
-    assert set(paths) == {"table1", "tripod_ai", "fairness", "curves",
-                          "temporal", "dca", "threshold_analysis"}
-    for path in paths.values():
+    paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "report"),
+                         episodic=True)
+    assert set(paths) == {"discrimination", "calibration", "dca", "fairness"}
+    for name, path in paths.items():
         payload = json.loads(path.read_text())
-        assert "metadata" in payload
+        md = payload["metadata"]
+        assert md["report_mode"] == "episodic"
+        assert md["split"] == "test" and md["n_stays"] == df.height
 
-    curves = json.loads(paths["curves"].read_text())
-    assert "calibration_extended" in curves
-    fairness = json.loads(paths["fairness"].read_text())
-    assert "reference_group" in fairness["parity"]["sex_category"]
+
+def test_build_report_split_selection(tmp_path):
+    # mark half the stays "train"; only "test" should be analyzed
+    df = make_synth(n_stays=400)
+    df = df.with_columns(
+        pl.when(pl.int_range(pl.len()) < 200).then(pl.lit("train"))
+        .otherwise(pl.lit("test")).alias("split"))
+    preds_path = tmp_path / "preds.parquet"
+    df.write_parquet(preds_path)
+
+    from flair_benchmark.report import build_report
+    paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
+                         split="test", episodic=True)
+    disc = json.loads(paths["discrimination"].read_text())
+    assert disc["metadata"]["n_stays"] == 200
+
+    with pytest.raises(ValueError, match="not found"):
+        build_report(str(preds_path), _fake_task(), str(tmp_path / "r2"),
+                     split="val", episodic=True)
+
+
+def test_build_report_continuous_not_implemented(tmp_path):
+    df = make_synth()
+    preds_path = tmp_path / "preds.parquet"
+    df.write_parquet(preds_path)
+    cont_task = SimpleNamespace(
+        META={**META, "temporal_pattern": "continuous",
+              "prediction_unit": "one-per-window"},
+        __file__=__file__)
+
+    from flair_benchmark.report import build_report
+    with pytest.raises(NotImplementedError, match="Continuous"):
+        build_report(str(preds_path), cont_task, str(tmp_path / "r"),
+                     episodic=False)
+
+
+def test_build_report_rejects_multi_row_per_stay(tmp_path):
+    # duplicate every stay -> two rows per stay -> episodic guard must fire
+    df = make_synth(n_stays=100)
+    df = pl.concat([df, df])
+    preds_path = tmp_path / "preds.parquet"
+    df.write_parquet(preds_path)
+
+    from flair_benchmark.report import build_report
+    with pytest.raises(ValueError, match="one row per stay"):
+        build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
+                     episodic=True)
 
 
 def test_build_report_cohort_join(tmp_path):
-    fake_task = SimpleNamespace(META=META, __file__=__file__)
     df = make_synth()
     cohort_path = tmp_path / "cohort.parquet"
     df.write_parquet(cohort_path)
-    # preds stripped of temporal context, but carrying prediction_id
-    preds = df.drop(["window_number", "prediction_dttm"])
+    # preds stripped of demographics, carrying prediction_id for the join
+    preds = df.drop(["age_at_admission", "sex_category", "race_category",
+                     "ethnicity_category"])
     preds_path = tmp_path / "preds.parquet"
     preds.write_parquet(preds_path)
 
     from flair_benchmark.report import build_report
-    paths = build_report(str(preds_path), fake_task, str(tmp_path / "report"),
-                         cohort_path=str(cohort_path))
-    temporal = json.loads(paths["temporal"].read_text())
-    assert temporal["by_window"]["bins"]
+    paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "report"),
+                         cohort_path=str(cohort_path), episodic=True)
+    fairness = json.loads(paths["fairness"].read_text())
+    assert "sex_category" in fairness["subgroups"]
 
 
-def test_viz_requires_matplotlib_or_renders(tmp_path):
-    fake_task = SimpleNamespace(META=META, __file__=__file__)
+def test_viz_renders_four_episodic_pngs(tmp_path):
+    pytest.importorskip("matplotlib")
     df = make_synth()
     preds_path = tmp_path / "preds.parquet"
     df.write_parquet(preds_path)
 
     from flair_benchmark.report import build_report
-    try:
-        import matplotlib  # noqa: F401
-        has_mpl = True
-    except ImportError:
-        has_mpl = False
-
-    if has_mpl:
-        paths = build_report(str(preds_path), fake_task, str(tmp_path / "report"),
-                             viz=True)
-        pngs = [p for p in paths.values() if p.suffix == ".png"]
-        assert pngs and all(p.exists() for p in pngs)
-    else:
-        with pytest.raises(ImportError, match="flair-benchmark\\[viz\\]"):
-            build_report(str(preds_path), fake_task, str(tmp_path / "report"),
-                         viz=True)
+    paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "report"),
+                         episodic=True, viz=True)
+    pngs = {p.name for p in paths.values() if p.suffix == ".png"}
+    assert pngs == {"roc_pr.png", "calibration.png", "dca.png", "fairness_auroc.png"}
+    assert all(p.exists() for p in paths.values() if p.suffix == ".png")

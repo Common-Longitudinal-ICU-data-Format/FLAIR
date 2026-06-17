@@ -98,22 +98,33 @@ as `"<10"`.
 
 ### tripod_ai.json — the headline numbers
 
-A TRIPOD+AI-style summary. For a binary task the `results.performance` block has
-**discrimination + classification** metrics (AUROC, AUPRC, accuracy, precision,
-recall, F1, specificity, NPV, and the confusion-matrix counts), and
-`results.calibration` has **calibration** metrics (slope, intercept, observed:expected
-ratio, Brier score, ECE). *In the example report:* AUROC `0.8214`, AUPRC `0.497`,
-calibration slope `0.969`, intercept `-0.080`, O:E `0.973`, Brier `0.104`.
+A TRIPOD+AI-style summary. For a binary task `results` has the three TRIPOD-AI
+evaluation **pillars**:
+
+- **`discrimination`** — can it rank a case above a non-case? `auroc`, `auprc`
+  (row-level). For windowed (continuous) tasks it also carries `auroc_stay_peak`
+  (one row per stay, peak risk) and `landmark_avg_auroc` / `landmark_median_auroc`
+  (outcome-anchored, one row per stay per landmark — see §7b), plus a `basis_note`.
+- **`calibration`** — are the probabilities honest? slope, intercept, O:E ratio,
+  Brier, ECE.
+- **`clinical_utility`** — is acting at the clinical threshold worth it? net benefit
+  (model vs treat-all vs treat-none, from `dca`), `standardized_net_benefit`,
+  `clinically_useful`, and `classification_at_threshold` (sensitivity / specificity /
+  PPV / NPV / F1 at the task's clinical threshold).
+
+*In the example report:* AUROC `0.8214`, AUPRC `0.497`, calibration slope `0.969`,
+intercept `-0.080`, O:E `0.973`, Brier `0.104`.
 
 > **The math, briefly.** *Calibration slope* comes from re-fitting a logistic
 > regression of the true outcome on `logit(y_prob)`. Slope ≈ 1 and intercept ≈ 0
 > means the predicted probabilities are trustworthy as stated. *O:E* is the average
 > predicted risk vs. the actual event rate — close to 1 is good.
 
-> ⚠️ **Continuous tasks: the headline AUROC/AUPRC here is row-pooled and optimistic.**
+> ⚠️ **Continuous tasks: `discrimination.auroc`/`auprc` are row-level and optimistic.**
 > Every row of a stay carries the same eventual label, so long stays are counted many
-> times and the pooled prevalence skews positive (see §7b). Prefer the **landmark-averaged**
-> discrimination over this pooled number for one-per-window tasks.
+> times and the pooled prevalence skews positive (see §7b). Prefer `landmark_avg_auroc`
+> (or `auroc_stay_peak`) over the pooled number; the `metadata` audit reports
+> `n_rows_test` vs `n_stays_test` and `prevalence_row` vs `prevalence_stay`.
 
 ### curves.json — points to draw the curves
 
@@ -143,9 +154,12 @@ Three sections (binary tasks only):
   has ≥100 rows. *Only populated for one-per-window tasks.* This view is
   **admission-anchored** (window = day/hour-of-stay, ascending): one row per stay per
   window for `1`–`6`, but the `7+` bucket **pools** the tail (several rows per long stay),
-  so it is not a clean landmark. The *approach-to-event* complement — an
-  **outcome-anchored landmark** view (one row per stay at each window *before* the outcome)
-  — is the recommended fix for the row-skew described in §7b (not yet implemented).
+  so it is not a clean landmark.
+- **`by_landmark`** — the *approach-to-event* complement: **outcome-anchored**, one row
+  per stay at each window *before* the outcome (`landmark` 1 = last window before the
+  event/discharge, …, capped at 7). Per-landmark `auroc`/`auprc`/`prevalence_stay`/
+  `n_atrisk` (stays) plus an at-risk-weighted `landmark_avg_auroc`. This is the row-skew
+  fix from §7b; `tripod_ai.discrimination` surfaces `landmark_avg_auroc` as the headline.
 - **`by_year`** — AUROC trend by year of admission (drift detection). The year comes
   from `admission_dttm` if present, otherwise from `min(prediction_dttm)` per stay.
 - **`trajectory_by_outcome`** — the "two-line" chart: mean predicted risk per window,
@@ -164,20 +178,35 @@ also marks the task's specific clinical threshold. *In the example:* prevalence
 > threshold. It's the true-positive rate penalised by false positives, weighted by
 > how bad a false positive is at that threshold.
 
-### threshold_analysis.json — behavior at the clinical threshold
+### threshold_analysis.json — behavior at and around the threshold
 
-Each task has **one** threshold a clinician actually acts on (DCA shows the whole
-sweep; this zooms to the operating point). It reports, at that threshold:
-**sensitivity, specificity, PPV, NPV, F1** and the confusion counts (`label_metrics`);
-**who gets acted on and their observed event rate** (`action_metrics`); a
-**partial AUROC** measuring discrimination only in a ±0.05 band around the threshold;
-and a **robustness sweep** at threshold ±0.02 and ±0.05. If too few patients fall on
-either side of the threshold, the whole block is `null` rather than fabricated — see
-the per-task notes below.
+Evaluated **one row per stay** (`eval_basis.unit = "stay"`; continuous tasks are
+reduced to peak risk per stay first, so the operating point is the deployable
+per-patient decision, not a row-pooled artifact). Three blocks:
+
+- **`fixed`** — the task's clinical threshold: `label_metrics` (sensitivity,
+  specificity, PPV, NPV, F1 + confusion counts), `action_metrics` (who is acted on
+  and their observed event rate), `partial_auroc` (discrimination in a ±0.05 band),
+  and a `sweep` at ±0.02 / ±0.05 (fragility). Nulled rather than fabricated when too
+  few stays fall on either side.
+- **`varying`** — the full operating curve: `sensitivity`, `specificity`, `ppv`,
+  `npv`, `f1`, `flag_rate`, `net_benefit` over a `0.02..0.98` threshold grid, so every
+  trade-off is visible, not just the clinical point.
+- **`selected`** — data-driven candidate thresholds: `youden_j` (max sensitivity +
+  specificity − 1), `max_f1`, and `target_sensitivity_0.9` (the most specific
+  threshold still catching ≥ 90% of events).
 
 ---
 
 ## 4. The evaluation flow — from predictions to a verdict
+
+> **Audit (every section's `metadata`).** A tiny block records the evaluation unit so a
+> reader always knows what was counted: `task_mode` (`windowed` for one-per-timestep,
+> `single_window` for one-per-stay), `stay_reduction` (`peak_risk` vs `none`),
+> `n_rows_test` vs `n_stays_test`, and — for windowed tasks — `prevalence_row` vs
+> `prevalence_stay`. When `n_rows_test > n_stays_test`, any row-level headline is counting
+> long stays multiple times; the stay/landmark views correct for it. Computed in
+> `report/_eval.py`.
 
 The report answers five questions, in order. Each builds on the previous one: a model
 has to *discriminate* before it's worth *calibrating*, and it has to be calibrated
@@ -347,11 +376,12 @@ over-time charts can exist at all.
 
 ### 7b. Landmark evaluation for continuous tasks (the row-skew fix)
 
-> **Status.** Admission-anchored `by_window` and the stay-level `encounter.json` are
-> **implemented today**. The **outcome-anchored landmark table** and the
-> **landmark-averaged headline** described here are a **reporting recommendation, not yet
-> in code** — no JSON field below exists yet. This section documents what continuous-task
-> discrimination *should* report and why.
+> **Status — implemented.** The outcome-anchored landmark table ships as
+> `temporal.json → by_landmark`; the at-risk-weighted headline is
+> `tripod_ai.json → results.discrimination.landmark_avg_auroc`; the row-vs-stay diff is
+> in every section's `metadata` audit (`task_mode`, `n_rows_test` vs `n_stays_test`,
+> `prevalence_row` vs `prevalence_stay`). Computed in `report/_eval.py`. The row-level
+> numbers are kept beside the corrected views (augment, not replace).
 
 **The problem — one stay, many correlated rows.** A continuous (one-per-window) task emits
 one row per stay per timestep, and the label is the *eventual* outcome **broadcast to every
