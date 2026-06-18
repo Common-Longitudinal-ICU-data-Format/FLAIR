@@ -1,4 +1,4 @@
-# Three Ways to Score a "Continuous" Task — Explained Simply
+# Three Ways to Score a "Continuous" Task 
 
 > A walk-through for someone new to the FLAIR report. Goal: understand **why** a model that predicts every hour (or every day) can't be scored the naive way, the **three** ways to fix it, and **which metric needs what** (a ranking? a real probability? a threshold?).
 
@@ -199,6 +199,89 @@ Short version: **they don't cover this case.** The continuous / many-predictions
 - **TRIPOD-Cluster** (BMJ 2023) — the guideline you'd expect to handle it — explicitly **opts out**: \> "repeated measurements are clustered within individuals … requires special efforts … which is \> **beyond the scope of TRIPOD-Cluster**." It addresses *between*-cluster heterogeneity (sites, hospitals), **not** within-patient repeated predictions.
 
 **Implication:** there is *no* official standard for how to report a model that fires every hour/day. The three-ways framework here (stay-peak, landmark, patient-clustered bootstrap) is FLAIR filling that gap — the row-multiplicity skew, the peak-calibration trap, and the still-open continuous calibration + DCA problem are precisely the issues the guidelines leave unspecified.
+
+------------------------------------------------------------------------
+
+## 7d. The math, every symbol defined
+
+Simple formulas for **every method FLAIR actually computes today** (the episodic bundle: discrimination, calibration, DCA, fairness), plus the bootstrap CI and the three-ways reductions. The dynamic-risk-set landmark (the rigorous "Way 3" form) is listed last and flagged **not yet in code**.
+
+### Shared symbols
+
+| Symbol | Meaning |
+|------------------------------------|------------------------------------|
+| $N$ | number of scored units (in episodic mode, one per stay) |
+| $i$ | index of a unit, $i = 1\dots N$ |
+| $y_i \in \{0,1\}$ | true label (1 = event happened) |
+| $p_i \in [0,1]$ | model's predicted probability (`y_prob`) |
+| $t$ | a decision threshold; act when $p_i \ge t$ |
+| $\hat y_i = \mathbb{1}\{p_i \ge t\}$ | the 0/1 decision at threshold $t$ |
+| $\pi = \frac1N\sum_i y_i$ | prevalence (event rate) |
+| $\mathbb{1}\{\cdot\}$ | indicator: 1 if true, else 0 |
+
+**Confusion counts at** $t$: $TP=\sum_i \hat y_i y_i$, $FP=\sum_i \hat y_i(1-y_i)$, $FN=\sum_i(1-\hat y_i)y_i$, $TN=\sum_i(1-\hat y_i)(1-y_i)$.
+
+### 1. Discrimination (`discrimination.json`)
+
+**AUROC** — Mann–Whitney form (chance a random positive outranks a random negative), with $\mathcal{P}=\{i:y_i=1\}$, $\mathcal{N}=\{j:y_j=0\}$ and tie term $\psi(a,b)=\mathbb{1}\{a>b\}+\tfrac12\mathbb{1}\{a=b\}$:
+
+$$\widehat{\text{AUROC}}=\frac{1}{|\mathcal P|\,|\mathcal N|}\sum_{i\in\mathcal P}\sum_{j\in\mathcal N}\psi(p_i,p_j)$$
+
+**AUPRC** — area under precision–recall; **lift** $=\widehat{\text{AUPRC}}/\pi$ (1 = no skill). **Operating point at** $t$:
+
+$$\text{sens}=\frac{TP}{TP+FN},\quad \text{spec}=\frac{TN}{TN+FP},\quad \text{PPV}=\frac{TP}{TP+FP},\quad \text{NPV}=\frac{TN}{TN+FN},\quad F_1=\frac{2TP}{2TP+FP+FN}$$
+
+### 2. Calibration (`calibration.json`)
+
+Bin the $p_i$ into $B=10$ equal-width bins; bin $b$ has $n_b$ units, mean prediction $\bar p_b$, observed rate $\bar y_b$.
+
+**ECE** (gap between predicted and observed, size-weighted):
+
+$$\text{ECE}=\sum_{b=1}^{B}\frac{n_b}{N}\,\bigl|\bar y_b-\bar p_b\bigr|$$
+
+**Brier** (mean squared error of probabilities): $\text{Brier}=\frac1N\sum_i (p_i-y_i)^2$.
+
+**Calibration slope/intercept** — fit $\operatorname{logit}(P(y=1))=\alpha+\beta\,\operatorname{logit}(p_i)$; perfect = $\beta{=}1,\ \alpha{=}0$ ($\beta$ = slope, $\alpha$ = intercept). **O:E** $=\bigl(\frac1N\sum y_i\bigr)/\bigl(\frac1N\sum p_i\bigr)$ (observed ÷ expected).
+
+### 3. Decision-curve analysis (`dca.json`)
+
+Net benefit trades true positives against false positives weighted by the threshold odds $\frac{t}{1-t}$:
+
+$$\text{NB}_{\text{model}}(t)=\frac{TP}{N}-\frac{FP}{N}\cdot\frac{t}{1-t},\qquad \text{NB}_{\text{all}}(t)=\pi-(1-\pi)\frac{t}{1-t},\qquad \text{NB}_{\text{none}}=0$$
+
+A model is "useful" at $t$ when $\text{NB}_{\text{model}}(t)>\max(\text{NB}_{\text{all}}(t),0)$.
+
+### 4. Fairness (`fairness.json`)
+
+For subgroup $g$, let $r_g$ = positive (alarm) rate, $\text{TPR}_g$, $\text{FPR}_g$ at the clinical threshold. Gaps = max − min across groups:
+
+$$\text{DP gap}=\max_g r_g-\min_g r_g,\quad \text{EO}_{\text{TPR}}=\max_g\text{TPR}_g-\min_g\text{TPR}_g,\quad \text{EO}_{\text{FPR}}=\max_g\text{FPR}_g-\min_g\text{FPR}_g$$
+
+(DP = demographic parity, EO = equalized odds.)
+
+### 5. Bootstrap 95% CI (`_ci.py`)
+
+Resample units with replacement $B{=}500$ times; recompute the statistic $\hat\theta^{(b)}$ each time; CI = the 2.5th and 97.5th percentiles:
+
+$$\text{CI}_{95\%}=\bigl[\,Q_{2.5\%}(\hat\theta^{(1)}\dots\hat\theta^{(B)}),\ Q_{97.5\%}(\dots)\,\bigr]$$
+
+In episodic mode one row = one stay, so resampling rows **is** a patient-clustered bootstrap.
+
+### 6. The three-ways reductions
+
+Let $S$ index stays and $\mathcal{I}_s$ = the rows belonging to stay $s$.
+
+- **Row-pooled (Way 1):** use all rows as-is — $\{(p_i,y_i)\}_{i=1}^{N}$.
+- **Stay-peak (Way 2):** one row per stay, $\ p_s^{\max}=\max_{i\in\mathcal I_s}p_i$, $\ y_s=\max_{i\in\mathcal I_s}y_i$. (FLAIR `stay_frame`.) Ranks fine; **not a probability** → no calibration.
+- **Landmark (Way 3):** one row per stay *per landmark time*, then a curve $\widehat{\text{AUROC}}(t)$ over $t$.
+
+### 7. Dynamic-risk-set landmark — **NOT yet in code**
+
+The rigorous Way 3 for onset+horizon tasks (sepsis/task4; the image you shared). Extra symbols: $T_h$ = event-onset time of stay $h$, $D_h$ = discharge time, $\tau$ = horizon (6 h). At landmark time $t$:
+
+$$\mathcal R(t)=\{h: T_h>t \text{ and } D_h>t\}\quad(\text{still admitted, event-free})$$ $$Y_h(t)=\mathbb{1}\{t<T_h\le t+\tau\}\quad(\text{onset within next }\tau)$$ $$\widehat{\text{AUROC}}(t)=\frac{\sum_{i,j\in\mathcal R(t)}Y_i(t)\,[1-Y_j(t)]\,\psi\!\left(p_i(t),p_j(t)\right)}{\bigl(\sum_{i\in\mathcal R(t)}Y_i(t)\bigr)\bigl(\sum_{j\in\mathcal R(t)}[1-Y_j(t)]\bigr)}$$
+
+This is **landmark (Way 3)** specialized to a moving risk set. It belongs to the **continuous rebuild** (the deleted `_eval.landmark_table` was the first cut); the current episodic code does not compute it.
 
 ------------------------------------------------------------------------
 
