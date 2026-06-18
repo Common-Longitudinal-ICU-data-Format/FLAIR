@@ -51,14 +51,23 @@ def _run_one(task_name: str, clif_config: str, elf_config: str, out_root: str,
     cohort_path = out / "cohort.parquet"
     meds_path = out / "data" / "MEDS.parquet"
 
+    table1_path = out / "table1.json"
+
     if reuse and cohort_path.exists() and meds_path.exists():
         typer.echo(f"[{task_name}] reusing existing cohort + MEDS table")
         cohort = pl.read_parquet(cohort_path)
     else:
+        import json
+
         from flair_benchmark._clif import read_clif_config
+        from flair_benchmark._table1 import generate_table1
         typer.echo(f"[{task_name}] building cohort …")
         cohort = _build_cohort(task_module, clif_config, train_end, test_start)
         cohort.write_parquet(cohort_path)
+        # Table 1 (cohort characteristics, overall + by positive/negative label).
+        table1 = generate_table1(read_clif_config(clif_config), cohort, task_module)
+        table1_path.write_text(json.dumps(table1, indent=2, default=str))
+        typer.echo(f"[{task_name}] Table 1 → {table1_path}")
         typer.echo(f"[{task_name}] FE-meds …")
         build_meds_tables(cohort, read_clif_config(clif_config), elf_config, str(out))
 
@@ -104,7 +113,19 @@ def run_cmd(
                                help="Reuse existing cohort.parquet + MEDS.parquet (skip ETL) when present"),
 ) -> None:
     """Train + score the baseline for one or all tasks."""
+    from flair_benchmark._clif import read_clif_config
+    from flair_benchmark._stitch import load_or_build_encounter_index
     from flair_benchmark.tasks import list_tasks
+
+    # Stitch encounters FIRST: build/load the encounter index once up front so the
+    # hospitalization_join_id mapping exists before any task builds its cohort.
+    # Cached to parquet, so every task reuses this single stitched mapping.
+    cfg = read_clif_config(clif_config)
+    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
+    n_blocks = idx["hospitalization_join_id"].n_unique()
+    typer.echo(f"[stitch] encounter index ready → {n_blocks:,} encounter blocks "
+               f"from {idx.height:,} hospitalizations")
+
     tasks = [resolve_task(task)] if task else list_tasks()
     for t in tasks:
         _run_one(t, clif_config, elf_config, out, train_end, test_start, report, viz, reuse)

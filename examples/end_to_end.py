@@ -1,11 +1,11 @@
 """End-to-end FLAIR workflow on a single task.
 
 Runs:
-  1. flair load-task task1_icu_daily_mortality  -> cohort.parquet
+  1. flair load-task task1_icu_daily_mortality  -> cohort.parquet + cohort.table1.json
   2. (toy) feature engineering directly from clifpy
   3. sklearn LogisticRegression baseline
   4. append y_pred / y_prob columns to a preds.parquet
-  5. flair build-report                         -> report/{table1,tripod_ai,fairness,curves}.json
+  5. flair build-report                         -> report/{tripod_ai,fairness,curves}.json
 
 Run:
   python examples/end_to_end.py --clif-config clif_config.json \

@@ -42,6 +42,7 @@ from __future__ import annotations
 import polars as pl
 
 from flair_benchmark._clif import base_icu_cohort, read_clif_config
+from flair_benchmark._encounter import as_encounter_keyed, encounter_attributes
 from flair_benchmark._readmission import compute_readmission_timing
 from flair_benchmark._split import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
@@ -97,11 +98,19 @@ def build(clif_config: str, train_end: str | None,
     cfg = read_clif_config(clif_config)
     cohort, adt = base_icu_cohort(cfg)
 
-    timing = compute_readmission_timing(adt)
+    # Encounter grain: run the readmission timing across the WHOLE stitched
+    # encounter (a 2nd ICU stay in a later member hospitalization is a
+    # readmission of the same encounter, not a separate stay).
+    timing = (
+        compute_readmission_timing(as_encounter_keyed(adt))
+        .rename({"hospitalization_id": "hospitalization_join_id"})
+    )
 
-    # Exclusion 1: no ICU data (inner join drops hospitalizations with no
-    # first ICU stay).
-    cohort = cohort.join(timing, on="hospitalization_id", how="inner")
+    # Exclusion 1: no ICU data (inner join drops encounters with no first ICU
+    # stay). encounter_attributes supplies patient-level death + final discharge.
+    cohort = encounter_attributes(cfg, cohort).join(
+        timing, on="hospitalization_join_id", how="inner"
+    )
 
     # Exclusion 2: death during the first ICU stay.
     cohort = cohort.filter(

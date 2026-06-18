@@ -149,9 +149,8 @@ The label is already in the file (no need to re-supply `y_true`).
 
 ### Report bundle (what `flair build-report` emits)
 
-Seven JSON files written to `--out`, each carrying audit metadata (`task_script_sha256`, `flair_version`, `generated_at`):
+JSON files written to `--out`, each carrying audit metadata (`task_script_sha256`, `flair_version`, `generated_at`):
 
-- `table1.json` — cohort characteristics by split and by label (HIPAA cell suppression: counts \< 10 → `"<10"`).
 - `tripod_ai.json` — TRIPOD-AI report auto-populated with discrimination / calibration metrics (incl. calibration slope/intercept, O/E ratio, Brier).
 - `fairness.json` — per-subgroup metrics (sex, race, ethnicity, age bin) plus parity gaps (equalized odds) and a reference group. Subgroups with n \< 10 are dropped entirely.
 - `curves.json` — ROC / PR / calibration as downsampled raw points, plus a smoothed logistic-recalibration calibration curve (no images). The central dashboard renders.
@@ -188,11 +187,10 @@ FLAIR is a CLI. The whole workflow is **Configure → ① Make a task → ② Ge
 |---|---|---|
 | `flair init-config` | — | Scaffold `clif_config.json` + `feature_config.yaml` templates |
 | `flair list-tasks` | ① | List discovered tasks + taxonomy |
-| `flair load-task` | ① | Build a task cohort parquet |
+| `flair load-task` | ① | Build a task cohort parquet + `*.table1.json` (cohort characteristics, overall + by positive/negative label) |
 | `flair fe-meds` | ② | Assist: CLIF → MEDS/ELF med event stream |
 | `flair fe-wide` | ② | Assist: CLIF → wide feature set as ELF events |
-| `flair build-report` | ④ | Aggregate report bundle (7 JSONs, optional `--viz` PNGs) |
-| `flair extract-metadata` | — | Per-site cohort metadata for the leaderboard |
+| `flair build-report` | ④ | Aggregate report bundle (JSONs, optional `--viz` PNGs) |
 
 ### Configure the CLIF data source
 

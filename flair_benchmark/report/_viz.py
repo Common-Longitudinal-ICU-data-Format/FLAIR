@@ -159,3 +159,88 @@ def render_sanity_pngs(reports: dict[str, dict], out_dir: Path) -> list[Path]:
         _save(fig, "fairness_auroc.png")
 
     return written
+
+
+def render_landmark_pngs(pillars: dict[str, list[dict]], leadtime: dict,
+                         out_dir: Path) -> list[Path]:
+    """Local site-validation PNGs for the landmark report (never exported).
+
+    Three curves against lead time (windows before each stay's last window):
+      landmark_skill_over_leadtime : AUROC +/- 95% CI (skill as the event nears)
+      leadtime_sensitivity         : detection sensitivity +/- 95% CI
+      landmark_calibration         : calibration slope +/- 95% CI (drift)
+    Suppressed (n<10) or undefined landmarks are dropped (gaps).
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise ImportError(
+            "matplotlib is required for --viz. "
+            "Install it with: pip install 'flair-benchmark[viz]'"
+        ) from exc
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for old in out_dir.glob("*.png"):
+        old.unlink()
+    written: list[Path] = []
+
+    def _save(fig, name: str) -> None:
+        path = out_dir / name
+        fig.tight_layout()
+        fig.savefig(path, dpi=120)
+        plt.close(fig)
+        written.append(path)
+
+    def _xyci(items, val_at, ci_at):
+        """(xs, ys, lo, hi) over non-suppressed landmarks with a defined value."""
+        xs, ys, lo, hi = [], [], [], []
+        for it in items:
+            if it.get("suppressed"):
+                continue
+            v, c = val_at(it), ci_at(it)
+            if v is None:
+                continue
+            xs.append(it.get("windows_before_end"))
+            ys.append(v)
+            if c and c[0] is not None and c[1] is not None:
+                lo.append(c[0])
+                hi.append(c[1])
+            else:
+                lo.append(v)
+                hi.append(v)
+        return xs, ys, lo, hi
+
+    def _lead_png(items, val_at, ci_at, name, title, ylabel, ylim=None,
+                  hline=None):
+        xs, ys, lo, hi = _xyci(items, val_at, ci_at)
+        if not xs:
+            return
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.fill_between(xs, lo, hi, alpha=0.2, color="#5b86a6", label="95% CI")
+        ax.plot(xs, ys, "-o", color="#5b86a6", ms=4)
+        if hline is not None:
+            ax.axhline(hline, color="k", ls="--", lw=0.8)
+        ax.invert_xaxis()  # landmark 0 (the endpoint) on the right; the event nears
+        ax.set(xlabel="windows before stay end (0 = last window)",
+               ylabel=ylabel, title=title)
+        if ylim:
+            ax.set_ylim(*ylim)
+        ax.legend(loc="best", fontsize=8)
+        _save(fig, name)
+
+    _m = lambda key: (lambda it: (it.get("metrics") or {}).get(key))
+
+    _lead_png(pillars.get("discrimination", []), _m("auroc"), _m("auroc_ci"),
+              "landmark_skill_over_leadtime.png",
+              "Discrimination over lead time", "AUROC", ylim=(0.4, 1.0), hline=0.5)
+    _lead_png(leadtime.get("curve", []),
+              lambda it: it.get("sensitivity"), lambda it: it.get("sensitivity_ci"),
+              "leadtime_sensitivity.png",
+              "Detection sensitivity over lead time", "sensitivity", ylim=(0.0, 1.0))
+    _lead_png(pillars.get("calibration", []), _m("slope"), _m("slope_ci"),
+              "landmark_calibration.png",
+              "Calibration slope over lead time", "calibration slope", hline=1.0)
+
+    return written

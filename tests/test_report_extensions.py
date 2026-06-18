@@ -245,7 +245,9 @@ def test_build_report_split_selection(tmp_path):
                      split="val", episodic=True)
 
 
-def test_build_report_continuous_not_implemented(tmp_path):
+def test_build_report_continuous_requires_mode(tmp_path):
+    # A continuous task with no --mode must tell the caller to pick peak/landmark
+    # (it used to raise NotImplementedError).
     df = make_synth()
     preds_path = tmp_path / "preds.parquet"
     df.write_parquet(preds_path)
@@ -255,7 +257,7 @@ def test_build_report_continuous_not_implemented(tmp_path):
         __file__=__file__)
 
     from flair_benchmark.report import build_report
-    with pytest.raises(NotImplementedError, match="Continuous"):
+    with pytest.raises(ValueError, match="Continuous task"):
         build_report(str(preds_path), cont_task, str(tmp_path / "r"),
                      episodic=False)
 

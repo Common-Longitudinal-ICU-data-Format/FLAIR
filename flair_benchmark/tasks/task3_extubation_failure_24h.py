@@ -6,7 +6,9 @@ Clinical question:
   ventilator-free day in the next 24h — i.e., die or get reintubated?
   Equivalent to VFD_24h_post_extubation < 1.
 
-Row shape: one row per hospitalization with a confirmed first extubation.
+Row shape: one row per stitched encounter (hospitalization_join_id) with a
+confirmed first extubation. Ventilation episodes are detected across the whole
+encounter, so a reintubation in a later member hospitalization counts.
 Prediction time = first_extubation_dttm.
 
 Episode detection uses the consensus-window state machine in
@@ -35,7 +37,9 @@ from __future__ import annotations
 import polars as pl
 
 from flair_benchmark._clif import base_icu_cohort, load_respiratory_support, read_clif_config
+from flair_benchmark._encounter import as_encounter_keyed, encounter_attributes
 from flair_benchmark._split import assign_split
+from flair_benchmark._stitch import load_or_build_encounter_index
 from flair_benchmark._ventilation_episodes import detect_imv_episodes
 from flair_benchmark.tasks._finalize import finalize_cohort
 
@@ -86,10 +90,16 @@ def build(clif_config: str, train_end: str | None,
           test_start: str | None) -> pl.DataFrame:
     cfg = read_clif_config(clif_config)
     cohort, _adt = base_icu_cohort(cfg)
+    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
 
     hosp_ids = cohort["hospitalization_id"].to_list()
     resp = load_respiratory_support(cfg, hospitalization_ids=hosp_ids)
 
+    # Encounter grain: relabel respiratory support to the stitched encounter so
+    # ventilation episodes (and a reintubation in a later member hospitalization)
+    # are detected across the whole encounter. The join id now lives in the
+    # "hospitalization_id" slot until the final join to encounter_attributes.
+    resp = as_encounter_keyed(resp, idx)
     episodes = detect_imv_episodes(resp)
 
     first_ext = (
@@ -118,7 +128,9 @@ def build(clif_config: str, train_end: str | None,
     df = (
         first_ext
         .join(reintubation, on="hospitalization_id", how="left")
-        .join(cohort, on="hospitalization_id", how="inner")
+        .rename({"hospitalization_id": "hospitalization_join_id"})
+        .join(encounter_attributes(cfg, cohort),
+              on="hospitalization_join_id", how="inner")
     )
 
     horizon = pl.col("prediction_dttm") + pl.duration(hours=HORIZON_HOURS)

@@ -3,16 +3,16 @@ Task 2: ICU Daily LTACH Discharge (binary, one-per-window at 07:00 local).
 
 Clinical question:
   Given everything we know about this ICU patient up to today's 07:00 rounds,
-  will the eventual disposition of this hospitalization be transfer to a
+  will the eventual disposition of this encounter be transfer to a
   Long-Term Acute Care Hospital (LTACH)?
 
-Cohort (unconditional all-comers ICU):
-  All adult hospitalizations with at least one ICU ADT record. NO filter
+Cohort (unconditional all-comers ICU, stitched-encounter grain):
+  All adult stitched encounters with at least one ICU ADT record. NO filter
   on discharge_category. The cohort is identical to Task 1.
 
 Label (label_ltach):
-  1 iff discharge_category (lowercased, stripped) matches regex
-    r"ltach|long.?term"
+  1 iff the encounter's FINAL discharge_category (lowercased, stripped) matches
+    regex r"ltach|long.?term"
   0 otherwise — including Expired, Hospice, Home, SNF, Rehab, AMA, Other,
   Still Admitted, and null. Null and Still Admitted are intentionally
   retained as negatives. T1 and T2 are NOT a partition: a Home discharge
@@ -20,19 +20,20 @@ Label (label_ltach):
 
 Row shape (one-per-window):
   prediction_dttm = 07:00 on day-of-admission + 1, +2, +3, ... while the
-  timestamp is < min(first_icu_end_time, discharge_dttm, death_dttm).
-  The label is the eventual hospitalization outcome and is constant across
-  all rows for a given hospitalization_id.
+  timestamp is < min(coalesce(first_icu_end_time, discharge_dttm),
+  discharge_dttm, death_dttm). Predictions occur only during the encounter's
+  first ICU stay. The label is the eventual encounter outcome and is constant
+  across all rows for a given hospitalization_join_id.
 
-Pipeline:
-  1. base_icu_cohort()        — adult ICU cohort + ADT (see _clif.py)
-  2. compute_icu_timing()     — first_icu_start_time, first_icu_end_time
-  3. pred_start = (first_icu_start_time truncated to date) + 1 day + 7 hours
-  4. pred_stop  = min(first_icu_end_time, coalesce(death_dttm, discharge_dttm))
-  5. Daily 07:00 grid via pl.datetime_ranges(..., interval="24h", closed="left")
-  6. Broadcast label from hospitalization-level discharge_category
+Pipeline (see flair_benchmark/_encounter.py):
+  1. build_icu_encounter_cohort() — one row per 07:00 day of each stitched
+     encounter's first ICU stay, carrying the encounter's final
+     discharge_category. First ICU stay comes from compute_readmission_timing
+     (contiguous-ICU-block merge); pred_stop is a true earliest-of with a
+     discharge fallback for a null/terminal ICU end.
+  2. Broadcast label from the encounter's final discharge_category
      (null-safe — null and Still Admitted become 0)
-  7. assign_split() per-row by prediction_dttm
+  3. assign_split() per encounter block by prediction_dttm
      (prediction_dttm is the no-data-after cutoff; all prior history is usable)
 
 Timezone note:
@@ -45,13 +46,10 @@ from __future__ import annotations
 
 import polars as pl
 
-from flair_benchmark._clif import base_icu_cohort, read_clif_config
-from flair_benchmark._icu_timing import compute_icu_timing
+from flair_benchmark._clif import read_clif_config
+from flair_benchmark._encounter import build_icu_encounter_cohort
 from flair_benchmark._split import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
-
-PRED_HOUR = 7
-GRID_STEP = "24h"
 
 META = {
     "name": "task2_icu_daily_ltach",
@@ -69,12 +67,12 @@ META = {
     "prediction_window": None,
     "window_unit": "day",  # window_number increments one row per local-07:00 day
     "cohort_description": (
-        "All adult ICU hospitalizations (age >= 18, valid admission/discharge "
+        "All adult ICU stitched encounters (age >= 18, valid admission/discharge "
         "times, >= 1 ICU ADT record). NO discharge_category filter — every "
-        "retained stay contributes rows. One row per local-07:00 timestamp "
-        "during the first ICU stay, starting the calendar day after first "
-        "ICU admission. discharge_category null or 'Still Admitted' is kept "
-        "and yields label-0."
+        "retained encounter contributes rows. One row per local-07:00 timestamp "
+        "during the encounter's first ICU stay, starting the calendar day after "
+        "first ICU admission. The encounter's final discharge_category null or "
+        "'Still Admitted' is kept and yields label-0."
     ),
     "inclusion_criteria": [
         "age_at_admission >= 18",
@@ -105,30 +103,7 @@ def build(clif_config: str, train_end: str | None,
           test_start: str | None) -> pl.DataFrame:
     cfg = read_clif_config(clif_config)
 
-    cohort, adt = base_icu_cohort(cfg)
-
-    timing = compute_icu_timing(adt)
-    cohort = cohort.join(timing, on="hospitalization_id", how="inner")
-
-    cohort = cohort.with_columns([
-        (
-            pl.col("first_icu_start_time").dt.truncate("1d")
-            + pl.duration(days=1, hours=PRED_HOUR)
-        ).alias("pred_start"),
-        pl.min_horizontal(
-            pl.col("first_icu_end_time"),
-            pl.coalesce(["death_dttm", "discharge_dttm"]),
-        ).alias("pred_stop"),
-    ])
-
-    df = cohort.with_columns(
-        pl.datetime_ranges(
-            start=pl.col("pred_start"),
-            end=pl.col("pred_stop"),
-            interval=GRID_STEP,
-            closed="left",
-        ).alias("prediction_dttm")
-    ).explode("prediction_dttm").filter(pl.col("prediction_dttm").is_not_null())
+    df = build_icu_encounter_cohort(cfg)
 
     disp = pl.col("discharge_category").str.to_lowercase().str.strip_chars()
     df = df.with_columns(

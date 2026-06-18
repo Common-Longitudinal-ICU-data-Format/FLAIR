@@ -18,6 +18,7 @@ from pathlib import Path
 
 import polars as pl
 import pytest
+from test_report_continuous import make_synth_continuous
 from test_report_extensions import make_synth
 from typer.testing import CliRunner
 
@@ -57,6 +58,26 @@ def report_dir(tmp_path_factory) -> Path:
         shutil.rmtree(ARTIFACT_DIR)
     shutil.copytree(out_dir, ARTIFACT_DIR)
     return out_dir
+
+
+def test_cli_landmark_mode(tmp_path):
+    """`--mode landmark` on a continuous task emits the 5-JSON landmark bundle."""
+    preds_path = tmp_path / "preds.parquet"
+    df = make_synth_continuous(n_stays=240, seed=7).rename({"label": "label_mortality"})
+    df.write_parquet(preds_path)
+    out_dir = tmp_path / "lm"
+
+    result = runner.invoke(app, [
+        "build-report", str(preds_path),
+        "--task", "task1_icu_daily_mortality", "--out", str(out_dir),
+        "--mode", "landmark",
+    ])
+    assert result.exit_code == 0, result.output
+    assert {p.stem for p in out_dir.glob("*.json")} >= {
+        "discrimination", "calibration", "dca", "fairness", "leadtime"}
+    disc = json.loads((out_dir / "discrimination.json").read_text())
+    assert disc["metadata"]["report_mode"] == "landmark"
+    assert len(disc["landmarks"]) == 12
 
 
 def _load(report_dir: Path, name: str) -> dict:

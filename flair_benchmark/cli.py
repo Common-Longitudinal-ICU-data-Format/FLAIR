@@ -71,7 +71,11 @@ def load_task(
     test_start: Optional[str] = typer.Option(None, "--test-start",
                                              help="YYYY-MM-DD (omit for MIMIC 70/30 split)"),
 ) -> None:
-    """Run a task's build() function and write the cohort parquet."""
+    """Run a task's build() function and write the cohort parquet + Table 1 JSON."""
+    import json
+
+    from flair_benchmark._clif import read_clif_config
+    from flair_benchmark._table1 import generate_table1
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
@@ -83,6 +87,13 @@ def load_task(
     df.write_parquet(out_path)
     typer.echo(f"Wrote {df.height:,} rows → {out_path}")
 
+    # Table 1 (cohort characteristics, overall + by positive/negative label) is
+    # generated alongside every cohort, written next to the parquet for the website.
+    table1 = generate_table1(read_clif_config(clif_config), df, task_module)
+    t1_path = out_path.with_suffix(".table1.json")
+    t1_path.write_text(json.dumps(table1, indent=2, default=str))
+    typer.echo(f"Wrote Table 1 → {t1_path}")
+
 
 @app.command("build-report")
 def build_report_cmd(
@@ -92,11 +103,16 @@ def build_report_cmd(
                             help="Output directory for the report JSONs"),
     split: str = typer.Option("test", "--split",
                               help="Which split to analyze (default: test)."),
+    mode: Optional[str] = typer.Option(
+        None, "--mode",
+        help="How to score the task: 'episodic' (one-per-stay), 'peak' "
+             "(continuous -> stay-peak screening: discrimination + fairness), or "
+             "'landmark' (continuous -> per-lead-time skill/calibration + "
+             "leadtime). Inferred from META when omitted; continuous tasks must "
+             "pick peak or landmark."),
     episodic: bool = typer.Option(
         False, "--episodic",
-        help="One-prediction-per-stay task: emit the slim discrimination / "
-             "calibration / dca / fairness bundle. Auto-enabled for tasks META-"
-             "marked episodic."),
+        help="Deprecated alias for --mode episodic (one prediction per stay)."),
     cohort: Optional[str] = typer.Option(
         None, "--cohort",
         help="Task cohort parquet (from load-task). Joins demographics for "
@@ -106,45 +122,15 @@ def build_report_cmd(
         help="Also write sanity-check PNGs rendered from the JSONs "
              "(requires `pip install flair-benchmark[viz]`)."),
 ) -> None:
-    """Generate the episodic report bundle: discrimination, calibration, dca, fairness."""
+    """Generate the report bundle (--mode episodic | peak | landmark)."""
     from flair_benchmark.report import build_report
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
     paths = build_report(preds, task_module, out, split=split, episodic=episodic,
-                         cohort_path=cohort, viz=viz)
+                         mode=mode, cohort_path=cohort, viz=viz)
     for kind, path in paths.items():
         typer.echo(f"  {kind:24s} → {path}")
-
-
-@app.command("extract-metadata")
-def extract_metadata_cmd(
-    clif_config: str = typer.Option(..., "--clif-config",
-                                    help="Path to clif_config.json"),
-    out: str = typer.Option(..., "--out",
-                            help="Output directory for per-task JSONs"),
-    tasks: Optional[list[str]] = typer.Option(
-        None, "--task",
-        help="Restrict to one or more tasks (repeat the flag). Default: all 5."),
-    skip_sofa: bool = typer.Option(False, "--skip-sofa",
-                                   help="Skip SOFA (clifpy ClifOrchestrator is heavy)."),
-    skip_comorb: bool = typer.Option(False, "--skip-comorb",
-                                     help="Skip Charlson/Elixhauser if HospitalDiagnosis "
-                                          "is unavailable at the site."),
-) -> None:
-    """Per-site cohort metadata for the FLAIR leaderboard. Writes one
-    <task_name>.json into the output directory."""
-    import json
-
-    from flair_benchmark.metadata import extract_site_metadata
-
-    per_task = extract_site_metadata(clif_config, tasks, skip_sofa, skip_comorb)
-    out_dir = Path(out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for task_name, payload in per_task.items():
-        path = out_dir / f"{task_name}.json"
-        path.write_text(json.dumps(payload, indent=2, default=str))
-        typer.echo(f"  {task_name:32s} → {path}")
 
 
 def _run_fe(extractor, feature_config: str, task: str, out: str) -> None:

@@ -32,10 +32,17 @@ Rationale:
   satisfied. This matches the requested "1st min timestamp" and is the
   conservative (leak-safe) anchor.
 
-Anchors:
-  t_zero      = min(ase_onset_w_lactate_dttm | sepsis == 1)  per hospitalization
+Grain: one prediction series per stitched encounter (hospitalization_join_id).
+t_zero / first-vital / pred-window are computed per member hospitalization and
+folded to the encounter (min over members) so a stitched re-admission is a single
+hourly series, not two.
+
+Anchors (per stitched encounter):
+  t_zero      = min(ase_onset_w_lactate_dttm | sepsis == 1)  over encounter members
   pred_start  = max(min(vitals.recorded_dttm), admission_dttm + 1h)
-  pred_stop   = min(t_zero, discharge_dttm, death_dttm)   # t_zero = +inf if never septic
+  pred_stop   = min(t_zero, discharge_dttm, death_dttm)   # true earliest-of;
+                death_dttm is patient-level so it is a min term, never a
+                coalesce over discharge (t_zero = +inf if never septic)
 
 Cohort (hospital-wide, Kamran 2024):
   1. Adult hospitalizations (age >= 18) with valid admission/discharge dttm.
@@ -75,6 +82,7 @@ from flair_benchmark._clif import (
     pd_to_pl,
     read_clif_config,
 )
+from flair_benchmark._encounter import collapse_demographics, collapse_members
 from flair_benchmark._split import assign_split
 from flair_benchmark._stitch import attach_join_id, load_or_build_encounter_index
 from flair_benchmark.tasks._finalize import finalize_cohort
@@ -164,15 +172,21 @@ def _hospital_wide_cohort(cfg: dict, min_age: int = 18) -> pl.DataFrame:
     return attach_join_id(cohort, idx)
 
 
-def _exclude_psych_rehab(cohort: pl.DataFrame, cfg: dict) -> pl.DataFrame:
+def _exclude_psych_rehab(cohort: pl.DataFrame, cfg: dict,
+                         idx: pl.DataFrame) -> pl.DataFrame:
+    """Drop the whole stitched encounter if ANY member hospitalization had a
+    psychiatric or rehabilitation ADT stay (encounter-grain exclusion)."""
     hosp_ids = cohort["hospitalization_id"].to_list()
     adt = load_adt(cfg, hospitalization_ids=hosp_ids)
     excluded = (
-        adt.filter(pl.col("location_category").str.to_lowercase()
-                   .is_in(EXCLUDE_LOCATION_CATEGORIES))
-        .select("hospitalization_id").unique()
+        attach_join_id(
+            adt.filter(pl.col("location_category").str.to_lowercase()
+                       .is_in(EXCLUDE_LOCATION_CATEGORIES)),
+            idx,
+        )
+        .select("hospitalization_join_id").unique()
     )
-    return cohort.join(excluded, on="hospitalization_id", how="anti")
+    return cohort.join(excluded, on="hospitalization_join_id", how="anti")
 
 
 def _first_vital_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
@@ -228,16 +242,30 @@ def _sepsis_onset_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
 def build(clif_config: str, train_end: str | None,
           test_start: str | None) -> pl.DataFrame:
     cfg = read_clif_config(clif_config)
+    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
 
     cohort = _hospital_wide_cohort(cfg)
-    cohort = _exclude_psych_rehab(cohort, cfg)
+    cohort = _exclude_psych_rehab(cohort, cfg, idx)
     if cohort.is_empty():
         return cohort.select([])
 
     hosp_ids = cohort["hospitalization_id"].to_list()
 
-    first_vital = _first_vital_dttm(cfg, hosp_ids)
-    cohort = cohort.join(first_vital, on="hospitalization_id", how="inner")
+    # Collapse to stitched-encounter grain: one row per hospitalization_join_id
+    # with patient-level demographics/death and the encounter's admission (min),
+    # discharge (max), final disposition, and admitting-member hospitalization_id.
+    cohort = collapse_demographics(cohort).join(
+        collapse_members(cohort), on="hospitalization_join_id", how="inner"
+    )
+
+    # first vital + ASE onset are computed per hospitalization, then folded to the
+    # encounter (min over member hospitalizations) via the stitch index.
+    first_vital = (
+        attach_join_id(_first_vital_dttm(cfg, hosp_ids), idx)
+        .group_by("hospitalization_join_id")
+        .agg(pl.col("first_vital_dttm").min().alias("first_vital_dttm"))
+    )
+    cohort = cohort.join(first_vital, on="hospitalization_join_id", how="inner")
 
     cohort = cohort.with_columns(
         pl.max_horizontal(
@@ -246,19 +274,25 @@ def build(clif_config: str, train_end: str | None,
         ).alias("pred_start")
     )
 
-    t_zero = _sepsis_onset_dttm(cfg, hosp_ids)
-    cohort = cohort.with_columns(pl.col("hospitalization_id").cast(pl.Utf8)).join(
-        t_zero, on="hospitalization_id", how="left"
+    t_zero = (
+        attach_join_id(_sepsis_onset_dttm(cfg, hosp_ids), idx)
+        .group_by("hospitalization_join_id")
+        .agg(pl.col("t_zero").min().alias("t_zero"))
     )
+    cohort = cohort.join(t_zero, on="hospitalization_join_id", how="left")
 
     cohort = cohort.filter(
         pl.col("t_zero").is_null() | (pl.col("t_zero") > pl.col("pred_start"))
     )
 
+    # pred_stop = earliest of (t_zero | discharge), discharge, death — a true
+    # min_horizontal, NOT coalesce(death, discharge): death_dttm is patient-level
+    # and a post-discharge death must not push the window past discharge.
     cohort = cohort.with_columns(
         pl.min_horizontal(
             pl.coalesce(["t_zero", "discharge_dttm"]),
-            pl.coalesce(["death_dttm", "discharge_dttm"]),
+            pl.col("discharge_dttm"),
+            pl.col("death_dttm"),
         ).alias("pred_stop")
     )
 

@@ -1,12 +1,16 @@
-"""Report bundle builder, keyed on the unit of prediction.
+"""Report bundle builder, keyed on the unit of prediction (`--mode`).
 
-Episodic tasks (one prediction per stay, `--episodic`) get a slim four-file
-bundle: discrimination, calibration, dca, fairness — all at the task's fixed
-clinical threshold, all as JSON with raw curve arrays + 95% CIs. The continuous
-(windowed) path is rebuilt in a later phase.
+  episodic : one prediction per stay -> discrimination, calibration, dca, fairness.
+  peak     : continuous task collapsed to stay-peak risk -> discrimination +
+             fairness (+ NNE); calibration/dca omitted (peak-calibration trap).
+  landmark : continuous task scored at 12 risk-set landmarks counting back from
+             each stay's last window -> the four pillars per landmark + leadtime.
 
-Optional --viz renders local sanity-check PNGs from the same JSON dicts
-(see report/_viz.py); the FLAIR website renders the JSONs interactively.
+All output is JSON with raw curve arrays + 95% CIs, at the task's fixed clinical
+threshold. Only JSON is exported to the FLAIR website (cross-site aggregation).
+
+Optional --viz renders local site-validation PNGs from the same JSON dicts
+(see report/_viz.py) — never exported.
 """
 
 from __future__ import annotations
@@ -23,7 +27,8 @@ from flair_benchmark.report.episodic import build_episodic_report
 __all__ = ["build_report"]
 
 # cohort columns the report can use when they flow through (or are joined in).
-# Demographics feed fairness.py / table1.py; without them fairness emits no subgroups.
+# Demographics feed fairness.py; without them fairness emits no subgroups.
+# (The Table 1 is generated at task-generation time — see flair_benchmark/_table1.py.)
 _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
                  "hospitalization_join_id",
                  "age_at_admission", "sex_category", "race_category",
@@ -33,12 +38,22 @@ _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
 def build_report(preds_path: str, task_module, out_dir: str,
                  split: str = "test", episodic: bool = False,
                  cohort_path: str | None = None,
-                 viz: bool = False, site: str | None = None) -> dict[str, Path]:
-    """Read preds parquet, look up META, write the episodic 4-JSON bundle.
+                 viz: bool = False, site: str | None = None,
+                 mode: str | None = None) -> dict[str, Path]:
+    """Read preds parquet, look up META, write the report JSON bundle.
 
-    `split` selects which split to analyze (default "test"). `episodic` forces
-    the one-per-stay path; it is also auto-enabled when META marks the task
-    episodic. The continuous/windowed path is not yet rebuilt.
+    `split` selects which split to analyze (default "test"). `mode` chooses how a
+    continuous (multi-row-per-stay) task is scored:
+
+      episodic : one prediction per stay -> discrimination/calibration/dca/fairness.
+      peak     : collapse to stay-peak risk -> discrimination + fairness (+ NNE);
+                 calibration/dca omitted (peak-calibration trap).
+      landmark : 12 risk-set slices counting back from each stay's last window ->
+                 the four pillars per landmark + leadtime.json.
+
+    `episodic=True` is a deprecated alias for `mode="episodic"`. When neither is
+    given, the mode is inferred from META.temporal_pattern (episode -> episodic;
+    continuous -> caller must pick peak or landmark).
     """
     from flair_benchmark import __version__
     from flair_benchmark._hash import task_script_sha256
@@ -57,39 +72,30 @@ def build_report(preds_path: str, task_module, out_dir: str,
     if preds.height == 0:
         raise ValueError(f"split '{split}' is empty after filtering")
 
-    pattern = meta.get("temporal_pattern")
-    episodic_mode = episodic or pattern == "episode"
-    if episodic and pattern == "continuous":
-        warnings.warn(
-            "--episodic set but task META temporal_pattern=='continuous'; "
-            "proceeding episodic per the flag.", stacklevel=2)
-    elif not episodic and pattern == "episode":
-        warnings.warn(
-            "Task META temporal_pattern=='episode'; enabling episodic mode "
-            "(pass --episodic to silence this).", stacklevel=2)
+    block = ("hospitalization_join_id"
+             if "hospitalization_join_id" in preds.columns
+             else "hospitalization_id")
+    mode = _resolve_mode(mode, episodic, meta.get("temporal_pattern"))
 
-    if not episodic_mode:
-        raise NotImplementedError(
-            "Continuous/windowed report rebuild pending; run with --episodic "
-            "for one-per-stay tasks.")
+    if mode == "episodic":
+        n_rows = preds["hospitalization_id"].n_unique()
+        if n_rows != preds.height:
+            raise ValueError(
+                f"Episodic report expects one row per stay, but split '{split}' has "
+                f"{preds.height} rows for {n_rows} stays. Deduplicate to one "
+                f"prediction per stay, or this is a continuous task "
+                f"(use --mode peak or --mode landmark).")
 
-    n_stays = preds["hospitalization_id"].n_unique()
-    if n_stays != preds.height:
-        raise ValueError(
-            f"Episodic report expects one row per stay, but split '{split}' has "
-            f"{preds.height} rows for {n_stays} stays. Deduplicate to one "
-            f"prediction per stay, or this is a continuous task (drop --episodic).")
-
-    prevalence = (round(float(preds[meta["label_column"]].mean()), 6)
+    prevalence = (round(float((preds[meta["label_column"]] > 0).mean()), 6)
                   if meta["task_type"] == "binary" else None)
     audit = {
         "task": meta["name"],
         "task_script_sha256": task_script_sha256(task_module),
         "flair_version": __version__,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "report_mode": "episodic",
+        "report_mode": mode,
         "split": split,
-        "n_stays": n_stays,
+        "n_stays": preds[block].n_unique(),
         "prevalence": prevalence,
         # operating threshold the threshold-dependent sections (discrimination
         # confusion point, dca clinical point, fairness) were evaluated at;
@@ -97,22 +103,73 @@ def build_report(preds_path: str, task_module, out_dir: str,
         "evaled_at": meta.get("clinical_threshold"),
     }
 
-    reports = build_episodic_report(preds, meta)
-    for payload in reports.values():
-        payload["metadata"] = {**audit, **payload.get("metadata", {})}
-
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    pillars: dict | None = None   # set in landmark mode for the viz renderer
+
+    if mode == "landmark":
+        from flair_benchmark.report.landmark import build_landmark_report
+        from flair_benchmark.report.leadtime import build_leadtime
+        pillars = build_landmark_report(preds, meta)
+        payloads: dict[str, dict] = {
+            kind: {"metadata": audit, "landmarks": lst}
+            for kind, lst in pillars.items()}
+        leadtime = build_leadtime(preds, meta)
+        leadtime["metadata"] = {**audit, **leadtime.get("metadata", {})}
+        payloads["leadtime"] = leadtime
+    else:
+        if mode == "peak":
+            from flair_benchmark.report.peak import build_peak_report
+            payloads = build_peak_report(preds, meta)
+        else:
+            payloads = build_episodic_report(preds, meta)
+        for payload in payloads.values():
+            payload["metadata"] = {**audit, **payload.get("metadata", {})}
+
     paths: dict[str, Path] = {}
-    for kind, payload in reports.items():
+    for kind, payload in payloads.items():
         paths[kind] = out / f"{kind}.json"
         paths[kind].write_text(json.dumps(payload, indent=2, default=str))
 
     if viz:
-        from flair_benchmark.report._viz import render_sanity_pngs
-        for png in render_sanity_pngs(reports, out / "viz"):
+        if mode == "landmark":
+            from flair_benchmark.report._viz import render_landmark_pngs
+            pngs = render_landmark_pngs(pillars, payloads["leadtime"], out / "viz")
+        else:
+            from flair_benchmark.report._viz import render_sanity_pngs
+            pngs = render_sanity_pngs(payloads, out / "viz")
+        for png in pngs:
             paths[png.stem + "_png"] = png
     return paths
+
+
+def _resolve_mode(mode: str | None, episodic: bool,
+                  pattern: str | None) -> str:
+    """Pick episodic / peak / landmark from the explicit flag, alias, or META."""
+    if mode is None and episodic:
+        mode = "episodic"            # deprecated --episodic alias
+    if mode is None:
+        if pattern == "continuous":
+            raise ValueError(
+                "Continuous task: choose --mode peak (stay-peak screening) or "
+                "--mode landmark (per-lead-time skill + calibration).")
+        if pattern == "episode":
+            warnings.warn(
+                "Task META temporal_pattern=='episode'; using --mode episodic "
+                "(pass --mode to silence this).", stacklevel=3)
+        return "episodic"
+    if mode not in {"episodic", "peak", "landmark"}:
+        raise ValueError(
+            f"Unknown --mode '{mode}'; expected episodic, peak, or landmark.")
+    if mode == "episodic" and pattern == "continuous":
+        warnings.warn(
+            "--mode episodic on a continuous task collapses many rows per stay; "
+            "this errors unless predictions are already one-per-stay.", stacklevel=3)
+    if mode in {"peak", "landmark"} and pattern == "episode":
+        warnings.warn(
+            f"--mode {mode} on a one-per-stay (episode) task; --mode episodic is "
+            f"the usual choice.", stacklevel=3)
+    return mode
 
 
 def _ensure_y_pred(preds: pl.DataFrame, meta: dict) -> pl.DataFrame:

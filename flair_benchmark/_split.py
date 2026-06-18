@@ -4,10 +4,11 @@ Splits are assigned at the **encounter-block** grain (``hospitalization_join_id`
 every prediction row of one block lands in the same split, so a single encounter
 never spans train and test (prevents leakage in count-feature / time-series models).
 
-Three regimes:
+Three regimes (all block-grain — a single encounter never spans train and test):
   - site == 'mimic'                  → 75/25 ratio split over blocks (dates de-identified).
   - other site, no train_end/test_start → all rows 'test' (external full-data validation).
-  - other site, with cutoff dates    → date cutoff (production temporal split).
+  - other site, with cutoff dates    → date cutoff on the block's earliest
+                                        admission_col (production temporal split).
 """
 
 from __future__ import annotations
@@ -39,9 +40,19 @@ def assign_split(cohort: pl.DataFrame, site: str,
 
     train_end_d = date.fromisoformat(train_end)
     test_start_d = date.fromisoformat(test_start)
+    # Decide the split once per encounter block (by its earliest admission_col),
+    # then broadcast — so a continuous encounter whose per-row prediction_dttm
+    # straddles train_end/test_start can never be torn across train and test
+    # (same guarantee the ratio path gives). Fall back to per-row only when the
+    # block key is absent.
+    block_date = (
+        pl.col(admission_col).min().over(split_col).dt.date()
+        if split_col in cohort.columns
+        else pl.col(admission_col).dt.date()
+    )
     return cohort.with_columns(
-        pl.when(pl.col(admission_col).dt.date() <= train_end_d).then(pl.lit("train"))
-        .when(pl.col(admission_col).dt.date() >= test_start_d).then(pl.lit("test"))
+        pl.when(block_date <= train_end_d).then(pl.lit("train"))
+        .when(block_date >= test_start_d).then(pl.lit("test"))
         .otherwise(pl.lit(None))
         .alias("split")
     )
