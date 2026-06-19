@@ -1,32 +1,82 @@
 {% extends "base.html" %}
 {% block content %}
 
-<section class="hero">
-  <h1>FLAIR <span class="accent">Benchmark</span></h1>
-  <p class="lead">A federated benchmark for ICU clinical prediction across CLIF sites — develop on public data, validate on private data, pool only aggregates.</p>
-  <div class="stats count">{{ stats.n_models }} model(s) · {{ stats.n_tasks }} tasks · {{ stats.n_sites }} participating site(s) · model ships to data</div>
-  <div class="bars">
-    <span style="background:var(--c-blue)"></span>
-    <span style="background:var(--c-purple)"></span>
-    <span style="background:var(--c-sage)"></span>
-    <span style="background:var(--c-terracotta)"></span>
-  </div>
-  <div class="cta">
+<section class="hero-xl">
+  <h1>FLAIR</h1>
+  <p class="tagline">A federated benchmark for ICU clinical decision support across academic
+    medical centers, built on the Common Longitudinal ICU Format (CLIF).</p>
+  <div class="descriptors">5 prediction tasks · CLIF-anchored · federated model-to-data · reproducible leaderboard</div>
+
+  <div class="cta-row">
     <a class="primary" href="/leaderboard">View leaderboard</a>
-    <a class="ghost" href="/submit">Submit a model</a>
-    <a class="ghost" href="/tasks">Browse tasks</a>
+    <a class="ghost" href="/docs">FLAIR 101</a>
+    <a class="ghost" href="https://github.com/clif-consortium/FLAIR">GitHub</a>
+    <a class="soon" href="/docs">Paper</a>
+  </div>
+
+  <div class="install-wrap">
+    <div class="install">
+      <div class="row">
+        <code>pip install flair-benchmark</code>
+        <span class="soon-badge">coming soon · v1</span>
+      </div>
+      <span class="sub">Develop on public MIMIC-CLIF, validate federated — the code travels, the data does not.</span>
+    </div>
   </div>
 </section>
 
-<div class="features">
-  <div class="feature b"><div class="big">5</div><div class="desc">Clinical prediction tasks</div></div>
-  <div class="feature p"><div class="big">Federated</div><div class="desc">Model + code ship to sites; only JSON returns</div></div>
-  <div class="feature s"><div class="big">No PHI</div><div class="desc">Cell-suppressed aggregates (n&lt;10) only</div></div>
-  <div class="feature t"><div class="big">Open</div><div class="desc">Task not listed? PR it against MIMIC-CLIF</div></div>
+<div class="statcards">
+  <div class="statcard b"><div class="num">~500,000</div><div class="lbl">ICU stays across the consortium</div></div>
+  <div class="statcard p"><div class="num">12+</div><div class="lbl">academic medical centers</div></div>
+  <div class="statcard s"><div class="num">~2,000</div><div class="lbl">ICU beds covered</div></div>
+  <div class="statcard t"><div class="num">5</div><div class="lbl">benchmark tasks (a seed, not a ceiling)</div></div>
 </div>
 
-<h2>Prediction <span class="accent">tasks</span></h2>
-<div class="count">Click any task for its cohort, label, and operating threshold.</div>
+<div class="panel">
+  <h3>The per-site forest plot is the headline — not a single pooled number.</h3>
+  <p class="muted">Models are built and self-evaluated on public MIMIC-CLIF (~70k ICU stays),
+    reviewed, then shipped to each site. Each site runs the code against its own CLIF tables
+    and returns aggregate-only JSON (cell-suppressed at n&lt;10). A single high pooled AUROC
+    hides exactly the cross-site failure mode FLAIR exists to surface.</p>
+  <div class="count">{{ stats.n_models }} model(s) · {{ stats.n_tasks }} tasks · {{ stats.n_sites }} participating site(s)</div>
+  <div class="cta" style="margin-top:16px">
+    <a class="primary" href="/leaderboard">Open the leaderboard</a>
+    <a class="ghost" href="https://github.com/clif-consortium/FLAIR">Submit via GitHub</a>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2>What is <span class="accent">FLAIR</span>?</h2>
+  <span class="count">Three coupled artifacts: a data layer, a task layer, and a federated protocol.</span>
+</div>
+<div class="three-col">
+  <div class="col b">
+    <h3>CLIF-anchored datasets</h3>
+    <p>CLIF is a critical-care minimum dataset that harmonizes ICU EHR content into a small set
+      of relational tables with standardized vocabularies (mCIDE). The same coded vocabulary at
+      every site means FLAIR measures genuine cross-site generalizability.</p>
+    <a class="more" href="/docs/clif">Learn more →</a>
+  </div>
+  <div class="col p">
+    <h3>Curated, extensible tasks</h3>
+    <p>Five binary tasks span outcome, deterioration, and intervention targets. Any researcher
+      can add a new task as a single Python file — a <code>META</code> dict plus a
+      <code>build()</code> function — via GitHub pull request.</p>
+    <a class="more" href="/docs/tasks">Learn more →</a>
+  </div>
+  <div class="col s">
+    <h3>Federated, private reporting</h3>
+    <p>No patient rows leave a site. The library emits TRIPOD+AI metrics, subgroup fairness
+      gaps, and calibration curves as aggregate JSON, with HIPAA cell suppression applied
+      site by site.</p>
+    <a class="more" href="/docs/reports">Learn more →</a>
+  </div>
+</div>
+
+<div class="section-head">
+  <h2>Prediction <span class="accent">tasks</span></h2>
+  <span class="count">Click any task for its cohort, label, and operating threshold.</span>
+</div>
 <div class="grid">
   {% for t in tasks %}
   <div class="item">
@@ -38,6 +88,20 @@
     </div>
   </div>
   {% endfor %}
+</div>
+
+<div class="citation">
+  <h2>Citation</h2>
+  <div class="count">Preprint — please check the repository for the canonical reference.</div>
+  <pre>{% raw %}@article{flair2026,
+  title   = {FLAIR: A Federated Benchmark for ICU Clinical Decision Support
+             Across Multiple Academic Medical Centers Using the
+             Common Longitudinal ICU Format},
+  author  = {{CLIF Consortium and FLAIR Working Group}},
+  year    = {2026},
+  note    = {Preprint},
+  url     = {https://github.com/clif-consortium/FLAIR}
+}{% endraw %}</pre>
 </div>
 
 {% endblock %}

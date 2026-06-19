@@ -1,0 +1,78 @@
+{% extends "docs/_layout.html" %}
+{% block title %}FLAIR 101 — Overview{% endblock %}
+{% block doc %}
+<h1>FLAIR 101</h1>
+<p class="lede">A practical, top-to-bottom guide for an external user — a method developer, a
+  site data steward, or someone authoring a new benchmark task.</p>
+
+<div class="callout">
+  FLAIR is a <strong>federated</strong> ICU benchmark: the code travels to the data, and only
+  aggregate JSON ever leaves a site. You develop and self-evaluate against the public
+  <strong>MIMIC-CLIF</strong> dataset; the same code later runs unmodified behind a hospital's
+  firewall.
+</div>
+
+<h2>What FLAIR is</h2>
+<p><strong>The model-to-data loop.</strong> A model is built and validated against public
+  MIMIC-CLIF, reviewed, then shipped to each consortium site. Each site runs it against its own
+  CLIF tables and returns a small bundle of aggregate-only JSON. Patient-level rows never move.</p>
+
+<p><strong>Two packages:</strong></p>
+<table>
+  <tr><th>package</th><th>CLI</th><th>what it gives you</th></tr>
+  <tr><td><code>flair-benchmark</code></td><td><code>flair</code></td><td>the library: task catalog, cohort builder, feature extractors, report builder</td></tr>
+  <tr><td><code>flair-baseline</code></td><td><code>flair-baseline</code></td><td>an <em>optional</em> reference XGBoost count-feature model</td></tr>
+</table>
+
+<p><strong>Privacy guarantees baked into the library:</strong></p>
+<ul>
+  <li>No patient rows leave a site — outputs are JSON aggregates only.</li>
+  <li>Cell-count suppression: any count <code>&lt; 10</code> is written as <code>"&lt;10"</code> in <code>table1.json</code>.</li>
+  <li>Demographic subgroups with <code>n &lt; 10</code> are dropped entirely from <code>fairness.json</code>.</li>
+</ul>
+
+<h2>Install &amp; first config</h2>
+<p>The PyPI release is <strong>coming soon (v1)</strong>:</p>
+<div class="codeblock"><pre><code>pip install flair-benchmark          # core library + `flair` CLI
+pip install "flair-benchmark[viz]"   # add matplotlib for local sanity-check PNGs</code></pre></div>
+
+<p>Scaffold the two config files from the CLI:</p>
+<div class="codeblock"><pre><code>flair init-config --out .
+# writes clif_config.json + feature_config.yaml (pass --force to overwrite)</code></pre></div>
+
+<p><strong><code>clif_config.json</code></strong> tells FLAIR where your CLIF data lives and how to read it:</p>
+<table>
+  <tr><th>field</th><th>meaning</th></tr>
+  <tr><td><code>site</code></td><td><code>"mimic"</code> triggers the deterministic 70/30 split; any other name is a label/prefix</td></tr>
+  <tr><td><code>data_directory</code></td><td>root folder of your CLIF parquet/CSV files</td></tr>
+  <tr><td><code>filetype</code></td><td><code>"parquet"</code> or <code>"csv"</code></td></tr>
+  <tr><td><code>timezone</code></td><td>site-local tz, e.g. <code>"US/Eastern"</code> — stripped to local wall-clock</td></tr>
+  <tr><td><code>stitch_time_interval_hours</code></td><td>gap (default <code>6</code>) below which hospitalizations merge into one stitched hospitalization</td></tr>
+  <tr><td><code>cache_directory</code></td><td>where intermediate artifacts are cached</td></tr>
+</table>
+
+<h2>End-to-end quickstart</h2>
+<div class="codeblock"><pre><code># 0. install + scaffold
+pip install "flair-benchmark[viz]"
+flair init-config --out .
+#   …edit clif_config.json: set data_directory + timezone…
+
+# 1. see what tasks exist
+flair list-tasks
+
+# 2. build a cohort  ->  cohort.parquet + cohort.table1.json
+flair load-task task1_icu_daily_mortality \
+  --clif-config clif_config.json --out cohort.parquet
+
+# 3. engineer features  ->  ELF-long event parquet
+flair fe-wide --feature-config feature_config.yaml \
+  --task cohort.parquet --out features.parquet
+
+# 4. …train YOUR model -> preds.parquet (hospitalization_id, split, label, y_prob)…
+
+# 5. build the report bundle  (continuous task -> pick peak or landmark)
+flair build-report preds.parquet --task task1_icu_daily_mortality \
+  --cohort cohort.parquet --mode landmark --out ./report/</code></pre></div>
+
+<p>Follow the sidebar for the detail on each step.</p>
+{% endblock %}

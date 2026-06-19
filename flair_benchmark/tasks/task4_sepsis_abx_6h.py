@@ -97,6 +97,8 @@ ASE_ONSET_COL = "ase_onset_w_lactate_dttm"
 ASE_INCLUDE_LACTATE = True
 EXCLUDE_LOCATION_CATEGORIES = ["psychiatric", "rehabilitation"]
 
+from flair_benchmark._constants import TASK_POLICY
+
 META = {
     "name": "task4_sepsis_abx_6h",
     "display_name": "Sepsis (CDC ASE onset) within 6h",
@@ -104,9 +106,9 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
-    "clinical_threshold": 0.1,
     "clinical_action": "treat with antibiotics",
-    "clinical_direction": "above",  # act when risk of sepsis > 10%
+    # clinical_threshold, clinical_direction, report_mode — single-sourced
+    **TASK_POLICY["task4_sepsis_abx_6h"],
     "label_column": "label_sepsis_6h",
     "positive_class": "ase_onset_within_6h",
     "input_window_hours": None,

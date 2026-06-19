@@ -13,8 +13,21 @@
     <div class="k">Docker image</div><div>{% if sub.docker_url %}<code>{{ sub.docker_url }}</code>{% else %}—{% endif %}</div>
     <div class="k">Model weights</div><div>{% if sub.model_url %}<a href="{{ sub.model_url }}" target="_blank" rel="noopener">{{ sub.model_url }}</a>{% else %}—{% endif %}</div>
     <div class="k">Tasks requested</div><div>{% for tid in sub.tasks %}<span class="pill">{{ task_label(tid) }}</span>{% endfor %}</div>
-    <div class="k">Target sites</div><div>{% if sub.target_sites == 'all' %}all participating sites{% else %}{{ sub.target_sites|join(', ') }}{% endif %}</div>
+    <div class="k">Posts to</div><div>all participating sites</div>
   </div>
+</div>
+
+<div class="panel">
+  <h3>MIMIC-CLIF audit</h3>
+  <div class="kv">
+    <div class="k">Attested on MIMIC-CLIF</div>
+    <div>{% if sub.tested_mimic %}<span class="badge done">yes</span>{% else %}<span class="badge notrun">no</span>{% endif %}</div>
+    <div class="k">Audit report</div>
+    <div>{% if sub.audit_report_path %}<a href="/admin/submission/{{ sub.id }}/audit">Download audit report ↗</a>{% else %}<span class="muted">none uploaded</span>{% endif %}</div>
+  </div>
+  {% if not sub.tested_mimic or not sub.audit_report_path %}
+  <div class="notice" style="margin-top:10px">⚠ Verify the MIMIC-CLIF audit before posting this run to sites.</div>
+  {% endif %}
 </div>
 
 <div class="panel">
@@ -40,13 +53,13 @@
     <label for="review_notes">Review notes</label>
     <input type="text" id="review_notes" name="review_notes" value="{{ sub.review_notes }}">
     <div class="cta" style="margin-top:14px">
-      <button class="btn ghost" type="submit" name="action" value="reviewing">Mark reviewing</button>
+      <button class="btn ghost" type="submit" name="action" value="processing">Move to processing</button>
       <button class="btn ghost" type="submit" name="action" value="reject">Reject</button>
       <button class="btn ghost" type="submit" name="action" value="approve">Approve</button>
-      <button class="btn" type="submit" name="action" value="push">Approve &amp; push to sites</button>
+      <button class="btn" type="submit" name="action" value="post">Post run to all sites</button>
     </div>
   </form>
-  {% if sub.status == 'pushed' %}<div class="notice" style="margin-top:14px">Pushed — sites now see this as a run request on their dashboard.</div>{% endif %}
+  {% if sub.status == 'posted' %}<div class="notice" style="margin-top:14px">Posted — all sites now see this run on their dashboard and can accept or reject it. Track progress in <a href="/admin/runs">Run orchestration</a>.</div>{% endif %}
 </div>
 
 {% endblock %}

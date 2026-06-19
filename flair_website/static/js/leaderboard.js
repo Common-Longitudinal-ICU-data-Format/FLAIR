@@ -17,6 +17,8 @@
 
   let activeTask = board.tasks[0] ? board.tasks[0].id : null;
   const boardEl = document.getElementById("board");
+  const taskById = {};
+  board.tasks.forEach((t) => (taskById[t.id] = t));
 
   const fmt = (x, d) => (x == null ? "—" : x.toFixed(d));
 
@@ -47,7 +49,15 @@
     }).join("");
     const p = pool(task, model);
     const pooledTxt = p ? `${p.auroc.toFixed(3)} <span class="ci">(${p.ci[0].toFixed(3)}–${p.ci[1].toFixed(3)}, ${p.n_sites})</span>` : "—";
+    const t = taskById[task] || {};
+    const s = model.split;
+    const provenance =
+      `<div class="count" style="margin:2px 0 12px">` +
+      (t.report_mode ? `Report mode: <strong>${t.report_mode}</strong>` : "") +
+      (s ? ` &nbsp;·&nbsp; Split: <strong>${s.type} ${s.ratio}</strong> hold-out by ${s.grain}` : "") +
+      `</div>`;
     container.innerHTML =
+      provenance +
       `<div class="count" style="margin-bottom:8px">Add / remove sites — pooled AUROC recomputes:</div>` +
       `<div class="site-toggles">${chips}</div>` +
       `<table style="margin:0"><thead><tr><th>Metric</th>${head}<th class="num">Pooled</th></tr></thead>` +
@@ -87,6 +97,16 @@
         `<tr class="lb-detail" data-detail="${m.id}"><td colspan="7"><div class="inner"></div></td></tr>`;
     });
     html += "</tbody></table>";
+    const t = taskById[task] || {};
+    const split = rows[0] && rows[0].split;
+    const splitTxt = split
+      ? ` &nbsp;·&nbsp; Split: <strong>${split.type} ${split.ratio}</strong> hold-out by hospitalization`
+      : "";
+    const modeTxt = t.report_mode
+      ? `Report mode: <strong>${t.report_mode}</strong>`
+      : "";
+    if (modeTxt || splitTxt)
+      html += `<div class="count" style="margin-top:10px">${modeTxt}${splitTxt}</div>`;
     boardEl.innerHTML = html;
 
     boardEl.querySelectorAll(".lb-model").forEach((tr) => {

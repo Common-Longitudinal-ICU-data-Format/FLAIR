@@ -9,9 +9,10 @@
 
 {% for ms in model_scores %}
 <h3>{{ ms.model.name }}{% if ms.model.is_baseline %} <span class="pill sage">baseline</span>{% endif %}</h3>
+{% if ms.model.split %}<div class="count" title="{{ ms.model.split.detail }}">Split: <strong>{{ ms.model.split.type }} {{ ms.model.split.ratio }}</strong> hold-out by {{ ms.model.split.grain }}</div>{% endif %}
 <table>
   <thead><tr>
-    <th>Task</th><th class="num">n test</th><th class="num">Prev.</th>
+    <th>Task</th><th>Mode</th><th class="num">n test</th><th class="num">Prev.</th>
     <th class="num">AUROC</th><th class="num">95% CI</th><th class="num">AUPRC</th>
     <th class="num">Cal. slope</th><th class="num">Brier</th>
   </tr></thead>
@@ -19,6 +20,7 @@
     {% for r in ms.rows %}
     <tr>
       <td><span class="dot {{ r.task.color }}"></span>T{{ r.task.n }} · {{ r.task.display_name }}</td>
+      <td>{% if r.task.report_mode %}<span class="pill {{ r.task.color }}">{{ r.task.report_mode }}</span>{% endif %}</td>
       {% if r.score %}
       <td class="num">{{ "{:,}".format(r.score.n_test) }}</td>
       <td class="num">{{ "%.3f"|format(r.score.prevalence) }}</td>

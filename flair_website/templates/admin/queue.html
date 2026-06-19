@@ -4,13 +4,13 @@
 
 <div class="count">Benchmark committee</div>
 <h1>Review <span class="accent">queue</span></h1>
-<p class="lead">Model submissions awaiting review. Approve and push to dispatch a run request (with the model's links) to sites.</p>
+<p class="lead">Model run requests awaiting review. Audit each against its MIMIC-CLIF report, then post the run to all sites. Track who runs it in <a href="/admin/runs">Run orchestration</a>.</p>
 
 {% if not submissions %}
-<p class="muted">No submissions yet.</p>
+<p class="muted">No run requests yet.</p>
 {% else %}
 <table>
-  <thead><tr><th>#</th><th>Model</th><th>Owner</th><th>Tasks</th><th>Sites</th><th>Status</th><th>Submitted</th></tr></thead>
+  <thead><tr><th>#</th><th>Model</th><th>Owner</th><th>Tasks</th><th>Audit</th><th>Status</th><th>Submitted</th></tr></thead>
   <tbody>
     {% for s in submissions %}
     <tr>
@@ -18,7 +18,7 @@
       <td><a href="/admin/submission/{{ s.id }}">{{ s.model_name }}</a></td>
       <td class="muted">{{ s.owner_name or s.owner_email }}</td>
       <td class="num">{{ s.tasks|length }}</td>
-      <td>{% if s.target_sites == 'all' %}all{% else %}{{ s.target_sites|join(', ') }}{% endif %}</td>
+      <td>{% if s.tested_mimic and s.audit_report_path %}<span class="badge done">ok</span>{% else %}<span class="badge notrun">missing</span>{% endif %}</td>
       <td><span class="badge status-{{ s.status }}">{{ s.status }}</span></td>
       <td class="count">{{ s.created_at }}</td>
     </tr>

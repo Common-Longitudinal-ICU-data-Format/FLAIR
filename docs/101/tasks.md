@@ -21,6 +21,10 @@ flair list-tasks
 The recommended **report mode** follows from the temporal pattern: episode tasks → `episodic`;
 continuous tasks → `landmark` (T1, T2) or `peak` (T4). See [reports.md](reports.md).
 
+> The threshold, direction, and report mode for every task are single-sourced in
+> `flair_benchmark/_constants.py` (`TASK_POLICY`) — spread into each task's `META` at import
+> time and folded into the audit hash. Change them there, not per task file.
+
 ## Loading a task → cohort
 
 ```bash

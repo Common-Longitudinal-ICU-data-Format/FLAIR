@@ -1,0 +1,78 @@
+{% extends "docs/_layout.html" %}
+{% block title %}FLAIR 101 — Building reports{% endblock %}
+{% block doc %}
+<h1>Building reports</h1>
+<p class="lede">Turning a predictions parquet into the aggregate-only JSON bundle a site uploads.</p>
+
+<p>The key choice is <strong><code>--mode</code></strong> — how a task's predictions are scored.</p>
+
+<h2>The command</h2>
+<div class="codeblock"><pre><code>flair build-report preds.parquet \
+  --task task1_icu_daily_mortality \
+  --out ./report/ \
+  --mode landmark \
+  --cohort cohort.parquet \
+  --split test \
+  --viz            # or --no-viz</code></pre></div>
+<table>
+  <tr><th>flag</th><th>default</th><th>purpose</th></tr>
+  <tr><td><code>--task</code></td><td>(required)</td><td>task name</td></tr>
+  <tr><td><code>--out</code></td><td>(required)</td><td>output directory for the JSON bundle</td></tr>
+  <tr><td><code>--mode</code></td><td>inferred</td><td><code>episodic</code> | <code>peak</code> | <code>landmark</code></td></tr>
+  <tr><td><code>--split</code></td><td><code>test</code></td><td>which split to analyze</td></tr>
+  <tr><td><code>--cohort</code></td><td>—</td><td>joins demographics + <code>window_number</code> when absent from preds</td></tr>
+  <tr><td><code>--viz/--no-viz</code></td><td>on</td><td>render local sanity-check PNGs (never uploaded)</td></tr>
+</table>
+
+<h2>The predictions parquet</h2>
+<p>Required columns: <code>hospitalization_id</code>, <code>split</code>,
+  <code>&lt;label_column&gt;</code>.</p>
+<ul>
+  <li><strong>binary</strong> → <code>y_pred</code> and/or <code>y_prob</code> (recommended — enables calibration, DCA, fairness AUROC)</li>
+  <li><strong>multiclass</strong> → <code>y_pred</code> + <code>class_probs_&lt;class&gt;</code></li>
+  <li><strong>regression</strong> → <code>y_pred_value</code></li>
+</ul>
+<p>Carry <code>hospitalization_join_id</code>, <code>window_number</code>, and demographics
+  through too (or pass <code>--cohort</code> and they're joined in). <code>y_prob</code> must be
+  a valid probability in <code>[0, 1]</code> with no nulls.</p>
+
+<h2>Choosing --mode</h2>
+<table>
+  <tr><th>mode</th><th>use for</th><th>pillars produced</th></tr>
+  <tr><td><strong>episodic</strong></td><td>one-per-stay tasks (T3, T5)</td><td>discrimination, calibration, dca, fairness</td></tr>
+  <tr><td><strong>landmark</strong></td><td>continuous tasks, per-lead-time honesty (T1, T2)</td><td>the four pillars <strong>per landmark</strong> (12 risk-set lead times) + <code>leadtime</code></td></tr>
+  <tr><td><strong>peak</strong></td><td>continuous screening (T4)</td><td>discrimination + fairness only</td></tr>
+</table>
+
+<div class="callout">
+  <strong>The rule that bites:</strong> if you omit <code>--mode</code> it is inferred from
+  META's <code>temporal_pattern</code> (<code>episode</code> → <code>episodic</code>). But a
+  <strong>continuous task with no <code>--mode</code> is an error</strong> — you must explicitly
+  pick <code>peak</code> or <code>landmark</code>.
+</div>
+
+<ul>
+  <li><strong>landmark</strong> freezes the clock <em>L</em> windows before each stay's endpoint,
+    scores one row per stay at that lead time, and repeats for <code>L = 0..11</code> → an honest
+    skill-and-calibration curve over time. It also emits <code>leadtime</code>: per-window
+    detection sensitivity, median lead-time before the first alert, and mean risk trajectory by
+    eventual outcome.</li>
+  <li><strong>peak</strong> collapses each stay to its worst (peak) risk — deployment-like for
+    screening discrimination, but calibration/DCA are omitted because peak-selection breaks
+    calibration (the "peak-calibration trap").</li>
+</ul>
+
+<h2>What each pillar reports</h2>
+<table>
+  <tr><th>pillar</th><th>contents</th></tr>
+  <tr><td><strong>discrimination</strong></td><td>AUROC, AUPRC, ROC/PR curves, operating point at the clinical threshold (sensitivity/specificity/PPV/NPV/F1), NNE</td></tr>
+  <tr><td><strong>calibration</strong></td><td>ECE, Brier, slope, intercept, reliability + smoothed curves</td></tr>
+  <tr><td><strong>dca</strong></td><td>decision-curve net benefit across a threshold grid</td></tr>
+  <tr><td><strong>fairness</strong></td><td>per-subgroup (sex, race, ethnicity, age-bin) AUROC + parity gaps</td></tr>
+</table>
+<p>Every metric carries a <strong>500-replicate bootstrap 95% CI</strong>. Cell suppression
+  (<code>&lt;10</code>) and subgroup dropping (<code>n &lt; 10</code>) are applied so nothing
+  identifying leaves the site. Output is one JSON per pillar under <code>--out</code> (landmark
+  adds <code>leadtime.json</code>); <code>--viz</code> writes matching PNGs under
+  <code>report/viz/</code> for local validation only.</p>
+{% endblock %}

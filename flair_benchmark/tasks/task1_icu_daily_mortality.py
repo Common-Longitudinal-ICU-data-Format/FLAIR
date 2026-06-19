@@ -52,6 +52,8 @@ from flair_benchmark._encounter import build_icu_encounter_cohort
 from flair_benchmark._split import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
 
+from flair_benchmark._constants import TASK_POLICY
+
 META = {
     "name": "task1_icu_daily_mortality",
     "display_name": "ICU Daily In-Hospital Mortality (7AM, binary)",
@@ -59,9 +61,9 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
-    "clinical_threshold": 0.95,
     "clinical_action": "withdraw life support",
-    "clinical_direction": "above",  # act when risk of in-hospital death > 95%
+    # clinical_threshold, clinical_direction, report_mode — single-sourced
+    **TASK_POLICY["task1_icu_daily_mortality"],
     "label_column": "label_mortality",
     "positive_class": "in_hospital_mortality",
     "input_window_hours": None,

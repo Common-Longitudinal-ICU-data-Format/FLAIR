@@ -7,6 +7,13 @@ __pycache__/
 .env
 .DS_Store
 
+# Raw per-site result dumps. The parser (scripts/build_data.py) turns these into
+# the committed data/ snapshot; the raw dumps themselves never ship or deploy.
+runs_data/
+
+# Internal-mode submitted MIMIC-CLIF audit bundles. Never served, never shipped.
+uploads/
+
 # The repo-root .gitignore has a generic `data/` rule (raw datasets). This
 # folder's data/ is committed site content (leaderboard + task catalog +
 # exported report bundles), so re-include it here.

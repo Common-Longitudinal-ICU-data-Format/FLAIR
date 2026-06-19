@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="docs-wrap">
+  {% include "docs/_sidebar.html" %}
+  <div class="docs-body">
+    {% block doc %}{% endblock %}
+
+    {% set order = pages | map(attribute=0) | list %}
+    {% set idx = order.index(page) %}
+    <div class="prevnext">
+      {% if idx > 0 %}{% set p = pages[idx-1] %}<a href="{{ p[1] }}">← {{ p[2] }}</a>{% endif %}
+      <span class="spacer"></span>
+      {% if idx < pages|length - 1 %}{% set n = pages[idx+1] %}<a href="{{ n[1] }}">{{ n[2] }} →</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

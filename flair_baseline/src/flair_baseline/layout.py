@@ -21,19 +21,16 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-# Continuous tasks need an explicit report mode (episode tasks default to
-# episodic). task1/task2 are scored per lead-time (landmark); task4 is a
-# stay-peak screening task. Anything not listed -> episodic.
-MODE_BY_TASK = {
-    "task1_icu_daily_mortality": "landmark",
-    "task2_icu_daily_ltach": "landmark",
-    "task4_sepsis_abx_6h": "peak",
-}
+from flair_benchmark._constants import TASK_POLICY
 
 
 def report_mode(task_name: str) -> str:
-    """Report mode for a task; episodic unless overridden in MODE_BY_TASK."""
-    return MODE_BY_TASK.get(task_name, "episodic")
+    """Report mode for a task — single-sourced from flair_benchmark/_constants.py.
+
+    task1/task2 = landmark (per lead-time), task4 = peak (stay-peak screening),
+    episode tasks (3, 5) = episodic. Anything unlisted defaults to episodic.
+    """
+    return TASK_POLICY.get(task_name, {}).get("report_mode", "episodic")
 
 
 def slug(site: str | None) -> str:

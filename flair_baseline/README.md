@@ -122,13 +122,23 @@ cp config/clif_config.template.json config/clif_config.json
 
 ## Results (MIMIC-IV, 75/25 join-id split)
 
-| task | n_test | test AUROC | mode |
-|---|---:|---:|---|
-| task1 ICU daily mortality | 49,362 | 0.788 | landmark |
-| task2 ICU daily LTACH | 49,362 | 0.757 | landmark |
-| task3 extubation failure 24h | 6,694 | 0.720 | episodic |
-| task4 sepsis ABX 6h | 3,608,449 | 0.812 | peak |
-| task5 ICU readmission | 16,814 | 0.649 | episodic |
+**Report AUROC** is the headline metric in `discrimination.json` — the one that gets
+uploaded. It is mode-matched (episodic = one row/stay; peak = stay-peak risk; landmark =
+the lead-0 landmark, i.e. each stay's last window). The **row-level** column is the raw
+per-prediction-row AUROC for context — for peak/landmark tasks it differs because a stay
+contributes many correlated rows, so it is not the deployed metric.
+
+| task | mode | report AUROC (test) | n_stays | row-level |
+|---|---|---:|---:|---:|
+| task1 ICU daily mortality | landmark (lead-0) | 0.864 [0.856, 0.872] | 18,195 | 0.790 |
+| task2 ICU daily LTACH | landmark (lead-0) | 0.789 [0.775, 0.803] | 18,195 | 0.752 |
+| task3 extubation failure 24h | episodic | 0.696 [0.665, 0.719] | 6,693 | 0.696 |
+| task4 sepsis ABX 6h | peak | 0.693 [0.678, 0.709] | 19,943 | 0.815 |
+| task5 ICU readmission | episodic | 0.641 [0.626, 0.658] | 16,806 | 0.641 |
+
+> Landmark tasks report 12 per-lead-time AUROCs (see `leadtime.json` / the `landmarks[]`
+> array); the table shows lead-0 as a single summary. task4 peak (0.69) vs its row-level
+> (0.81) is the peak-trap in action — per-window pooling overstates deployed skill.
 
 ## Scale notes
 

@@ -75,8 +75,33 @@ def seed_example_submission() -> None:
         reg_abbrev="EUH",
         reg_pi="Dr. Ada Researcher",
         notes="Pretrained on eICU; requesting external validation across CLIF sites.",
+        tested_mimic=True,
     )
     print("  seeded example submission")
+
+
+def seed_demo_runs() -> None:
+    """Post the example submission to sites and seed a few varied responses so the
+    committee orchestration matrix is populated (DEMO ONLY)."""
+    if db.list_run_requests(None):
+        return
+    subs = db.list_submissions()
+    if not subs:
+        return
+    sub = subs[0]
+    db.push_submission_to_sites(sub)
+    db.update_submission_status(sub["id"], "posted",
+                                "Audited on MIMIC-CLIF; posted to all sites.")
+    reqs = db.list_run_requests(None)
+    if not reqs:
+        return
+    rid = reqs[0]["id"]
+    demo_states = ["results-shared", "running", "accepted", "rejected"]
+    sites = [s for s in db.list_sites() if s["key"] != "committee"]
+    for i, s in enumerate(sites):
+        db.set_run_response(rid, s["id"], status=demo_states[i % len(demo_states)],
+                            anonymous=(i % 2 == 0))
+    print("  seeded demo run + responses")
 
 
 def main() -> None:
@@ -112,6 +137,7 @@ def main() -> None:
             )
         seed_admin("admin@flair", "demo")
         seed_example_submission()
+        seed_demo_runs()
         return
 
     # Single explicit site: pick the next free anon label.

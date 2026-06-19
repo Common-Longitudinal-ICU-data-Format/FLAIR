@@ -49,6 +49,8 @@ from flair_benchmark.tasks._finalize import finalize_cohort
 
 MIN_ICU_STAY_HOURS = 1
 
+from flair_benchmark._constants import TASK_POLICY
+
 META = {
     "name": "task5_icu_readmission",
     "display_name": "Unplanned ICU Readmission (one-per-stay, binary)",
@@ -56,9 +58,9 @@ META = {
     "temporal_pattern": "episode",
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
-    "clinical_threshold": 0.2,
     "clinical_action": "keep in ICU",
-    "clinical_direction": "above",  # act when risk of ICU readmission > 20%
+    # clinical_threshold, clinical_direction, report_mode — single-sourced
+    **TASK_POLICY["task5_icu_readmission"],
     "label_column": "label_icu_readmission",
     "positive_class": "readmitted",
     "input_window_hours": None,

@@ -14,7 +14,8 @@
       "clinical_direction": "above",
       "clinical_action": "withdraw life support",
       "label_column": "label_mortality",
-      "summary": "Predicted at daily 07:00 local on each ICU day: in-hospital death or transfer to hospice during the stay."
+      "summary": "Predicted at daily 07:00 local on each ICU day: in-hospital death or transfer to hospice during the stay.",
+      "report_mode": "landmark"
     },
     {
       "id": "task2_icu_daily_ltach",
@@ -29,7 +30,8 @@
       "clinical_direction": "above",
       "clinical_action": "early tracheostomy",
       "label_column": "label_ltach",
-      "summary": "Complementary to T1 on the same daily 07:00 grid: discharge to long-term acute care rather than death or home."
+      "summary": "Complementary to T1 on the same daily 07:00 grid: discharge to long-term acute care rather than death or home.",
+      "report_mode": "landmark"
     },
     {
       "id": "task3_extubation_failure_24h",
@@ -44,7 +46,8 @@
       "clinical_direction": "below",
       "clinical_action": "extubate",
       "label_column": "label_extubation_failure_24h",
-      "summary": "Anchored at first confirmed extubation: death or reintubation within 24 hours. Extubate when risk is below threshold."
+      "summary": "Anchored at first confirmed extubation: death or reintubation within 24 hours. Extubate when risk is below threshold.",
+      "report_mode": "episodic"
     },
     {
       "id": "task4_sepsis_abx_6h",
@@ -59,7 +62,8 @@
       "clinical_direction": "above",
       "clinical_action": "treat with antibiotics",
       "label_column": "label_sepsis_6h",
-      "summary": "Hourly grid, hospital-wide: CDC adult sepsis event onset within 6 hours of the prediction time."
+      "summary": "Hourly grid, hospital-wide: CDC adult sepsis event onset within 6 hours of the prediction time.",
+      "report_mode": "peak"
     },
     {
       "id": "task5_icu_readmission",
@@ -74,7 +78,8 @@
       "clinical_direction": "above",
       "clinical_action": "keep in ICU",
       "label_column": "label_icu_readmission",
-      "summary": "Anchored at first-ICU discharge: unplanned return to the ICU later in the same hospitalization (planned excursions excluded)."
+      "summary": "Anchored at first-ICU discharge: unplanned return to the ICU later in the same hospitalization (planned excursions excluded).",
+      "report_mode": "episodic"
     }
   ]
 }

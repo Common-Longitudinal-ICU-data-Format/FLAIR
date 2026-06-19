@@ -46,6 +46,8 @@ from flair_benchmark.tasks._finalize import finalize_cohort
 HORIZON_HOURS = 24
 TRACH_CLOSURE_TOLERANCE_MIN = 1
 
+from flair_benchmark._constants import TASK_POLICY
+
 META = {
     "name": "task3_extubation_failure_24h",
     "display_name": "Extubation failure within 24h (one-per-stay)",
@@ -53,9 +55,9 @@ META = {
     "temporal_pattern": "episode",
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
-    "clinical_threshold": 0.15,
     "clinical_action": "extubate",
-    "clinical_direction": "below",  # act when risk of extubation failure < 15%
+    # clinical_threshold, clinical_direction, report_mode — single-sourced
+    **TASK_POLICY["task3_extubation_failure_24h"],
     "label_column": "label_extubation_failure_24h",
     "positive_class": "vfd_lt_1_in_24h_post_extubation",
     "input_window_hours": None,

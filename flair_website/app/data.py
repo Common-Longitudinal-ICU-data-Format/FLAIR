@@ -43,6 +43,12 @@ def models() -> list[dict]:
     return _board_raw()["models"]
 
 
+def board_sites() -> list[dict]:
+    """Public site columns baked into leaderboard.json by scripts/build_data.py.
+    The public site reads these instead of the (PII-bearing) DB."""
+    return _board_raw().get("sites", [])
+
+
 def model_by_id(model_id: str) -> dict | None:
     return next((m for m in models() if m["id"] == model_id), None)
 
@@ -58,7 +64,8 @@ def snapshot_site_keys() -> list[str]:
 
 
 def model_meta(model: dict) -> dict:
-    return {k: model[k] for k in ("id", "name", "owner", "type", "github_url", "is_baseline")
+    return {k: model[k] for k in ("id", "name", "owner", "type", "github_url",
+                                  "is_baseline", "split")
             if k in model}
 
 
@@ -79,31 +86,22 @@ def _weighted_pool(rows: list[dict]) -> dict | None:
     }
 
 
-def _visible_sites(sites: list[dict]) -> list[dict]:
-    out = []
-    for s in sites:
-        if not s.get("opted_in"):
-            continue
-        if not (s.get("visibility") or {}).get("metrics", True):
-            continue
-        out.append(s)
-    return out
+def _visible_sites(sites: list[dict] | None) -> list[dict]:
+    # Every site baked into leaderboard.json is intended-public by construction
+    # (the parser only writes public, cell-suppressed aggregates).
+    return list(sites if sites is not None else board_sites())
 
 
 def _site_label(site: dict) -> str:
-    vis = site.get("visibility") or {}
-    if vis.get("identity") and (site.get("abbreviation") or site.get("site_name")):
-        return site.get("abbreviation") or site["site_name"]
-    return site.get("anon_label") or site["key"].upper()
+    return site.get("label") or site["key"].upper()
 
 
-def public_leaderboard_by_task(sites: list[dict]) -> dict:
+def public_leaderboard_by_task(sites: list[dict] | None = None) -> dict:
     """Per task: site columns + models ranked best-first by pooled AUROC, each
-    with its per-site AUROC cells. Only opted-in, metrics-visible sites count."""
+    with its per-site AUROC cells. Site columns come from leaderboard.json."""
     visible = _visible_sites(sites)
     columns = [
-        {"key": s["key"], "label": _site_label(s),
-         "identified": bool((s.get("visibility") or {}).get("identity"))}
+        {"key": s["key"], "label": _site_label(s), "identified": True}
         for s in visible
     ]
     site_keys = [s["key"] for s in visible]
@@ -133,7 +131,7 @@ def public_leaderboard_by_task(sites: list[dict]) -> dict:
 
 
 def _report_path(model_id: str, site_key: str, task_id: str):
-    return settings.data_dir / "reports" / model_id / site_key / f"{task_id}.json"
+    return settings.data_dir / "reports" / model_id / site_key / task_id / "report.json"
 
 
 def report_exists(model_id: str, site_key: str, task_id: str) -> bool:
@@ -147,7 +145,7 @@ def get_report(model_id: str, site_key: str, task_id: str) -> dict | None:
     return _finite(json.loads(p.read_text()))
 
 
-def task_models(task_id: str, sites: list[dict]) -> list[dict]:
+def task_models(task_id: str, sites: list[dict] | None = None) -> list[dict]:
     """Per-task ranked models (public view), each annotated with which visible
     sites have a full report bundle available."""
     visible = _visible_sites(sites)
@@ -171,7 +169,7 @@ def task_models(task_id: str, sites: list[dict]) -> list[dict]:
     return out
 
 
-def site_publicly_visible(site_key: str, sites: list[dict]) -> bool:
+def site_publicly_visible(site_key: str, sites: list[dict] | None = None) -> bool:
     return any(s["key"] == site_key for s in _visible_sites(sites))
 
 

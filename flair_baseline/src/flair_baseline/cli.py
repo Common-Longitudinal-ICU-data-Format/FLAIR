@@ -45,6 +45,26 @@ def _auroc(preds: pl.DataFrame, label_col: str, split: str) -> Optional[float]:
     return float(roc_auc_score(y, d["y_prob"].to_numpy()))
 
 
+def _report_auroc(report_dir: Path) -> tuple:
+    """Headline AUROC from the written discrimination.json, matching the report mode.
+
+    episodic/peak expose a single `metrics.auroc`; landmark wraps per-lead-time
+    entries, so we report the lead-0 landmark (one row per stay, the stay's last
+    window). Returns (auroc, label) or (None, label).
+    """
+    import json
+    f = report_dir / "discrimination.json"
+    if not f.exists():
+        return None, ""
+    d = json.loads(f.read_text())
+    if isinstance(d.get("metrics"), dict):
+        return d["metrics"].get("auroc"), ""
+    lms = d.get("landmarks") or []
+    if lms and isinstance(lms[0].get("metrics"), dict):
+        return lms[0]["metrics"].get("auroc"), " lead-0"
+    return None, ""
+
+
 def _relocate(src: Path, dst: Path) -> None:
     """Move a freshly-written file to its final (cross-folder) home."""
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +124,11 @@ def _pipeline(task_name: str, clif_config: str, elf_config: str, paths: TaskPath
             cohort = assign_split(cohort.drop("split"), site="mimic",
                                   train_end=None, test_start=None,
                                   admission_col="prediction_dttm")
+            # Inference scores only the deterministic 25% holdout — drop train now
+            # (split is fixed) so MEDS extraction, codes/Table1, the count join and
+            # scoring all run on test ids only. The holdout is unchanged: the full
+            # cohort was built and split before this filter.
+            cohort = cohort.filter(pl.col("split") == "test")
         cohort.write_parquet(paths.cohort)
 
         table1 = generate_table1(read_clif_config(clif_config), cohort, task_module)
@@ -140,7 +165,6 @@ def _pipeline(task_name: str, clif_config: str, elf_config: str, paths: TaskPath
     preds.write_parquet(paths.preds)
 
     auc_tr, auc_te = _auroc(preds, label_col, "train"), _auroc(preds, label_col, "test")
-    typer.echo(f"[{task_name}] AUROC  train={auc_tr}  test={auc_te}")
 
     if report:
         from flair_benchmark.report import build_report
@@ -148,8 +172,16 @@ def _pipeline(task_name: str, clif_config: str, elf_config: str, paths: TaskPath
         mode = report_mode(task_name)
         build_report(str(paths.preds), task_module, str(paths.report_dir),
                      cohort_path=str(paths.cohort), viz=viz, site=site, mode=mode)
+        # Echo the report's headline AUROC so the printed number equals the
+        # uploaded metric (peak/landmark collapse stays, so it differs from the
+        # row-level test AUROC, which we keep alongside for overfit context).
+        rep_auc, lbl = _report_auroc(paths.report_dir)
+        typer.echo(f"[{task_name}] report AUROC ({mode}{lbl}, test)={rep_auc}  "
+                   f"[row-level train={auc_tr} test={auc_te}]")
         typer.echo(f"[{task_name}] report ({mode}){' + viz' if viz else ''} "
                    f"→ {paths.report_dir}")
+    else:
+        typer.echo(f"[{task_name}] row-level AUROC  train={auc_tr}  test={auc_te}")
 
 
 @app.command("train")

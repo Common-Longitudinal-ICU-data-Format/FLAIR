@@ -560,7 +560,6 @@ requires-dist = [
 
 [[package]]
 name = "flair-benchmark"
-version = "2.0.0"
 source = { editable = "flair" }
 dependencies = [
     { name = "clifpy" },
@@ -589,7 +588,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.3.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
-provides-extras = ["viz", "dev"]
+provides-extras = ["dev", "viz"]
 
 [[package]]
 name = "fonttools"

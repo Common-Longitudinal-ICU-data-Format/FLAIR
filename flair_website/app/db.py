@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS submissions (
     reg_abbrev     TEXT DEFAULT '',
     reg_pi         TEXT DEFAULT '',
     notes          TEXT DEFAULT '',
+    tested_mimic   INTEGER NOT NULL DEFAULT 0,
+    audit_report_path TEXT DEFAULT '',
     status         TEXT NOT NULL DEFAULT 'submitted',
     review_notes   TEXT DEFAULT '',
     created_at     TEXT NOT NULL DEFAULT (datetime('now')),
@@ -83,7 +85,26 @@ CREATE TABLE IF NOT EXISTS run_requests (
     status        TEXT NOT NULL DEFAULT 'open',
     requested_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS run_responses (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    request_id  INTEGER NOT NULL REFERENCES run_requests(id),
+    site_id     INTEGER NOT NULL REFERENCES sites(id),
+    status      TEXT NOT NULL DEFAULT 'pending',   -- pending|rejected|accepted|running|results-shared
+    anonymous   INTEGER NOT NULL DEFAULT 0,
+    note        TEXT DEFAULT '',
+    updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(request_id, site_id)
+);
 """
+
+# Columns added after the first release; ALTER them onto an existing DB since
+# CREATE TABLE IF NOT EXISTS won't.
+_ADDED_COLUMNS = {
+    "submissions": {
+        "tested_mimic": "INTEGER NOT NULL DEFAULT 0",
+        "audit_report_path": "TEXT DEFAULT ''",
+    },
+}
 
 
 @contextmanager
@@ -101,6 +122,16 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 def init_db() -> None:
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Idempotently add columns introduced after the first release."""
+    for table, cols in _ADDED_COLUMNS.items():
+        have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, decl in cols.items():
+            if name not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
 
 
 def _row_to_site(row: sqlite3.Row) -> dict[str, Any]:
@@ -228,6 +259,7 @@ def _row_to_submission(row: sqlite3.Row) -> dict:
             d[k] = [] if k == "tasks" else "all"
     d["is_site_lead"] = bool(d["is_site_lead"])
     d["wants_site_reg"] = bool(d["wants_site_reg"])
+    d["tested_mimic"] = bool(d.get("tested_mimic"))
     return d
 
 
@@ -237,16 +269,25 @@ def create_submission(**f) -> int:
             """INSERT INTO submissions
                (model_name, model_type, owner_name, owner_email, is_site_lead,
                 github_url, docker_url, model_url, tasks, target_sites,
-                wants_site_reg, reg_site_name, reg_abbrev, reg_pi, notes)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                wants_site_reg, reg_site_name, reg_abbrev, reg_pi, notes,
+                tested_mimic, audit_report_path)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (f["model_name"], f.get("model_type", ""), f.get("owner_name", ""),
              f["owner_email"], int(f.get("is_site_lead", False)),
              f.get("github_url", ""), f.get("docker_url", ""), f.get("model_url", ""),
              json.dumps(f.get("tasks", [])), json.dumps(f.get("target_sites", "all")),
              int(f.get("wants_site_reg", False)), f.get("reg_site_name", ""),
-             f.get("reg_abbrev", ""), f.get("reg_pi", ""), f.get("notes", "")),
+             f.get("reg_abbrev", ""), f.get("reg_pi", ""), f.get("notes", ""),
+             int(f.get("tested_mimic", False)), f.get("audit_report_path", "")),
         )
         return cur.lastrowid
+
+
+def set_audit_report_path(sub_id: int, path: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE submissions SET audit_report_path=? WHERE id=?", (path, sub_id)
+        )
 
 
 def list_submissions() -> list[dict]:
@@ -296,6 +337,72 @@ def push_submission_to_sites(sub: dict) -> int:
                  f"Submitted by {sub.get('owner_name') or sub['owner_email']}"),
             )
     return len(site_ids)
+
+
+# ---- run responses (per-site accept/reject/lifecycle) ---------------------
+
+# A site's lifecycle on a posted run. Order matters for "furthest" reasoning.
+RESPONSE_STATES = ("pending", "rejected", "accepted", "running", "results-shared")
+
+
+def set_run_response(request_id: int, site_id: int, *, status: str,
+                     anonymous: bool = False, note: str = "") -> None:
+    """Upsert a site's response to one posted run (keyed on request+site)."""
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO run_responses (request_id, site_id, status, anonymous, note,
+                   updated_at)
+               VALUES (?,?,?,?,?, datetime('now'))
+               ON CONFLICT(request_id, site_id) DO UPDATE SET
+                   status=excluded.status, anonymous=excluded.anonymous,
+                   note=excluded.note, updated_at=datetime('now')""",
+            (request_id, site_id, status, int(anonymous), note),
+        )
+
+
+def get_run_response(request_id: int, site_id: int) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM run_responses WHERE request_id=? AND site_id=?",
+            (request_id, site_id),
+        ).fetchone()
+    return _row_to_response(row) if row else None
+
+
+def _row_to_response(row: sqlite3.Row) -> dict:
+    d = dict(row)
+    d["anonymous"] = bool(d["anonymous"])
+    return d
+
+
+def responses_for_site(site_id: int) -> dict[int, dict]:
+    """{request_id: response} for one site."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM run_responses WHERE site_id=?", (site_id,)
+        ).fetchall()
+    return {r["request_id"]: _row_to_response(r) for r in rows}
+
+
+def responses_for_request(request_id: int) -> list[dict]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM run_responses WHERE request_id=?", (request_id,)
+        ).fetchall()
+    return [_row_to_response(r) for r in rows]
+
+
+def orchestration_grid() -> dict:
+    """Committee 'own view' data: every posted run × every real site, with each
+    site's response in the cell. Sites exclude the hidden 'committee' site."""
+    reqs = list_run_requests(None)
+    sites = [s for s in list_sites() if s["key"] != "committee"]
+    cell: dict[int, dict[int, dict]] = {}
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM run_responses").fetchall()
+    for r in rows:
+        cell.setdefault(r["request_id"], {})[r["site_id"]] = _row_to_response(r)
+    return {"requests": reqs, "sites": sites, "cell": cell}
 
 
 def record_login_fail(user_id: int) -> None:

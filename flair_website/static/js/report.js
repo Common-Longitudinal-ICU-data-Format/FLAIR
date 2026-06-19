@@ -1,11 +1,12 @@
-// Full per-(model, site, task) report, re-rendered from the exported JSON.
-// Pure inline-SVG charts — no external libs, no pre-rendered images.
+// Full per-(model, site, task) report, re-rendered from the exported pillar JSON
+// (scripts/build_data.py). Pure inline-SVG charts — no external libs, no images.
+// Mode-aware: episodic/peak tasks are flat; landmark tasks carry a per-lead-time
+// `landmarks[]` array on each pillar + a leadtime pillar, surfaced via a selector.
 (function () {
   const panel = document.getElementById("report");
   if (!panel) return;
 
   // ---- tiny SVG chart kit -------------------------------------------------
-  const NS = "http://www.w3.org/2000/svg";
   const COL = { blue: "#5b86a6", purple: "#8a72ad", sage: "#5e9b78", terra: "#b9744e", grey: "#9a9a96", ink: "#1a1a1a" };
 
   function ticks(lo, hi, n = 5) {
@@ -13,10 +14,8 @@
     for (let i = 0; i <= n; i++) out.push(lo + ((hi - lo) * i) / n);
     return out;
   }
-  const fmt = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3));
+  const fmt = (v) => (v == null || !isFinite(v) ? "—" : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3));
 
-  // config: {title, xLabel, yLabel, xDomain, yDomain, series:[{pts,color,dash,markers}],
-  //          diagonal, hlines:[{y,color,label}], vlines:[{x,color,label}]}
   function chart(cfg) {
     const W = 380, H = 300, P = { l: 52, r: 16, t: 28, b: 44 };
     const iw = W - P.l - P.r, ih = H - P.t - P.b;
@@ -25,17 +24,17 @@
     const sy = (y) => P.t + ih - ((y - y0) / (y1 - y0 || 1)) * ih;
     let s = `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">`;
     s += `<text x="${W / 2}" y="16" text-anchor="middle" class="c-title">${cfg.title}</text>`;
-    // grid + ticks
     ticks(y0, y1).forEach((t) => {
       const y = sy(t);
       s += `<line x1="${P.l}" y1="${y}" x2="${W - P.r}" y2="${y}" class="c-grid"/>`;
       s += `<text x="${P.l - 6}" y="${y + 3}" text-anchor="end" class="c-tick">${fmt(t)}</text>`;
     });
-    ticks(x0, x1).forEach((t) => {
+    const xt = cfg.xTicks || ticks(x0, x1);
+    const xtf = cfg.xTickFmt || fmt;
+    xt.forEach((t) => {
       const x = sx(t);
-      s += `<text x="${x}" y="${H - P.b + 16}" text-anchor="middle" class="c-tick">${fmt(t)}</text>`;
+      s += `<text x="${x}" y="${H - P.b + 16}" text-anchor="middle" class="c-tick">${xtf(t)}</text>`;
     });
-    // axis labels
     s += `<text x="${P.l + iw / 2}" y="${H - 6}" text-anchor="middle" class="c-axis">${cfg.xLabel || ""}</text>`;
     s += `<text transform="translate(13 ${P.t + ih / 2}) rotate(-90)" text-anchor="middle" class="c-axis">${cfg.yLabel || ""}</text>`;
     if (cfg.diagonal) s += `<line x1="${sx(x0)}" y1="${sy(y0)}" x2="${sx(x1)}" y2="${sy(y1)}" class="c-diag"/>`;
@@ -56,10 +55,7 @@
         s += `<circle cx="${sx(p[0]).toFixed(1)}" cy="${sy(p[1]).toFixed(1)}" r="3" fill="${ser.color}"/>`;
       });
     });
-    // frame
-    s += `<rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" class="c-frame"/>`;
-    s += `</svg>`;
-    // legend
+    s += `<rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" class="c-frame"/></svg>`;
     if (cfg.legend) {
       s += `<div class="c-legend">` + cfg.legend.map((l) =>
         `<span><i style="background:${l.color}"></i>${l.label}</span>`).join("") + `</div>`;
@@ -68,191 +64,343 @@
   }
 
   function barChart(cfg) {
-    const W = 380, H = 300, P = { l: 52, r: 16, t: 28, b: 56 };
+    const W = 380, H = 300, P = { l: 52, r: 16, t: 28, b: 64 };
     const iw = W - P.l - P.r, ih = H - P.t - P.b;
-    const max = Math.max(1, ...cfg.values);
+    const max = cfg.max || Math.max(0.0001, ...cfg.values.filter((v) => isFinite(v)));
     const bw = iw / cfg.values.length;
     let s = `<svg viewBox="0 0 ${W} ${H}" class="chart"><text x="${W / 2}" y="16" text-anchor="middle" class="c-title">${cfg.title}</text>`;
     cfg.values.forEach((v, i) => {
-      const h = (v / max) * ih, x = P.l + i * bw + 4, y = P.t + ih - h;
+      const fv = isFinite(v) ? v : 0;
+      const h = (fv / max) * ih, x = P.l + i * bw + 4, y = P.t + ih - h;
       s += `<rect x="${x}" y="${y}" width="${bw - 8}" height="${h}" fill="${cfg.color || COL.blue}"/>`;
-      s += `<text x="${x + (bw - 8) / 2}" y="${y - 4}" text-anchor="middle" class="c-tick">${v}</text>`;
-      s += `<text x="${x + (bw - 8) / 2}" y="${P.t + ih + 14}" text-anchor="middle" class="c-tick" transform="rotate(20 ${x + (bw - 8) / 2} ${P.t + ih + 14})">${cfg.labels[i]}</text>`;
+      s += `<text x="${x + (bw - 8) / 2}" y="${y - 4}" text-anchor="middle" class="c-tick">${isFinite(v) ? fmt(v) : "—"}</text>`;
+      s += `<text x="${x + (bw - 8) / 2}" y="${P.t + ih + 12}" text-anchor="end" class="c-tick" transform="rotate(-28 ${x + (bw - 8) / 2} ${P.t + ih + 12})">${esc(cfg.labels[i])}</text>`;
     });
     s += `<rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" class="c-frame"/></svg>`;
     return `<div class="chart-box">${s}</div>`;
   }
 
-  const zip = (a, b) => a.map((v, i) => [v, b[i]]);
+  const zip = (a, b) => (a || []).map((v, i) => [v, (b || [])[i]]);
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const none = (msg) => `<p class="muted">${msg}</p>`;
+  const ci = (a) => (a && a.length === 2 ? ` <span class="ci">(${fmt(a[0])}–${fmt(a[1])})</span>` : "");
+  const row = (k, v) => `<tr><td>${k}</td><td class="num">${v}</td></tr>`;
+
+  // ---- lead-time geometry -------------------------------------------------
+  // Display day is 1-indexed (no "day 0"): nearest landmark = 1 day before outcome.
+  // Charts read left→right as a countdown TOWARD the prediction window: 12 days on
+  // the left, 1 day (the prediction window) on the right.
+  const dayOf = (lm) => ((lm.windows_before_end ?? lm.landmark_index) || 0) + 1;
+  const LEAD_X = { xDomain: [12, 1], xLabel: "days before outcome",
+                   xTicks: [12, 10, 8, 6, 4, 2, 1], xTickFmt: (t) => `${Math.round(t)}` };
+  // Gradient by lead-time: nearest (1 day) dark, earliest (12 days) light.
+  const lmColor = (li, n) => `hsl(208, 48%, ${28 + (li / Math.max(1, n - 1)) * 50}%)`;
+  const leadLegend = () =>
+    `<div class="lm-legend"><span>1 day</span><i></i><span>12 days before outcome</span></div>`;
+
+  // ---- landmark state + pillar accessor -----------------------------------
+  const state = { li: 0, all: false };
+  // Return the active node of a pillar: the selected landmark for landmark tasks,
+  // else the flat pillar itself.
+  function node(pillar) {
+    if (!pillar) return null;
+    if (Array.isArray(pillar.landmarks)) {
+      return pillar.landmarks.find((l) => l.landmark_index === state.li) || pillar.landmarks[0] || null;
+    }
+    return pillar;
+  }
 
   // ---- per-tab renderers --------------------------------------------------
   function discrimination(r) {
-    const c = r.curves; if (!c) return "<p class='muted'>No curves.</p>";
+    if (r.landmark && state.all) {
+      const lms = r.discrimination.landmarks || [];
+      const n = lms.length;
+      const roc = chart({
+        title: "ROC — all lead-times", xLabel: "false positive rate", yLabel: "true positive rate",
+        xDomain: [0, 1], yDomain: [0, 1], diagonal: true,
+        series: lms.map((l, i) => ({ pts: zip((l.curves || {}).roc?.fpr, (l.curves || {}).roc?.tpr), color: lmColor(l.landmark_index, n) })),
+      });
+      const pr = chart({
+        title: "Precision–Recall — all lead-times", xLabel: "recall", yLabel: "precision",
+        xDomain: [0, 1], yDomain: [0, 1],
+        series: lms.map((l) => ({ pts: zip((l.curves || {}).pr?.recall, (l.curves || {}).pr?.precision), color: lmColor(l.landmark_index, n) })),
+      });
+      const auc = chart({
+        ...LEAD_X, title: "AUROC by lead-time", yLabel: "AUROC", yDomain: [0.5, 1],
+        series: [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).auroc]), color: COL.blue, markers: true }],
+      });
+      return `${leadLegend()}<div class="chart-grid">${roc}${pr}${auc}</div>`;
+    }
+    const d = node(r.discrimination);
+    if (!d || !d.curves) return none("No discrimination data.");
+    const m = d.metrics || {}, c = d.curves;
     const roc = chart({
-      title: `ROC · AUROC ${c.roc.auroc.toFixed(3)} (${c.roc.auroc_ci.map((x) => x.toFixed(3)).join("–")})`,
-      xLabel: "False positive rate", yLabel: "True positive rate",
+      title: "ROC", xLabel: "false positive rate", yLabel: "true positive rate",
       xDomain: [0, 1], yDomain: [0, 1], diagonal: true,
-      series: [{ pts: zip(c.roc.grid_fpr, c.roc.tpr_at_grid), color: COL.blue }],
+      series: [{ pts: zip(c.roc.fpr, c.roc.tpr), color: COL.blue }],
     });
+    const prev = r.discrimination.prevalence ?? d.prevalence;
     const pr = chart({
-      title: `Precision–Recall · AUPRC ${c.pr.auprc.toFixed(3)} (${c.pr.auprc_lift}× lift)`,
-      xLabel: "Recall", yLabel: "Precision", xDomain: [0, 1], yDomain: [0, 1],
-      hlines: [{ y: c.pr.baseline, color: COL.grey }],
-      series: [{ pts: zip(c.pr.recall, c.pr.precision), color: COL.purple }],
-      legend: [{ color: COL.purple, label: "model" }, { color: COL.grey, label: `prevalence ${c.pr.baseline.toFixed(3)}` }],
+      title: "Precision–Recall", xLabel: "recall", yLabel: "precision",
+      xDomain: [0, 1], yDomain: [0, 1],
+      hlines: prev != null ? [{ y: prev, color: COL.grey }] : [],
+      series: [{ pts: zip(c.pr.recall, c.pr.precision), color: COL.sage }],
     });
-    return `<div class="chart-grid">${roc}${pr}</div>`;
+    const tbl = `<table class="rep-tbl"><tbody>
+      ${row("AUROC", fmt(m.auroc) + ci(m.auroc_ci))}
+      ${row("AUPRC", fmt(m.auprc) + ci(m.auprc_ci))}
+      ${row("AUPRC lift over prevalence", "×" + fmt(m.auprc_lift))}
+      ${row("Prevalence", fmt(prev))}</tbody></table>`;
+    return `<div class="chart-grid">${roc}${pr}</div>${tbl}`;
   }
 
   function calibration(r) {
-    const c = r.curves; if (!c) return "<p class='muted'>No calibration.</p>";
-    const ce = c.calibration_extended, sm = ce && ce.smoothed;
-    const series = [];
-    if (sm) series.push({ pts: zip(sm.pred_grid, sm.obs_smoothed), color: COL.sage });
-    series.push({ pts: zip(c.calibration.bin_pred_prob, c.calibration.bin_true_prob), color: COL.terra, markers: true });
-    const maxv = Math.max(1, ...c.calibration.bin_pred_prob, ...c.calibration.bin_true_prob);
-    const dom = Math.min(1, Math.ceil(maxv * 10) / 10);
-    const cal = chart({
-      title: `Reliability · slope ${ce.slope} · intercept ${ce.intercept} · Brier ${ce.brier}`,
-      xLabel: "Predicted probability", yLabel: "Observed frequency",
-      xDomain: [0, dom], yDomain: [0, dom], diagonal: true, series,
-      legend: [{ color: COL.terra, label: "binned" }, { color: COL.sage, label: "logistic recalibration" }],
+    if (!r.calibration) return none("Calibration omitted for peak-mode screening (the peak-calibration trap).");
+    if (r.landmark && state.all) {
+      const lms = r.calibration.landmarks || [];
+      const n = lms.length;
+      const rel = chart({
+        title: "Reliability (smoothed) — all lead-times", xLabel: "predicted probability", yLabel: "observed frequency",
+        xDomain: [0, 1], yDomain: [0, 1], diagonal: true,
+        series: lms.map((l) => { const sm = (l.curves || {}).smoothed || {}; return { pts: zip(sm.pred_grid, sm.obs_smoothed), color: lmColor(l.landmark_index, n) }; }),
+      });
+      const slope = chart({
+        ...LEAD_X, title: "Calibration slope by lead-time", yLabel: "slope", yDomain: [0, 2],
+        hlines: [{ y: 1, color: COL.grey }],
+        series: [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).slope]), color: COL.purple, markers: true }],
+      });
+      return `${leadLegend()}<div class="chart-grid">${rel}${slope}</div>`;
+    }
+    const cal = node(r.calibration);
+    if (!cal) return none("No calibration data.");
+    const m = cal.metrics || {}, rc = (cal.curves || {}).reliability || {}, sm = (cal.curves || {}).smoothed || {};
+    const rel = chart({
+      title: "Reliability", xLabel: "predicted probability", yLabel: "observed frequency",
+      xDomain: [0, 1], yDomain: [0, 1], diagonal: true,
+      series: [
+        { pts: zip(sm.pred_grid, sm.obs_smoothed), color: COL.purple },
+        { pts: zip(rc.bin_pred_prob, rc.bin_true_prob), color: COL.blue, markers: true },
+      ],
+      legend: [{ color: COL.blue, label: "binned" }, { color: COL.purple, label: "smoothed" }],
     });
-    return `<div class="chart-grid">${cal}</div><p class="count">ECE ${c.calibration.ece} · slope &lt;1 means over-confident scores.</p>`;
+    const tbl = `<table class="rep-tbl"><tbody>
+      ${row("Calibration slope", fmt(m.slope) + ci(m.slope_ci))}
+      ${row("Calibration intercept", fmt(m.intercept) + ci(m.intercept_ci))}
+      ${row("ECE", fmt(m.ece) + ci(m.ece_ci))}
+      ${row("Brier", fmt(m.brier) + ci(m.brier_ci))}
+      ${row("Observed / expected", fmt(m.o_e_ratio))}</tbody></table>`;
+    return `<div class="chart-grid">${rel}</div>${tbl}`;
   }
 
   function decision(r) {
-    const d = r.dca; if (!d) return "<p class='muted'>No decision-curve data.</p>";
-    const [lo, hi] = d.focus_range || [0, 1];
-    const idx = d.thresholds.map((t, i) => i).filter((i) => d.thresholds[i] >= lo && d.thresholds[i] <= hi);
-    const xs = idx.map((i) => d.thresholds[i]);
-    const model = xs.map((t, k) => [t, d.net_benefit_model[idx[k]]]);
-    const all = xs.map((t, k) => [t, d.net_benefit_all[idx[k]]]);
-    const ymax = Math.max(...model.map((p) => p[1]), ...all.map((p) => p[1]), 0);
-    const ymin = Math.min(...model.map((p) => p[1]), ...all.map((p) => p[1]), 0);
+    if (!r.dca) return none("Decision curve omitted for peak-mode screening.");
+    if (r.landmark && state.all) {
+      const lms = r.dca.landmarks || [];
+      const n = lms.length;
+      const all = lms.flatMap((l) => (l.curves || {}).net_benefit_model || []).filter(isFinite);
+      const yHi = Math.max(0.0001, ...all) * 1.05, yLo = Math.min(0, ...all);
+      const ch = chart({
+        title: "Decision curve (model net benefit) — all lead-times", xLabel: "threshold probability", yLabel: "net benefit",
+        xDomain: (lms[0] && (lms[0].curves || {}).focus_range) || [0, 1], yDomain: [yLo, yHi],
+        hlines: [{ y: 0, color: COL.grey }],
+        series: lms.map((l) => ({ pts: zip((l.curves || {}).thresholds, (l.curves || {}).net_benefit_model), color: lmColor(l.landmark_index, n) })),
+      });
+      return `${leadLegend()}<div class="chart-grid">${ch}</div>`;
+    }
+    const d = node(r.dca);
+    if (!d) return none("No decision-curve data.");
+    const c = d.curves || {}, m = d.metrics || {};
+    const th = c.thresholds || [];
+    const xr = c.focus_range || [Math.min(...th), Math.max(...th)];
+    const ys = [...(c.net_benefit_model || []), ...(c.net_benefit_all || [])].filter(isFinite);
+    const yLo = Math.min(0, ...ys), yHi = Math.max(0.0001, ...ys) * 1.05;
+    const nbAll = Array.isArray(c.net_benefit_all) ? zip(th, c.net_benefit_all) : [];
+    const ct = m.clinical_threshold;
     const ch = chart({
-      title: `Decision curve · net benefit`, xLabel: "Threshold probability", yLabel: "Net benefit",
-      xDomain: [lo, hi], yDomain: [ymin, ymax * 1.05 || 0.01],
-      hlines: [{ y: 0, color: COL.grey }], vlines: [{ x: d.clinical_threshold, color: COL.terra }],
-      series: [{ pts: model, color: COL.blue }, { pts: all, color: COL.grey }],
-      legend: [{ color: COL.blue, label: "model" }, { color: COL.grey, label: "treat all / none" }, { color: COL.terra, label: "clinical threshold" }],
+      title: "Decision curve (net benefit)", xLabel: "threshold probability", yLabel: "net benefit",
+      xDomain: xr, yDomain: [yLo, yHi],
+      hlines: [{ y: 0, color: COL.grey }],
+      vlines: ct != null ? [{ x: ct, color: COL.terra }] : [],
+      series: [
+        { pts: zip(th, c.net_benefit_model), color: COL.blue },
+        { pts: nbAll, color: COL.grey, dash: true },
+      ],
+      legend: [{ color: COL.blue, label: "model" }, { color: COL.grey, label: "treat all" }],
     });
-    const u = d.useful_range || {};
-    return `<div class="chart-grid">${ch}</div><p class="count">Clinically useful: <strong>${d.clinically_useful ? "yes" : "no"}</strong>. Useful threshold band ${u.low}–${u.high}.</p>`;
-  }
-
-  function operating(r) {
-    const th = r.threshold_analysis; if (!th) return "<p class='muted'>No threshold analysis.</p>";
-    const lm = th.label_metrics;
-    const sweep = th.sweep || [];
-    const sens = sweep.map((s) => [s.threshold, s.sensitivity]);
-    const spec = sweep.map((s) => [s.threshold, s.specificity]);
-    const ch = chart({
-      title: "Operating curve (sweep)", xLabel: "Threshold", yLabel: "Rate", xDomain: [0, 1], yDomain: [0, 1],
-      vlines: [{ x: th.clinical_threshold, color: COL.terra }],
-      series: [{ pts: sens, color: COL.blue }, { pts: spec, color: COL.sage }],
-      legend: [{ color: COL.blue, label: "sensitivity" }, { color: COL.sage, label: "specificity" }, { color: COL.terra, label: "clinical threshold" }],
-    });
-    const rows = [["Sensitivity", lm.sensitivity], ["Specificity", lm.specificity], ["PPV", lm.ppv],
-      ["NPV", lm.npv], ["F1", lm.f1], ["Accuracy", lm.accuracy], ["Flag rate", lm.flag_rate]];
-    const tbl = `<table class="rep-tbl"><thead><tr><th>At clinical threshold ${th.clinical_threshold} (${th.clinical_direction})</th><th class="num">value</th></tr></thead><tbody>` +
-      rows.map((x) => `<tr><td>${x[0]}</td><td class="num">${(x[1] ?? 0).toFixed(3)}</td></tr>`).join("") +
-      `<tr><td>Confusion (TP/FP/FN/TN)</td><td class="num">${lm.tp}/${lm.fp}/${lm.fn}/${lm.tn}</td></tr></tbody></table>`;
+    const nb = m.net_benefit_at_clinical_threshold || {};
+    const ur = m.useful_range || {};
+    const tbl = `<table class="rep-tbl"><tbody>
+      ${row("Net benefit @ clinical threshold", fmt(nb.model) + ci(nb.model_ci))}
+      ${row("Clinically useful", m.clinically_useful ? "yes" : "no")}
+      ${row("Useful threshold range", ur.low != null ? `${fmt(ur.low)} – ${fmt(ur.high)}` : "—")}</tbody></table>`;
     return `<div class="chart-grid">${ch}</div>${tbl}`;
   }
 
-  function fairness(r) {
-    const f = r.fairness; if (!f) return "<p class='muted'>No fairness data.</p>";
-    let out = "";
-    for (const [dim, groups] of Object.entries(f.subgroups)) {
-      const par = (f.parity && f.parity[dim]) || {};
-      let t = `<h4>${dim.replace("_category", "").replace("_", " ")}</h4>`;
-      t += `<table class="rep-tbl"><thead><tr><th>group</th><th class="num">n</th><th class="num">AUROC</th><th class="num">AUPRC</th><th class="num">TPR</th><th class="num">FPR</th><th class="num">Brier</th></tr></thead><tbody>`;
-      for (const [g, v] of Object.entries(groups)) {
-        t += `<tr><td>${esc(g)}</td><td class="num">${v.n.toLocaleString()}</td><td class="num">${(v.auroc ?? 0).toFixed(3)}</td><td class="num">${(v.auprc ?? 0).toFixed(3)}</td><td class="num">${(v.tpr ?? 0).toFixed(3)}</td><td class="num">${(v.fpr ?? 0).toFixed(3)}</td><td class="num">${(v.brier ?? 0).toFixed(3)}</td></tr>`;
-      }
-      t += `</tbody></table>`;
-      if (par.equalized_odds_tpr_gap != null)
-        t += `<p class="count">Parity gaps — demographic ${par.demographic_parity_gap}, equalized-odds TPR ${par.equalized_odds_tpr_gap}, FPR ${par.equalized_odds_fpr_gap} (ref ${esc(par.reference_group)}).</p>`;
-      out += t;
+  function operating(r) {
+    if (r.landmark && state.all) {
+      const lms = r.discrimination.landmarks || [];
+      const op = (l) => (l.metrics || {}).operating_point || {};
+      const ch = chart({
+        ...LEAD_X, title: "Operating metrics by lead-time", yLabel: "rate", yDomain: [0, 1],
+        series: [
+          { pts: lms.map((l) => [dayOf(l), op(l).sensitivity]), color: COL.blue, markers: true },
+          { pts: lms.map((l) => [dayOf(l), op(l).specificity]), color: COL.sage, markers: true },
+          { pts: lms.map((l) => [dayOf(l), op(l).ppv]), color: COL.terra, markers: true },
+        ],
+        legend: [{ color: COL.blue, label: "sensitivity" }, { color: COL.sage, label: "specificity" }, { color: COL.terra, label: "PPV" }],
+      });
+      return `<p class="count">Operating metrics at the clinical threshold, across lead-times (right = nearest the prediction window).</p><div class="chart-grid">${ch}</div>`;
     }
+    const d = node(r.discrimination);
+    const op = (d && d.metrics && d.metrics.operating_point) || null;
+    if (!op) return none("No operating point.");
+    const tbl = `<table class="rep-tbl"><tbody>
+      ${row("Threshold", `${fmt(op.threshold)} (${esc(op.direction || "")})`)}
+      ${row("Sensitivity", fmt(op.sensitivity) + ci(op.sensitivity_ci))}
+      ${row("Specificity", fmt(op.specificity) + ci(op.specificity_ci))}
+      ${row("PPV", fmt(op.ppv) + ci(op.ppv_ci))}
+      ${row("NPV", fmt(op.npv) + ci(op.npv_ci))}
+      ${row("F1", fmt(op.f1) + ci(op.f1_ci))}
+      ${row("Flag rate", fmt(op.flag_rate))}
+      ${row("TP / FP / FN / TN", `${op.tp} / ${op.fp} / ${op.fn} / ${op.tn}`)}</tbody></table>`;
+    return `<p class="count">Confusion + operating metrics at the task's fixed clinical threshold.</p>${tbl}`;
+  }
+
+  function fairness(r) {
+    if (r.landmark && state.all) {
+      const lms = r.fairness.landmarks || [];
+      const dims = Object.keys((lms[0] || {}).subgroups || {});
+      let out = `<p class="count">Per-subgroup AUROC across lead-times (right = nearest the prediction window).</p><div class="chart-grid">`;
+      const palette = [COL.blue, COL.sage, COL.terra, COL.purple, COL.grey, COL.ink, "#c0496b"];
+      for (const dim of dims) {
+        const levels = Object.keys((lms[0].subgroups[dim]) || {});
+        out += chart({
+          ...LEAD_X, title: dim.replace("_category", "").replace(/_/g, " ") + " — AUROC", yLabel: "AUROC", yDomain: [0.5, 1],
+          series: levels.map((lv, k) => ({
+            pts: lms.map((l) => [dayOf(l), (((l.subgroups || {})[dim] || {})[lv] || {}).auroc]),
+            color: palette[k % palette.length], markers: true,
+          })),
+          legend: levels.map((lv, k) => ({ color: palette[k % palette.length], label: lv })),
+        });
+      }
+      return out + "</div>";
+    }
+    const f = node(r.fairness);
+    if (!f || !f.subgroups) return none("No fairness data.");
+    let out = "<p class=\"count\">Per-subgroup AUROC, with equity gaps vs the reference group at the clinical threshold.</p><div class=\"chart-grid\">";
+    const parityRows = [];
+    for (const [dim, levels] of Object.entries(f.subgroups)) {
+      const names = Object.keys(levels), vals = names.map((n) => levels[n].auroc);
+      out += barChart({
+        title: dim.replace("_category", "").replace(/_/g, " ") + " — AUROC",
+        labels: names, values: vals, color: COL.blue, max: 1,
+      });
+      const p = (f.parity || {})[dim];
+      if (p) parityRows.push(`<tr><td>${esc(dim.replace("_category", "").replace(/_/g, " "))}</td>
+        <td class="num">${fmt(p.demographic_parity_gap)}</td>
+        <td class="num">${fmt(p.equalized_odds_tpr_gap)}</td>
+        <td class="num">${fmt(p.equalized_odds_fpr_gap)}</td>
+        <td class="muted">${esc(p.reference_group || "")}</td></tr>`);
+    }
+    out += "</div>";
+    if (parityRows.length) out += `<table class="rep-tbl"><thead><tr><th>Subgroup</th>
+      <th class="num">Demographic parity gap</th><th class="num">Eq. odds TPR gap</th>
+      <th class="num">Eq. odds FPR gap</th><th>Reference</th></tr></thead><tbody>${parityRows.join("")}</tbody></table>`;
     return out;
   }
 
-  function temporal(r) {
-    const t = r.temporal; if (!t || !t.by_window) return "<p class='muted'>No temporal data.</p>";
-    const bins = t.by_window.bins || [];
-    const pts = bins.map((b) => [Number(b.bin), b.auroc]);
-    const ch = chart({
-      title: `AUROC by ${t.by_window.unit || "window"} in stay`, xLabel: t.by_window.unit || "window", yLabel: "AUROC",
-      xDomain: [pts[0] ? pts[0][0] : 0, pts.length ? pts[pts.length - 1][0] : 1], yDomain: [0.5, 1],
-      series: [{ pts, color: COL.blue, markers: true }],
+  function leadtime(r) {
+    if (!r.leadtime) return none("Lead-time analysis applies to landmark (continuous) tasks only.");
+    const lms = (r.discrimination && r.discrimination.landmarks) || [];
+    const skill = chart({
+      ...LEAD_X, title: "Skill over lead-time", yLabel: "AUROC", yDomain: [0.5, 1],
+      series: [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).auroc]), color: COL.blue, markers: true }],
     });
-    let traj = "";
-    const tb = t.trajectory_by_outcome;
-    if (tb && tb.series) {
-      const wins = tb.windows.map((_, i) => i + 1);
-      const series = tb.series.map((s, i) => ({ pts: zip(wins, s.mean_prob), color: i ? COL.terra : COL.blue }));
-      traj = chart({
-        title: "Mean predicted risk by window", xLabel: "window", yLabel: "mean predicted prob",
-        xDomain: [1, wins.length], yDomain: [0, 1], series,
-        legend: tb.series.map((s, i) => ({ color: i ? COL.terra : COL.blue, label: s.outcome })),
-      });
-    }
-    return `<div class="chart-grid">${ch}${traj}</div>`;
-  }
-
-  function encounter(r) {
-    const e = r.encounter; if (!e || !e.operating_curve) return "<p class='muted'>No encounter-level data (one-per-stay task).</p>";
-    const oc = e.operating_curve;
-    const oce = chart({
-      title: "Encounter operating curve", xLabel: "alarms / patient-day", yLabel: "stay sensitivity",
-      xDomain: [0, Math.max(...oc.alarms_per_patient_day) || 1], yDomain: [0, 1],
-      series: [{ pts: zip(oc.alarms_per_patient_day, oc.stay_sensitivity), color: COL.blue }],
+    const cv = r.leadtime.curve || [];
+    const sens = chart({
+      ...LEAD_X, title: "Detection sensitivity by lead-time", yLabel: "sensitivity", yDomain: [0, 1],
+      series: [{ pts: cv.map((c) => [dayOf(c), c.sensitivity]), color: COL.sage, markers: true }],
     });
-    const lh = e.lead_time_hist;
-    const bars = lh ? barChart({ title: "Lead-time distribution (caught stays)", labels: lh.labels, values: lh.counts, color: COL.sage }) : "";
-    const a = e.at_clinical_threshold || {};
+    const tr = r.leadtime.trajectory || [];
+    const traj = chart({
+      ...LEAD_X, title: "Mean risk trajectory by outcome", yLabel: "mean predicted risk", yDomain: [0, 1],
+      series: [
+        { pts: tr.map((t) => [dayOf(t), t.mean_prob_positive]), color: COL.terra },
+        { pts: tr.map((t) => [dayOf(t), t.mean_prob_negative]), color: COL.blue },
+      ],
+      legend: [{ color: COL.terra, label: "eventual positive" }, { color: COL.blue, label: "eventual negative" }],
+    });
+    const unit = (r.meta && r.meta.window_unit) || "day";
+    const mt = r.leadtime.metrics || {};
     const tbl = `<table class="rep-tbl"><tbody>
-      <tr><td>Stay sensitivity</td><td class="num">${(a.stay_sensitivity ?? 0).toFixed(3)}</td></tr>
-      <tr><td>Stay specificity</td><td class="num">${(a.stay_specificity ?? 0).toFixed(3)}</td></tr>
-      <tr><td>Alarms / patient-day</td><td class="num">${(a.alarms_per_patient_day_silenced ?? 0).toFixed(3)}</td></tr>
-      <tr><td>Number needed to alert</td><td class="num">${a.number_needed_to_alert ?? "—"}</td></tr>
-      <tr><td>Caught / missed stays</td><td class="num">${a.n_caught}/${a.n_missed}</td></tr></tbody></table>`;
-    return `<div class="chart-grid">${oce}${bars}</div>${tbl}`;
+      ${row("Positive stays caught", `${mt.n_caught} / ${mt.n_positive_stays} (${fmt(mt.pct_caught)})`)}
+      ${row(`Median lead (${unit}s)`, fmt(mt.median_lead_windows) + ci(mt.median_lead_ci))}</tbody></table>`;
+    return `<p class="count">Charts read left→right toward the prediction window (12 days before on the left, 1 day on the right).</p><div class="chart-grid">${skill}${sens}${traj}</div>${tbl}`;
   }
 
   function cohort(r) {
-    const t = r.table1; if (!t) return "<p class='muted'>No cohort table.</p>";
-    let out = `<p class="count">n = ${t.n_total.toLocaleString()} (cell suppression at n&lt;${(t.metadata || {}).min_cell_count || 10}).</p>`;
+    const t = r.table1;
+    if (!t) return none("No cohort table.");
+    let out = `<p class="count">n = ${(t.n_total || 0).toLocaleString()} hospitalizations (cell suppression at n&lt;${(t.metadata || {}).min_cell_count || 10}).</p>`;
     for (const [k, v] of Object.entries(t.continuous || {})) {
-      out += `<p><strong>${k.replace(/_/g, " ")}</strong>: median ${v.median} (IQR ${v.q25}–${v.q75}), mean ${v.mean} ± ${v.std}, range ${v.min}–${v.max}.</p>`;
+      out += `<p><strong>${esc(k.replace(/_/g, " "))}</strong>: median ${fmt(v.median)} (IQR ${fmt(v.q25)}–${fmt(v.q75)}), mean ${fmt(v.mean)} ± ${fmt(v.std)}.</p>`;
     }
     for (const [dim, groups] of Object.entries(t.categorical || {})) {
-      out += `<h4>${dim.replace("_category", "").replace(/_/g, " ")}</h4><table class="rep-tbl"><tbody>`;
+      out += `<h4>${esc(dim.replace("_category", "").replace(/_/g, " "))}</h4><table class="rep-tbl"><tbody>`;
       for (const [g, n] of Object.entries(groups)) out += `<tr><td>${esc(g)}</td><td class="num">${typeof n === "number" ? n.toLocaleString() : esc(n)}</td></tr>`;
       out += `</tbody></table>`;
     }
     return out;
   }
 
-  const TABS = [
-    ["Discrimination", discrimination], ["Calibration", calibration], ["Decision curve", decision],
-    ["Operating point", operating], ["Fairness", fairness], ["Temporal", temporal],
-    ["Encounter", encounter], ["Cohort", cohort],
-  ];
+  function buildTabs(r) {
+    const t = [["Discrimination", discrimination]];
+    if (r.calibration) t.push(["Calibration", calibration]);
+    if (r.dca) t.push(["Decision curve", decision]);
+    t.push(["Operating point", operating], ["Fairness", fairness]);
+    if (r.leadtime) t.push(["Lead-time", leadtime]);
+    t.push(["Cohort", cohort]);
+    return t;
+  }
 
   function render(report, label) {
-    let html = `<div class="report-head"><h3>${esc(label)}</h3>
-      <button class="rep-close" aria-label="close">✕</button></div>`;
-    html += `<div class="rep-tabs">` +
+    state.li = 0;
+    state.all = false;
+    const TABS = buildTabs(report);
+    const meta = report.meta || {};
+    let prov = `<div class="count rep-prov">mode: <strong>${esc(report.mode || "—")}</strong>`;
+    if (meta.split) prov += ` · split: ${esc(meta.split)}`;
+    if (meta.clinical_threshold != null) prov += ` · clinical threshold: ${fmt(meta.clinical_threshold)}`;
+    prov += `</div>`;
+
+    let sel = "";
+    if (report.landmark) {
+      const n = ((report.discrimination && report.discrimination.landmarks) || []).length || 12;
+      // Slider raw 1..n maps left→right toward the prediction window:
+      // left = n days before (earliest), right = 1 day before (the prediction window).
+      // landmark_index li = n - raw  (raw=n → li=0 = 1 day; raw=1 → li=n-1 = n days).
+      sel = `<div class="rep-landmark">
+        <label class="lm-all"><input type="checkbox" class="lm-all-cb"> Overlay all ${n} lead-times on one plot</label>
+        <div class="lm-scrub">
+          <span class="lm-cap">${n} d</span>
+          <input type="range" class="lm-slider" min="1" max="${n}" value="${n}" step="1"
+                 aria-label="lead-time in days before outcome">
+          <span class="lm-cap">1 d · prediction window</span>
+        </div>
+        <span class="lm-now muted count">showing: 1 day before outcome</span>
+      </div>`;
+    }
+
+    panel.innerHTML =
+      `<div class="report-head"><h3>${esc(label)}</h3><button class="rep-close" aria-label="close">✕</button></div>` +
+      prov + sel +
+      `<div class="rep-tabs">` +
       TABS.map((t, i) => `<button class="rep-tab${i ? "" : " active"}" data-i="${i}">${t[0]}</button>`).join("") +
       `</div><div class="rep-body"></div>`;
-    panel.innerHTML = html;
     panel.hidden = false;
     const body = panel.querySelector(".rep-body");
-    const show = (i) => { body.innerHTML = TABS[i][1](report); };
+    let active = 0;
+    const show = (i) => { active = i; body.innerHTML = TABS[i][1](report); };
     show(0);
     panel.querySelectorAll(".rep-tab").forEach((tab) => {
       tab.addEventListener("click", () => {
@@ -260,6 +408,24 @@
         tab.classList.add("active");
         show(Number(tab.dataset.i));
       });
+    });
+    const lmAll = panel.querySelector(".lm-all-cb");
+    const lmSlider = panel.querySelector(".lm-slider");
+    const lmNow = panel.querySelector(".lm-now");
+    const nLm = lmSlider ? Number(lmSlider.max) : 12;
+    const updateNow = () => {
+      if (!lmNow) return;
+      lmNow.textContent = state.all ? "showing: all lead-times overlaid"
+        : `showing: ${state.li + 1} day${state.li === 0 ? "" : "s"} before outcome`;
+    };
+    if (lmAll) lmAll.addEventListener("change", (e) => {
+      state.all = e.target.checked;
+      if (lmSlider) lmSlider.disabled = state.all;
+      updateNow(); show(active);
+    });
+    if (lmSlider) lmSlider.addEventListener("input", (e) => {
+      state.li = nLm - Number(e.target.value);
+      updateNow(); show(active);
     });
     panel.querySelector(".rep-close").addEventListener("click", () => { panel.hidden = true; });
     panel.scrollIntoView({ behavior: "smooth", block: "start" });

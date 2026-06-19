@@ -10,16 +10,21 @@
 {% endif %}
 
 <h2>Run <span class="accent">requests</span></h2>
-<p class="lead">Models the committee approved and dispatched to your site. Each carries the code/image/weights you need to run it.</p>
+<p class="lead">Models the committee posted to your site. Each carries the code/image/weights you need to run it.
+  You can run it or reject it — and stay anonymous when you share results back. Results go to the
+  committee out-of-band per the instructions they email; in-portal results upload is coming soon.</p>
 {% if requests %}
   {% for req in requests %}
+  {% set resp = responses.get(req.id) %}
+  {% set st = resp.status if resp else 'pending' %}
   <div class="panel req-card">
     <div class="req-head">
       <span class="req-model">{{ req.model_name }}</span>
-      <span class="badge status-{{ req.status }}">{{ req.status }}</span>
+      <span class="badge rs-{{ st }}">{{ st }}</span>
+      {% if resp and resp.anonymous %}<span class="anon" title="you chose to stay anonymous">anon</span>{% endif %}
       {% if req.site_id is none %}<span class="pill">all sites</span>{% endif %}
     </div>
-    <div class="count">Requested by {{ req.owner_name or 'committee' }} · {{ req.requested_at }}</div>
+    <div class="count">Posted by {{ req.owner_name or 'committee' }} · {{ req.requested_at }}</div>
     <div class="req-tasks">
       {% for tid in req.tasks %}<span class="pill">{{ task_label.get(tid, tid) }}</span>{% endfor %}
     </div>
@@ -29,10 +34,36 @@
       {% if req.model_url %}<a href="{{ req.model_url }}" target="_blank" rel="noopener">weights ↗</a>{% endif %}
     </div>
     {% if req.note %}<div class="count">{{ req.note }}</div>{% endif %}
+
+    <div class="req-actions">
+      {% if st in ('pending', 'rejected') %}
+        <form method="post" action="/portal/runs/{{ req.id }}/respond" class="inline-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token(request) }}">
+          <label class="check anon-cb"><input type="checkbox" name="anonymous" {{ 'checked' if resp and resp.anonymous }}> stay anonymous</label>
+          <button class="btn sm" type="submit" name="action" value="accept">Accept &amp; run</button>
+          <button class="btn sm ghost" type="submit" name="action" value="reject">Reject</button>
+        </form>
+      {% elif st == 'accepted' %}
+        <form method="post" action="/portal/runs/{{ req.id }}/respond" class="inline-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token(request) }}">
+          <span class="count">Accepted — run it, then update status:</span>
+          <button class="btn sm" type="submit" name="action" value="running">Mark running</button>
+          <button class="btn sm ghost" type="submit" name="action" value="reject">Withdraw</button>
+        </form>
+      {% elif st == 'running' %}
+        <form method="post" action="/portal/runs/{{ req.id }}/respond" class="inline-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token(request) }}">
+          <span class="count">Running. When the report is shared with the committee:</span>
+          <button class="btn sm" type="submit" name="action" value="results">Mark results shared</button>
+        </form>
+      {% else %}
+        <span class="count">Results shared with the committee. Thank you.</span>
+      {% endif %}
+    </div>
   </div>
   {% endfor %}
 {% else %}
-<p class="muted">No open run requests for your site.</p>
+<p class="muted">No runs posted to your site yet.</p>
 {% endif %}
 
 <h2>Task <span class="accent">status</span></h2>

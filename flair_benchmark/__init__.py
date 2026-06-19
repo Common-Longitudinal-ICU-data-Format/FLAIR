@@ -5,7 +5,7 @@ the package only exposes the version + task discovery helpers; everything
 else lives behind the CLI.
 """
 
-__version__ = "2.0.0"
+from flair_benchmark._constants import __version__
 
 from flair_benchmark.tasks import get_task, list_tasks
 

@@ -1,0 +1,91 @@
+{% extends "docs/_layout.html" %}
+{% block title %}FLAIR 101 — Tasks &amp; task maker{% endblock %}
+{% block doc %}
+<h1>Tasks &amp; the task maker</h1>
+<p class="lede">The five v1 benchmarks, the cohort contract, and how to author your own task.</p>
+
+<h2>The five v1 tasks</h2>
+<div class="codeblock"><pre><code>flair list-tasks</code></pre></div>
+<table>
+  <tr><th>task</th><th>class</th><th>temporal</th><th>unit</th><th>thresh (dir)</th><th>action</th></tr>
+  <tr><td><span class="dot blue"></span><code>task1_icu_daily_mortality</code></td><td>outcome</td><td>continuous</td><td>one-per-window</td><td>0.95 (above)</td><td>withdraw life support</td></tr>
+  <tr><td><span class="dot purple"></span><code>task2_icu_daily_ltach</code></td><td>outcome</td><td>continuous</td><td>one-per-window</td><td>0.50 (above)</td><td>early tracheostomy</td></tr>
+  <tr><td><span class="dot sage"></span><code>task3_extubation_failure_24h</code></td><td>intervention</td><td>episode</td><td>one-per-stay</td><td>0.15 (below)</td><td>extubate</td></tr>
+  <tr><td><span class="dot terracotta"></span><code>task4_sepsis_abx_6h</code></td><td>intervention</td><td>continuous</td><td>one-per-window</td><td>0.10 (above)</td><td>treat with antibiotics</td></tr>
+  <tr><td><span class="dot blue"></span><code>task5_icu_readmission</code></td><td>outcome</td><td>episode</td><td>one-per-stay</td><td>0.20 (above)</td><td>keep in ICU</td></tr>
+</table>
+<p>The recommended <strong>report mode</strong> follows from the temporal pattern: episode →
+  <code>episodic</code>; continuous → <code>landmark</code> (T1, T2) or <code>peak</code> (T4).
+  See <a href="/docs/reports">Building reports</a>.</p>
+
+<h2>Loading a task → cohort</h2>
+<div class="codeblock"><pre><code>flair load-task task1_icu_daily_mortality \
+  --clif-config clif_config.json \
+  --out cohort.parquet \
+  [--train-end YYYY-MM-DD] [--test-start YYYY-MM-DD]</code></pre></div>
+<p>This runs the task's <code>build()</code> and writes <code>cohort.parquet</code> plus
+  <code>cohort.table1.json</code> (cohort characteristics, auto-generated).</p>
+
+<h3>The cohort contract</h3>
+<table>
+  <tr><th>column</th><th>role</th></tr>
+  <tr><td><code>hospitalization_id</code></td><td>raw hospitalization key</td></tr>
+  <tr><td><code>hospitalization_join_id</code></td><td><strong>stitched-hospitalization (stay) key</strong></td></tr>
+  <tr><td><code>prediction_dttm</code></td><td>the no-data-after cutoff for that row</td></tr>
+  <tr><td><code>&lt;label_column&gt;</code></td><td>the task label (e.g. <code>label_mortality</code>)</td></tr>
+  <tr><td><code>split</code></td><td><code>train</code> / <code>test</code></td></tr>
+  <tr><td>demographics</td><td><code>age_at_admission</code>, <code>sex_category</code>, <code>race_category</code>, <code>ethnicity_category</code></td></tr>
+  <tr><td><code>window_number</code></td><td>1-based k-th prediction per stay (always <code>1</code> for one-per-stay)</td></tr>
+  <tr><td><code>prediction_id</code></td><td>auditable per-row key</td></tr>
+</table>
+<p><code>prediction_id = {hospitalization_join_id}-{hospitalization_id}-{patient_id}-{window_number}</code>
+  — all four segments always present, so any prediction row traces back to its stitched stay,
+  the specific hospitalization, the patient, and the window.</p>
+
+<div class="callout">
+  <strong>Leakage rule.</strong> A row may use <strong>all</strong> data with
+  <code>time ≤ prediction_dttm</code> and <strong>nothing</strong> after it.
+</div>
+
+<h2>Authoring a new task (the "task maker")</h2>
+<p>A task is <strong>a single Python file</strong> dropped into
+  <code>flair_benchmark/tasks/&lt;name&gt;.py</code> that exposes a <code>META</code> dict and a
+  <code>build()</code> function. The catalog auto-discovers it — no registry edits.</p>
+
+<h3>META — required fields</h3>
+<p>The <strong>taxonomy triple</strong> (validated; reviewers read this before any code):</p>
+<table>
+  <tr><th>field</th><th>allowed values</th></tr>
+  <tr><td><code>task_class</code></td><td>outcome, deterioration, intervention, operational</td></tr>
+  <tr><td><code>temporal_pattern</code></td><td>episode, fixed_horizon, continuous</td></tr>
+  <tr><td><code>prediction_unit</code></td><td>one-per-stay, one-per-window</td></tr>
+</table>
+<p>For <strong>binary</strong> tasks, also required: <code>clinical_threshold</code> (a float in
+  <code>(0, 1)</code>) and <code>clinical_direction</code> (<code>"above"</code> or
+  <code>"below"</code>). Plus descriptive fields: <code>name</code>, <code>display_name</code>,
+  <code>task_type</code>, <code>label_column</code>, <code>positive_class</code>,
+  <code>clinical_action</code>, windows, cohort docs, <code>evaluation_metrics</code>.</p>
+
+<h3>build() — signature &amp; contract</h3>
+<div class="codeblock"><pre><code>def build(clif_config: str, train_end: str | None,
+          test_start: str | None) -> pl.DataFrame:
+    ...
+    return finalize_cohort(df, OUTPUT_COLS, META)</code></pre></div>
+<p>It must <strong>end with <code>finalize_cohort(df, OUTPUT_COLS, META)</code></strong>, which
+  selects your <code>OUTPUT_COLS</code> and stamps on <code>window_number</code> +
+  <code>prediction_id</code>.</p>
+
+<h3>Author decision checklist</h3>
+<ol>
+  <li><strong>Cohort scope</strong> — all-comers ICU? hospital-wide? specific inclusion/exclusion?</li>
+  <li><strong>Label anchor</strong> — what clinical event defines the positive label?</li>
+  <li><strong>Prediction timing</strong> — one-per-stay (episode) or one-per-window (continuous)?</li>
+  <li><strong>Threshold + direction</strong> — at what risk do you act, and above or below?</li>
+  <li><strong><code>prediction_dttm</code></strong> — the strict no-data-after cutoff for each row.</li>
+</ol>
+
+<h3>Acceptance</h3>
+<p>A new task enters the federated suite after: reproducibility against MIMIC-CLIF, a
+  clinician-led face-validity review, and site-governance acceptance at a minimum of two
+  consortium sites.</p>
+{% endblock %}

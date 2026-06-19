@@ -16,6 +16,8 @@ import importlib
 import pkgutil
 from types import ModuleType
 
+from flair_benchmark._constants import REPORT_MODES
+
 TASK_CLASS_VALUES = {"outcome", "deterioration", "intervention", "operational"}
 TEMPORAL_PATTERN_VALUES = {"episode", "fixed_horizon", "continuous"}
 PREDICTION_UNIT_VALUES = {"one-per-stay", "one-per-window"}
@@ -64,6 +66,11 @@ def _validate_taxonomy(task_name: str, meta: dict) -> None:
                 f"Task {task_name!r}: META['clinical_direction'] must be "
                 f"'above' or 'below'; got {meta.get('clinical_direction')!r}."
             )
+    if "report_mode" in meta and meta["report_mode"] not in REPORT_MODES:
+        raise ValueError(
+            f"Task {task_name!r}: META['report_mode'] = {meta['report_mode']!r} "
+            f"is not one of {sorted(REPORT_MODES)}."
+        )
     for field, allowed in _TAXONOMY_ENUMS.items():
         if field not in meta:
             raise TypeError(

@@ -7,3 +7,6 @@ __pycache__/
 .env
 .git/
 .DS_Store
+runs_data/
+uploads/
+tests/

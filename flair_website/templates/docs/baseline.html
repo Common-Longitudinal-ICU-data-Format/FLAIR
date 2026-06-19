@@ -1,0 +1,51 @@
+{% extends "docs/_layout.html" %}
+{% block title %}FLAIR 101 — Reference baseline{% endblock %}
+{% block doc %}
+<h1>The reference baseline</h1>
+<p class="lede">An optional XGBoost count-feature model that runs the full model-to-data loop.</p>
+
+<p><code>flair-baseline</code> is an <strong>optional</strong> reference model: an XGBoost head
+  over count features. It's the easiest way to see a report bundle without writing your own
+  model — and it's what ships frozen to sites for external validation. For each task it runs:
+  <code>task.build()</code> → Table 1 → CLIF→MEDS ETL → count featurizer → XGBoost (fit or
+  score) → report bundle.</p>
+
+<h2>Two subcommands</h2>
+<p><strong>Train</strong> at a source site (MIMIC), producing models you can ship:</p>
+<div class="codeblock"><pre><code>flair-baseline train \
+  --clif-config clif_config.json \
+  --elf-config flair_elf_config.yaml \
+  --out . \
+  [--task task1_icu_daily_mortality]   # default: all 5 tasks</code></pre></div>
+<p>On MIMIC the split is <strong>75/25 on <code>hospitalization_join_id</code></strong> (an
+  stitched hospitalization never spans train and test).</p>
+
+<p><strong>Infer</strong> at another site, scoring shipped models on local data:</p>
+<div class="codeblock"><pre><code>flair-baseline infer \
+  --models-dir mimic_baseline_models \
+  --clif-config site_clif_config.json \
+  --elf-config flair_elf_config.yaml \
+  --out .</code></pre></div>
+<p><code>infer</code> re-applies the same deterministic 75/25 block split, so the model is
+  evaluated on a <strong>25% holdout</strong> of <em>that</em> site's own data. The report mode
+  per task is chosen automatically (landmark for T1/T2, peak for T4, episodic for T3/T5).</p>
+
+<h2>Output: three site-prefixed folders</h2>
+<p>Every run writes under <code>--out</code> into three folders prefixed with <code>site</code>
+  from the config. <strong>Only the non-PHI folder is meant to leave the site.</strong></p>
+<div class="codeblock"><pre><code>&lt;site&gt;_baseline_phi/&lt;task&gt;/                cohort.parquet, data/MEDS.parquet, preds.parquet   ← stays local (PHI)
+&lt;site&gt;_baseline_non_phi_for_upload/&lt;task&gt;/ codes.parquet, table1.json, report/*.json (+viz)   ← upload this
+&lt;site&gt;_baseline_models/&lt;task&gt;/             model.json, vocab.json                             ← ship to other sites</code></pre></div>
+<p>Model folders keep their <strong>training-site</strong> prefix; the PHI and non-PHI folders
+  carry the <strong>running-site</strong> prefix.</p>
+
+<h2>flair_elf_config.yaml — the feature source of truth</h2>
+<p>This YAML lists the feature <strong>domains</strong> extracted into MEDS, and is the single
+  source of truth for what the model may use (no separate exclude list):</p>
+<div class="codeblock"><pre><code>VITAL, LAB, RESP, PA (GCS + RASS), CRRT (presence), MED_CON, MED_INT</code></pre></div>
+<div class="callout">
+  <code>HOSP_DX</code> (discharge diagnoses) is <strong>intentionally omitted</strong> — it is
+  timestamped at discharge and would leak into real-time predictions. To include or exclude a
+  domain, edit this file.
+</div>
+{% endblock %}

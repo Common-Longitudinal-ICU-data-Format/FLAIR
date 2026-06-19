@@ -23,12 +23,14 @@
 </div>
 
 <div class="panel">
-  <h3>Upload report bundle</h3>
-  <p class="muted" style="font-size:14px">Upload the cell-suppressed 9-JSON bundle (<code>scorecard.json</code>, <code>curves.json</code>, … ). The server validates the schema and rejects anything without the n&lt;10 suppression contract.</p>
-  <form class="stack" method="post" action="#" enctype="multipart/form-data">
-    <input type="hidden" name="csrf" value="{{ csrf_token(request) }}">
+  <h3>Return results <span class="badge notrun">coming soon</span></h3>
+  <p class="muted" style="font-size:14px">For now, the site lead shares the cell-suppressed report bundle
+    (<code>scorecard.json</code>, <code>curves.json</code>, …) with the benchmark committee
+    <strong>out-of-band</strong>. The committee will email you instructions on how to share data securely.
+    In-portal upload — with automatic schema + n&lt;10 suppression checks — is coming soon.</p>
+  <form class="stack">
     <input type="file" name="bundle" disabled>
-    <div style="margin-top:14px"><button class="btn" type="button" disabled>Upload (wired at launch)</button></div>
+    <div style="margin-top:14px"><button class="btn" type="button" disabled>Upload (coming soon)</button></div>
   </form>
 </div>
 

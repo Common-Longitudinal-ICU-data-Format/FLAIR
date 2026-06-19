@@ -1,0 +1,6 @@
+<nav class="docs-sidebar">
+  <p class="grp">FLAIR 101</p>
+  {% for key, url, label in pages %}
+  <a href="{{ url }}" class="{{ 'active' if key == page else '' }}">{{ label }}</a>
+  {% endfor %}
+</nav>

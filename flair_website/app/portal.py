@@ -62,8 +62,37 @@ def dashboard(request: Request):
     return templates.TemplateResponse(
         request, "portal/dashboard.html",
         {"site": site, "rows": rows,
-         "requests": db.list_run_requests(site["id"]), "task_label": task_label},
+         "requests": db.list_run_requests(site["id"]),
+         "responses": db.responses_for_site(site["id"]), "task_label": task_label},
     )
+
+
+# Site decision/lifecycle on a posted run (one POST per button).
+_RESPOND_ACTIONS = {
+    "accept": "accepted", "reject": "rejected",
+    "running": "running", "results": "results-shared",
+}
+
+
+@router.post("/portal/runs/{request_id}/respond")
+async def respond_run(request: Request, request_id: int):
+    site = _gate(request)
+    if not site:
+        return RedirectResponse("/login", status_code=302)
+    form = await request.form()
+    if not auth.check_csrf(request, form.get("csrf")):
+        return RedirectResponse("/portal", status_code=302)
+
+    # Only act on a run actually dispatched to this site (all-sites or targeted).
+    visible = {r["id"] for r in db.list_run_requests(site["id"])}
+    status = _RESPOND_ACTIONS.get(form.get("action"))
+    if request_id in visible and status:
+        existing = db.get_run_response(request_id, site["id"])
+        anon_field = form.get("anonymous")
+        anonymous = (anon_field == "on") if anon_field is not None \
+            else (existing["anonymous"] if existing else False)
+        db.set_run_response(request_id, site["id"], status=status, anonymous=anonymous)
+    return RedirectResponse("/portal", status_code=302)
 
 
 @router.get("/portal/scores", response_class=HTMLResponse)

@@ -1,563 +1,100 @@
 {
-  "_note": "Model-centric leaderboard snapshot. 'flair-xgboost-baseline' carries the REAL MIMIC-CLIF numbers for site 'mimic'; all demo_* sites and the 'demo-tabpfn-icu' model are SYNTHETIC, included only to demonstrate the multi-model / multi-site UI.",
+  "_note": "Built from runs_data/ by scripts/build_data.py. Real MIMIC-CLIF numbers; more sites/models appear as they drop result folders.",
   "flair_version": "2.0.0",
+  "sites": [
+    {
+      "key": "mimic",
+      "label": "MIMIC-CLIF"
+    }
+  ],
   "models": [
     {
       "id": "flair-xgboost-baseline",
       "name": "FLAIR XGBoost baseline",
-      "owner": "FLAIR core",
+      "owner": "FLAIR Working Group",
       "type": "count-featurization + XGBoost",
       "github_url": "https://github.com/clif-consortium/FLAIR",
       "is_baseline": true,
+      "split": {
+        "type": "Random",
+        "ratio": "75/25",
+        "grain": "hospitalization (hospitalization_join_id)",
+        "detail": "deterministic 75/25 hold-out grouped by hospitalization; MIMIC dates de-identified"
+      },
       "scores": {
         "task1_icu_daily_mortality": {
           "mimic": {
-            "n_test": 49362,
-            "prevalence": 0.199303,
-            "auroc": 0.7896,
+            "n_test": 18195,
+            "prevalence": 0.133663,
+            "auroc": 0.8645,
             "auroc_ci": [
-              0.7837,
-              0.7951
+              0.8561,
+              0.8717
             ],
-            "auprc": 0.5022,
-            "cal_slope": 0.794,
-            "cal_intercept": -1.0816,
-            "brier": 0.1635
-          },
-          "demo_b": {
-            "n_test": 24180,
-            "prevalence": 0.211,
-            "auroc": 0.7741,
-            "auroc_ci": [
-              0.7662,
-              0.7818
-            ],
-            "auprc": 0.481,
-            "cal_slope": 0.811,
-            "cal_intercept": -0.972,
-            "brier": 0.1702
-          },
-          "demo_c": {
-            "n_test": 15890,
-            "prevalence": 0.184,
-            "auroc": 0.7612,
-            "auroc_ci": [
-              0.751,
-              0.7713
-            ],
-            "auprc": 0.4655,
-            "cal_slope": 0.76,
-            "cal_intercept": -1.151,
-            "brier": 0.1588
-          },
-          "demo_d": {
-            "n_test": 34550,
-            "prevalence": 0.205,
-            "auroc": 0.7958,
-            "auroc_ci": [
-              0.7891,
-              0.8022
-            ],
-            "auprc": 0.5141,
-            "cal_slope": 0.803,
-            "cal_intercept": -1.041,
-            "brier": 0.1601
+            "auprc": 0.5865,
+            "cal_slope": 1.19,
+            "cal_intercept": -1.242,
+            "brier": 0.1107
           }
         },
         "task2_icu_daily_ltach": {
           "mimic": {
-            "n_test": 49362,
-            "prevalence": 0.144889,
-            "auroc": 0.7568,
+            "n_test": 18195,
+            "prevalence": 0.065128,
+            "auroc": 0.7893,
             "auroc_ci": [
-              0.7508,
-              0.7622
+              0.7747,
+              0.8029
             ],
-            "auprc": 0.3772,
-            "cal_slope": 0.8495,
-            "cal_intercept": -1.3087,
-            "brier": 0.1497
-          },
-          "demo_b": {
-            "n_test": 24180,
-            "prevalence": 0.131,
-            "auroc": 0.7423,
-            "auroc_ci": [
-              0.7339,
-              0.7506
-            ],
-            "auprc": 0.3501,
-            "cal_slope": 0.872,
-            "cal_intercept": -1.241,
-            "brier": 0.1438
-          },
-          "demo_c": {
-            "n_test": 15890,
-            "prevalence": 0.158,
-            "auroc": 0.7689,
-            "auroc_ci": [
-              0.7588,
-              0.7787
-            ],
-            "auprc": 0.3902,
-            "cal_slope": 0.834,
-            "cal_intercept": -1.355,
-            "brier": 0.1521
-          },
-          "demo_d": {
-            "n_test": 34550,
-            "prevalence": 0.139,
-            "auroc": 0.7631,
-            "auroc_ci": [
-              0.756,
-              0.77
-            ],
-            "auprc": 0.3845,
-            "cal_slope": 0.858,
-            "cal_intercept": -1.289,
-            "brier": 0.1466
+            "auprc": 0.2884,
+            "cal_slope": 1.0122,
+            "cal_intercept": -1.7738,
+            "brier": 0.0955
           }
         },
         "task3_extubation_failure_24h": {
           "mimic": {
-            "n_test": 6694,
-            "prevalence": 0.054377,
-            "auroc": 0.7008,
+            "n_test": 6693,
+            "prevalence": 0.054385,
+            "auroc": 0.6958,
             "auroc_ci": [
-              0.6716,
-              0.7286
+              0.6649,
+              0.719
             ],
-            "auprc": 0.1242,
-            "cal_slope": 0.4593,
-            "cal_intercept": -1.8174,
-            "brier": 0.0678
-          },
-          "demo_b": {
-            "n_test": 3110,
-            "prevalence": 0.061,
-            "auroc": 0.6855,
-            "auroc_ci": [
-              0.6431,
-              0.7271
-            ],
-            "auprc": 0.1183,
-            "cal_slope": 0.501,
-            "cal_intercept": -1.733,
-            "brier": 0.0721
-          },
-          "demo_c": {
-            "n_test": 2240,
-            "prevalence": 0.048,
-            "auroc": 0.7156,
-            "auroc_ci": [
-              0.6701,
-              0.7588
-            ],
-            "auprc": 0.1301,
-            "cal_slope": 0.442,
-            "cal_intercept": -1.901,
-            "brier": 0.0641
-          },
-          "demo_d": {
-            "n_test": 4686,
-            "prevalence": 0.057,
-            "auroc": 0.7093,
-            "auroc_ci": [
-              0.6748,
-              0.7421
-            ],
-            "auprc": 0.132,
-            "cal_slope": 0.471,
-            "cal_intercept": -1.788,
-            "brier": 0.0659
+            "auprc": 0.1344,
+            "cal_slope": 0.4461,
+            "cal_intercept": -1.8644,
+            "brier": 0.0695
           }
         },
         "task4_sepsis_abx_6h": {
           "mimic": {
-            "n_test": 3608449,
-            "prevalence": 0.001536,
-            "auroc": 0.8116,
+            "n_test": 19943,
+            "prevalence": 0.062528,
+            "auroc": 0.6932,
             "auroc_ci": [
-              0.7922,
-              0.8536
+              0.6783,
+              0.7094
             ],
-            "auprc": 0.0209,
-            "cal_slope": 0.7346,
-            "cal_intercept": -5.5341,
-            "brier": 0.0646
-          },
-          "demo_b": {
-            "n_test": 1804220,
-            "prevalence": 0.0018,
-            "auroc": 0.8021,
-            "auroc_ci": [
-              0.7799,
-              0.824
-            ],
-            "auprc": 0.0231,
-            "cal_slope": 0.701,
-            "cal_intercept": -5.401,
-            "brier": 0.0671
-          },
-          "demo_c": {
-            "n_test": 1262960,
-            "prevalence": 0.0013,
-            "auroc": 0.7944,
-            "auroc_ci": [
-              0.7702,
-              0.8401
-            ],
-            "auprc": 0.0187,
-            "cal_slope": 0.722,
-            "cal_intercept": -5.612,
-            "brier": 0.0631
-          },
-          "demo_d": {
-            "n_test": 2525914,
-            "prevalence": 0.0016,
-            "auroc": 0.8187,
-            "auroc_ci": [
-              0.7995,
-              0.8588
-            ],
-            "auprc": 0.0224,
-            "cal_slope": 0.748,
-            "cal_intercept": -5.488,
-            "brier": 0.0638
+            "auprc": 0.1344,
+            "cal_slope": null,
+            "cal_intercept": null,
+            "brier": null
           }
         },
         "task5_icu_readmission": {
           "mimic": {
-            "n_test": 16814,
-            "prevalence": 0.092899,
-            "auroc": 0.6446,
-            "auroc_ci": [
-              0.6276,
-              0.6598
-            ],
-            "auprc": 0.2516,
-            "cal_slope": 0.6904,
-            "cal_intercept": -1.8835,
-            "brier": 0.1503
-          },
-          "demo_b": {
-            "n_test": 8210,
-            "prevalence": 0.101,
-            "auroc": 0.6312,
-            "auroc_ci": [
-              0.6079,
-              0.6544
-            ],
-            "auprc": 0.2401,
-            "cal_slope": 0.662,
-            "cal_intercept": -1.812,
-            "brier": 0.1561
-          },
-          "demo_c": {
-            "n_test": 5870,
-            "prevalence": 0.087,
-            "auroc": 0.6587,
-            "auroc_ci": [
-              0.6328,
-              0.6841
-            ],
-            "auprc": 0.2602,
-            "cal_slope": 0.703,
-            "cal_intercept": -1.844,
-            "brier": 0.1472
-          },
-          "demo_d": {
-            "n_test": 11770,
-            "prevalence": 0.095,
-            "auroc": 0.6521,
-            "auroc_ci": [
-              0.6342,
-              0.6697
-            ],
-            "auprc": 0.2571,
-            "cal_slope": 0.701,
-            "cal_intercept": -1.866,
-            "brier": 0.1488
-          }
-        }
-      }
-    },
-    {
-      "id": "demo-tabpfn-icu",
-      "name": "TabPFN-ICU (demo)",
-      "owner": "Demo Lab",
-      "type": "tabular foundation model (synthetic demo)",
-      "github_url": "https://example.org/tabpfn-icu",
-      "is_baseline": false,
-      "scores": {
-        "task1_icu_daily_mortality": {
-          "mimic": {
-            "n_test": 49362,
-            "prevalence": 0.199303,
-            "auroc": 0.7776,
-            "auroc_ci": [
-              0.7717,
-              0.7831
-            ],
-            "auprc": 0.4962,
-            "cal_slope": 0.844,
-            "cal_intercept": -1.0816,
-            "brier": 0.1645
-          },
-          "demo_b": {
-            "n_test": 24180,
-            "prevalence": 0.211,
-            "auroc": 0.7621,
-            "auroc_ci": [
-              0.7542,
-              0.7698
-            ],
-            "auprc": 0.4752,
-            "cal_slope": 0.861,
-            "cal_intercept": -0.972,
-            "brier": 0.1712
-          },
-          "demo_c": {
-            "n_test": 15890,
-            "prevalence": 0.184,
-            "auroc": 0.7492,
-            "auroc_ci": [
-              0.739,
-              0.7593
-            ],
-            "auprc": 0.4599,
-            "cal_slope": 0.81,
-            "cal_intercept": -1.151,
-            "brier": 0.1598
-          },
-          "demo_d": {
-            "n_test": 34550,
-            "prevalence": 0.205,
-            "auroc": 0.7838,
-            "auroc_ci": [
-              0.7771,
-              0.7902
-            ],
-            "auprc": 0.5079,
-            "cal_slope": 0.853,
-            "cal_intercept": -1.041,
-            "brier": 0.1611
-          }
-        },
-        "task2_icu_daily_ltach": {
-          "mimic": {
-            "n_test": 49362,
-            "prevalence": 0.144889,
-            "auroc": 0.7488,
-            "auroc_ci": [
-              0.7428,
-              0.7542
-            ],
-            "auprc": 0.3742,
-            "cal_slope": 0.8995,
-            "cal_intercept": -1.3087,
-            "brier": 0.1503
-          },
-          "demo_b": {
-            "n_test": 24180,
-            "prevalence": 0.131,
-            "auroc": 0.7343,
-            "auroc_ci": [
-              0.7259,
-              0.7426
-            ],
-            "auprc": 0.3473,
-            "cal_slope": 0.922,
-            "cal_intercept": -1.241,
-            "brier": 0.1444
-          },
-          "demo_c": {
-            "n_test": 15890,
-            "prevalence": 0.158,
-            "auroc": 0.7609,
-            "auroc_ci": [
-              0.7508,
-              0.7707
-            ],
-            "auprc": 0.3871,
-            "cal_slope": 0.884,
-            "cal_intercept": -1.355,
-            "brier": 0.1527
-          },
-          "demo_d": {
-            "n_test": 34550,
-            "prevalence": 0.139,
-            "auroc": 0.7551,
-            "auroc_ci": [
-              0.748,
-              0.762
-            ],
-            "auprc": 0.3814,
-            "cal_slope": 0.908,
-            "cal_intercept": -1.289,
-            "brier": 0.1472
-          }
-        },
-        "task3_extubation_failure_24h": {
-          "mimic": {
-            "n_test": 6694,
-            "prevalence": 0.054377,
-            "auroc": 0.7218,
-            "auroc_ci": [
-              0.6926,
-              0.7496
-            ],
-            "auprc": 0.1268,
-            "cal_slope": 0.5093,
-            "cal_intercept": -1.8174,
-            "brier": 0.0671
-          },
-          "demo_b": {
-            "n_test": 3110,
-            "prevalence": 0.061,
-            "auroc": 0.7065,
-            "auroc_ci": [
-              0.6641,
-              0.7481
-            ],
-            "auprc": 0.1208,
-            "cal_slope": 0.551,
-            "cal_intercept": -1.733,
-            "brier": 0.0713
-          },
-          "demo_c": {
-            "n_test": 2240,
-            "prevalence": 0.048,
-            "auroc": 0.7366,
-            "auroc_ci": [
-              0.6911,
-              0.7798
-            ],
-            "auprc": 0.1328,
-            "cal_slope": 0.492,
-            "cal_intercept": -1.901,
-            "brier": 0.0634
-          },
-          "demo_d": {
-            "n_test": 4686,
-            "prevalence": 0.057,
-            "auroc": 0.7303,
-            "auroc_ci": [
-              0.6958,
-              0.7631
-            ],
-            "auprc": 0.1348,
-            "cal_slope": 0.521,
-            "cal_intercept": -1.788,
-            "brier": 0.0652
-          }
-        },
-        "task4_sepsis_abx_6h": {
-          "mimic": {
-            "n_test": 3608449,
-            "prevalence": 0.001536,
-            "auroc": 0.8156,
-            "auroc_ci": [
-              0.7962,
-              0.8576
-            ],
-            "auprc": 0.021,
-            "cal_slope": 0.7846,
-            "cal_intercept": -5.5341,
-            "brier": 0.0645
-          },
-          "demo_b": {
-            "n_test": 1804220,
-            "prevalence": 0.0018,
-            "auroc": 0.8061,
-            "auroc_ci": [
-              0.7839,
-              0.828
-            ],
-            "auprc": 0.0232,
-            "cal_slope": 0.751,
-            "cal_intercept": -5.401,
-            "brier": 0.067
-          },
-          "demo_c": {
-            "n_test": 1262960,
-            "prevalence": 0.0013,
-            "auroc": 0.7984,
-            "auroc_ci": [
-              0.7742,
-              0.8441
-            ],
-            "auprc": 0.0188,
-            "cal_slope": 0.772,
-            "cal_intercept": -5.612,
-            "brier": 0.063
-          },
-          "demo_d": {
-            "n_test": 2525914,
-            "prevalence": 0.0016,
-            "auroc": 0.8227,
-            "auroc_ci": [
-              0.8035,
-              0.8628
-            ],
-            "auprc": 0.0225,
-            "cal_slope": 0.798,
-            "cal_intercept": -5.488,
-            "brier": 0.0637
-          }
-        },
-        "task5_icu_readmission": {
-          "mimic": {
-            "n_test": 16814,
-            "prevalence": 0.092899,
-            "auroc": 0.6626,
-            "auroc_ci": [
-              0.6456,
-              0.6778
-            ],
-            "auprc": 0.2561,
-            "cal_slope": 0.7404,
-            "cal_intercept": -1.8835,
-            "brier": 0.1489
-          },
-          "demo_b": {
-            "n_test": 8210,
-            "prevalence": 0.101,
-            "auroc": 0.6492,
+            "n_test": 16806,
+            "prevalence": 0.0933,
+            "auroc": 0.6414,
             "auroc_ci": [
               0.6259,
-              0.6724
+              0.6575
             ],
-            "auprc": 0.2444,
-            "cal_slope": 0.712,
-            "cal_intercept": -1.812,
-            "brier": 0.1547
-          },
-          "demo_c": {
-            "n_test": 5870,
-            "prevalence": 0.087,
-            "auroc": 0.6767,
-            "auroc_ci": [
-              0.6508,
-              0.7021
-            ],
-            "auprc": 0.2649,
-            "cal_slope": 0.753,
-            "cal_intercept": -1.844,
-            "brier": 0.1459
-          },
-          "demo_d": {
-            "n_test": 11770,
-            "prevalence": 0.095,
-            "auroc": 0.6701,
-            "auroc_ci": [
-              0.6522,
-              0.6877
-            ],
-            "auprc": 0.2617,
-            "cal_slope": 0.751,
-            "cal_intercept": -1.866,
-            "brier": 0.1475
+            "auprc": 0.2482,
+            "cal_slope": 0.6782,
+            "cal_intercept": -1.8862,
+            "brier": 0.1511
           }
         }
       }

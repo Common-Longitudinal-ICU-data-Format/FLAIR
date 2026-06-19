@@ -48,8 +48,15 @@ def authenticate(email: str, password: str) -> tuple[dict | None, str | None]:
     return user, None
 
 
+def _no_session(request: Request) -> bool:
+    """True when SessionMiddleware isn't installed (public read-only mode)."""
+    return "session" not in request.scope
+
+
 def current_site(request: Request) -> dict | None:
     """The logged-in site, or None. Used to gate portal routes."""
+    if _no_session(request):
+        return None
     site_id = request.session.get("site_id")
     if not site_id:
         return None
@@ -64,6 +71,8 @@ def require_site(request: Request) -> dict | RedirectResponse:
 
 
 def current_user(request: Request) -> dict | None:
+    if _no_session(request):
+        return None
     uid = request.session.get("user_id")
     return db.get_user(uid) if uid else None
 

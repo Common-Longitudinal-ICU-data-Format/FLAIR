@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flair-benchmark"
-version = "2.0.0"
+dynamic = ["version"]
 description = "Federated Learning Assessment for ICU Research - CLIF-based ICU benchmark"
 readme = "README.md"
 license = "Apache-2.0"
@@ -61,6 +61,11 @@ dev = [
 Homepage = "https://clif-icu.com"
 Repository = "https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR"
 Documentation = "https://clif-icu.com/flair"
+
+# Version is single-sourced from flair_benchmark/_constants.py (__version__).
+# Bump it there; this reads it dynamically for the wheel/sdist.
+[tool.hatch.version]
+path = "flair_benchmark/_constants.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["flair_benchmark"]

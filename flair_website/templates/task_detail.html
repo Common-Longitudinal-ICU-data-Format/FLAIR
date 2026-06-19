@@ -16,6 +16,7 @@
     <div class="k">Label column</div><div><code>{{ task.label_column }}</code></div>
     <div class="k">Clinical threshold</div><div>{{ task.clinical_threshold }} ({{ task.clinical_direction }})</div>
     <div class="k">Clinical action</div><div>{{ task.clinical_action }}</div>
+    {% if task.report_mode %}<div class="k">Report mode</div><div><span class="pill {{ task.color }}">{{ task.report_mode }}</span> <span class="muted count">how results are scored for this task</span></div>{% endif %}
   </div>
 </div>
 
@@ -32,6 +33,7 @@
       <span class="model-name">{{ m.name }}{% if m.is_baseline %} <span class="pill sage">baseline</span>{% endif %}</span>
       <span class="muted count">{{ m.owner }} · pooled AUROC {{ "%.3f"|format(m.pooled.auroc) }} ({{ m.pooled.n_sites }} site{{ 's' if m.pooled.n_sites != 1 }})</span>
     </div>
+    {% if m.split %}<div class="count" title="{{ m.split.detail }}">Split: <strong>{{ m.split.type }} {{ m.split.ratio }}</strong> hold-out by {{ m.split.grain }}</div>{% endif %}
     <div class="site-buttons">
       {% for s in m.sites %}
         {% if s.has_report %}
@@ -46,7 +48,7 @@
 </div>
 
 <div id="report" class="report-panel" hidden></div>
-<script src="/static/js/report.js"></script>
+<script src="/static/js/report.js?v={{ asset_ver }}"></script>
 {% endif %}
 
 {% endblock %}
