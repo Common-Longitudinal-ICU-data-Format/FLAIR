@@ -27,8 +27,13 @@ N_BINS = 10
 
 
 def build_calibration(preds: pl.DataFrame, meta: dict) -> dict:
-    out: dict = {"task_type": meta["task_type"], "metadata": {"n": preds.height,
-                                                              "n_bins": N_BINS}}
+    out: dict = {"task_type": meta["task_type"],
+                 "metadata": {"n": preds.height, "n_bins": N_BINS,
+                              # calibration is assessed across ALL predicted
+                              # probabilities, not at the clinical operating point.
+                              "threshold_used": None,
+                              "note": "threshold-free (reliability across all "
+                                      "predicted probabilities)"}}
     if meta["task_type"] != "binary" or "y_prob" not in preds.columns:
         out["metadata"]["reason"] = "calibration requires binary task with y_prob"
         return out

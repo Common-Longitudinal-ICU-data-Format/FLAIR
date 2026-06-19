@@ -30,6 +30,7 @@ import numpy as np
 import polars as pl
 
 from flair_benchmark.report._ci import bootstrap_ci
+from flair_benchmark.report.discrimination import _operating_point
 
 SUBGROUP_COLS = ["sex_category", "race_category", "ethnicity_category", "age_bin"]
 MIN_SUBGROUP_N = 10
@@ -63,11 +64,41 @@ def build_fairness(preds: pl.DataFrame, meta: dict) -> dict:
         parity[col] = gaps
 
     return {
+        # cohort-wide operating point at the clinical threshold — the baseline each
+        # subgroup is compared against (populated even when demographics are absent).
+        "overall": _overall_metrics(df, label_col, meta),
         "subgroups": subgroups,
         "parity": parity,
         "metadata": {"min_subgroup_n": MIN_SUBGROUP_N,
-                     "operating_threshold": op_t},
+                     "operating_threshold": op_t,
+                     "threshold": clinical_t,
+                     "clinical_direction": meta.get("clinical_direction", "above"),
+                     "flag_rule": "y_prob >= threshold"},
     }
+
+
+def _overall_metrics(df: pl.DataFrame, label_col: str, meta: dict) -> dict:
+    """Whole-cohort confusion metrics at the clinical threshold (+ accuracy/n/prevalence).
+
+    Reuses discrimination._operating_point (sensitivity/specificity/PPV/NPV/F1 each with a 95%
+    CI, suppressed tp/fp/fn/tn, flag_rate, threshold, direction) so the numbers match the
+    discrimination report exactly; flagging is y_prob >= threshold.
+    """
+    t = meta.get("clinical_threshold")
+    if meta["task_type"] != "binary" or t is None or "y_prob" not in df.columns:
+        return {}
+    y_true = df[label_col].to_numpy().astype(int)
+    y_prob = df["y_prob"].to_numpy().astype(float)
+    n = len(y_true)
+    if n == 0:
+        return {}
+    out = _operating_point(y_true, y_prob, meta)
+    pred = y_prob >= t
+    correct = int((pred == (y_true == 1)).sum())
+    out["n"] = n
+    out["prevalence"] = round(float(y_true.mean()), 6)
+    out["accuracy"] = round(correct / n, 4)
+    return out
 
 
 def _bin_age(df: pl.DataFrame) -> pl.DataFrame:

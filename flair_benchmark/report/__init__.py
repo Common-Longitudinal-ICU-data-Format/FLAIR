@@ -132,14 +132,22 @@ def build_report(preds_path: str, task_module, out_dir: str,
         paths[kind].write_text(json.dumps(payload, indent=2, default=str))
 
     if viz:
-        if mode == "landmark":
-            from flair_benchmark.report._viz import render_landmark_pngs
-            pngs = render_landmark_pngs(pillars, payloads["leadtime"], out / "viz")
-        else:
-            from flair_benchmark.report._viz import render_sanity_pngs
-            pngs = render_sanity_pngs(payloads, out / "viz")
-        for png in pngs:
-            paths[png.stem + "_png"] = png
+        try:
+            if mode == "landmark":
+                from flair_benchmark.report._viz import render_landmark_pngs
+                pngs = render_landmark_pngs(pillars, payloads["leadtime"], out / "viz")
+            else:
+                from flair_benchmark.report._viz import render_sanity_pngs
+                pngs = render_sanity_pngs(payloads, out / "viz")
+            for png in pngs:
+                paths[png.stem + "_png"] = png
+        except ImportError:
+            # viz is default-on but matplotlib is an optional extra; the JSON
+            # bundle (the exported artifact) is already written, so skip PNGs.
+            warnings.warn(
+                "matplotlib not installed; skipping --viz PNGs "
+                "(pip install 'flair-benchmark[viz]', or pass --no-viz).",
+                stacklevel=2)
     return paths
 
 

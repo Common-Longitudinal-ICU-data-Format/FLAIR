@@ -118,9 +118,9 @@ def build_report_cmd(
         help="Task cohort parquet (from load-task). Joins demographics for "
              "fairness when they don't flow through the preds."),
     viz: bool = typer.Option(
-        False, "--viz",
-        help="Also write sanity-check PNGs rendered from the JSONs "
-             "(requires `pip install flair-benchmark[viz]`)."),
+        True, "--viz/--no-viz",
+        help="Render local site-validation PNGs from the JSONs (default on; "
+             "--no-viz to skip). Requires `pip install flair-benchmark[viz]`."),
 ) -> None:
     """Generate the report bundle (--mode episodic | peak | landmark)."""
     from flair_benchmark.report import build_report

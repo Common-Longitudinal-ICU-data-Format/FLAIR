@@ -91,25 +91,35 @@ def render_sanity_pngs(reports: dict[str, dict], out_dir: Path) -> list[Path]:
         smoothed = cal_curves.get("smoothed")
         if smoothed:
             ax.plot(smoothed["pred_grid"], smoothed["obs_smoothed"],
-                    label="linear calibration fit")
+                    label="logistic calibration fit")
         ax.plot([0, 1], [0, 1], "k--", lw=0.8, label="ideal")
         ax.set(xlabel="Predicted probability", ylabel="Observed frequency",
-               title=f"Calibration  "
-                     f"{_ci_label('slope', cal_metrics.get('slope'), cal_metrics.get('slope_ci'))}  "
-                     f"O:E={cal_metrics.get('o_e_ratio')}")
-        # Brier + intercept with their 95% CIs as an in-axes annotation.
-        ax.text(0.98, 0.02,
-                _ci_label("Brier", cal_metrics.get("brier"), cal_metrics.get("brier_ci"))
-                + "\n"
-                + _ci_label("intercept", cal_metrics.get("intercept"),
-                            cal_metrics.get("intercept_ci")),
-                transform=ax.transAxes, ha="right", va="bottom", fontsize=7)
+               title="Calibration (reliability)")
+        # All scalars (slope/intercept/Brier with 95% CIs, ECE, O:E) collected into a
+        # single boxed annotation at lower-right — keeps them off the points/curve and
+        # avoids overlapping the recalibration warning. Calibration is threshold-free,
+        # so no operating-threshold is shown here.
+        stats = "\n".join([
+            _ci_label("slope", cal_metrics.get("slope"), cal_metrics.get("slope_ci")),
+            _ci_label("intercept", cal_metrics.get("intercept"),
+                      cal_metrics.get("intercept_ci")),
+            _ci_label("Brier", cal_metrics.get("brier"), cal_metrics.get("brier_ci")),
+            f"ECE={cal_metrics.get('ece')}",
+            f"O:E={cal_metrics.get('o_e_ratio')}",
+        ])
+        ax.text(0.97, 0.03, stats, transform=ax.transAxes, ha="right", va="bottom",
+                fontsize=7.5, family="monospace",
+                bbox=dict(boxstyle="round", fc="white", ec="0.7", alpha=0.9))
         slope = cal_metrics.get("slope")
         if slope is not None and abs(slope - 1) > 0.3:
-            ax.text(0.5, 0.02, "probabilities uncalibrated (ranking only) — "
-                    "scale_pos_weight inflates risk", transform=ax.transAxes,
-                    ha="center", va="bottom", fontsize=7, color="firebrick")
-        ax.legend(loc="upper left")
+            verdict = ("over-confident (scores too extreme)" if slope < 1
+                       else "under-confident (scores too compressed)")
+            # right-centre is the only empty quadrant (points sit low-left, legend
+            # upper-left, stats box lower-right, title on top) — no collisions.
+            ax.text(0.97, 0.62, f"probabilities uncalibrated\n{verdict}",
+                    transform=ax.transAxes, ha="right", va="center",
+                    fontsize=8, color="firebrick")
+        ax.legend(loc="upper left", fontsize=8)
         _save(fig, "calibration.png")
 
     dca = reports.get("dca", {})
@@ -137,11 +147,11 @@ def render_sanity_pngs(reports: dict[str, dict], out_dir: Path) -> list[Path]:
                         if m_ci and m_ci[0] is not None else None)
                 ax.errorbar([ct], [m_nb], yerr=yerr, fmt="o", color="red",
                             capsize=3, ms=5)
-        # zoom to the rare-event decision region so the curve isn't a flat line
-        fr = dca_curves.get("focus_range") or [0.0, 1.0]
+        # full threshold range (no zoom); y is still clamped so the treat-all line
+        # diving to large negatives at high thresholds doesn't crush the detail.
         ax.set(xlabel="Threshold probability", ylabel="Net benefit",
-               title=f"Decision curve analysis (zoom 0–{fr[1]:g})",
-               xlim=(fr[0], fr[1]),
+               title="Decision curve analysis",
+               xlim=(0.0, 1.0),
                ylim=(min(-0.01, -dca["prevalence"] * 0.5),
                      max(0.01, dca["prevalence"] * 1.2)))
         ax.legend()

@@ -202,6 +202,29 @@ def test_fairness_at_clinical_threshold_with_ci():
         assert ci is None or ci[0] <= ci[1]
 
 
+def test_fairness_overall_block_and_threshold():
+    f = build_fairness(make_synth(n_stays=1500), META)
+    # threshold recorded in metadata
+    assert f["metadata"]["threshold"] == 0.20
+    assert f["metadata"]["flag_rule"] == "y_prob >= threshold"
+    # cohort-wide operating point at the clinical threshold
+    ov = f["overall"]
+    assert ov["threshold"] == 0.20 and ov["n"] == 1500
+    for k in ("sensitivity", "specificity", "ppv", "npv", "f1", "accuracy",
+              "flag_rate", "prevalence"):
+        assert k in ov
+    assert ov["sensitivity_ci"][0] <= ov["sensitivity"] <= ov["sensitivity_ci"][1]
+
+
+def test_fairness_overall_without_demographics():
+    # drop demographics -> no subgroups, but the overall block must still populate
+    df = make_synth(n_stays=400).drop(
+        ["age_at_admission", "sex_category", "race_category", "ethnicity_category"])
+    f = build_fairness(df, META)
+    assert f["subgroups"] == {}
+    assert f["overall"]["n"] == 400 and "f1" in f["overall"]
+
+
 # ---------------------------------------------------------------- end-to-end
 
 
