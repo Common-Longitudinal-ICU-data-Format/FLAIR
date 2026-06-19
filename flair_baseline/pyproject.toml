@@ -18,8 +18,10 @@ dependencies = [
 [project.scripts]
 flair-baseline = "flair_baseline.cli:main"
 
+# flair is cloned INTO this folder (`git clone <flair> flair`) so the baseline
+# is self-contained. For local dev inside the flair repo, symlink: `ln -s .. flair`.
 [tool.uv.sources]
-flair-benchmark = { path = "..", editable = true }
+flair-benchmark = { path = "flair", editable = true }
 
 [build-system]
 requires = ["hatchling"]

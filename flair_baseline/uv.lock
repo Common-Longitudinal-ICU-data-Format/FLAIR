@@ -549,7 +549,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "clifpy", specifier = ">=0.4.9" },
-    { name = "flair-benchmark", editable = "../" },
+    { name = "flair-benchmark", editable = "flair" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "polars", specifier = ">=0.20" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -561,7 +561,7 @@ requires-dist = [
 [[package]]
 name = "flair-benchmark"
 version = "2.0.0"
-source = { editable = "../" }
+source = { editable = "flair" }
 dependencies = [
     { name = "clifpy" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },

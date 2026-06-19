@@ -1,0 +1,22 @@
+# flair lib is cloned in at deploy time (or symlinked for dev) — never committed
+/flair
+
+# site-prefixed run outputs (PHI stays local; non-PHI is uploaded out-of-band)
+*_baseline_phi/
+*_baseline_non_phi_for_upload/
+*_baseline_models/
+
+# legacy / scratch output roots + clifpy caches and logs
+out/
+out_external/
+output/
+
+# real site configs — only the .template.json is tracked
+clif_config*.json
+!clif_config*.template.json
+
+# python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

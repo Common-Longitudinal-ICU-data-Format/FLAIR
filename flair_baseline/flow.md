@@ -1,78 +1,81 @@
 # flair-baseline — end-to-end flow
 
-XGBoost **count-feature** baseline for all 5 FLAIR ICU tasks, trained on MIMIC-IV with a leak-free **75/25 split on `hospitalization_join_id`**. Features are counts of every ELF event code that occurs **strictly before** each prediction's `prediction_dttm` (point-in-time, no leakage). FLAIR is all-in-one: the CLIF→MEDS ETL is vendored into `flair_benchmark`, so this subproject only depends on `flair-benchmark` (editable path dep) + `xgboost`.
+XGBoost **count-feature** baseline for all 5 FLAIR ICU tasks, trained on MIMIC-IV with a leak-free **75/25 split on `hospitalization_join_id`**. Features are counts of every ELF event code that occurs **strictly before** each prediction's `prediction_dttm` (point-in-time, no leakage). This is a **self-contained sub-project**: the FLAIR library is cloned in beside it (`./flair`) and pinned as an editable path dep; the baseline carries its own config (`config/`). Train once at a source site, ship the **models folder** to other sites, re-run there — the code travels to the data.
+
+Every run partitions its artifacts into three **site-prefixed** folders (see §3); only the non-PHI folder leaves the site.
 
 ```         
-                         ┌─────────────────────────── flair-baseline run ───────────────────────────┐
- task.build()            │                                                                            │
+                         ┌──────────────────── flair-baseline train | infer ────────────────────┐
+ task.build()            │                                                                        │
  (flair_benchmark) ──► cohort ──► FE-meds ──► MEDS.parquet ──► count featurizer ──► XGBoost ──► preds ──► report (+viz)
-                       (split)   (CLIF→MEDS)  + codes.parquet   (sparse, leak-free)  (model)   .parquet   9 JSON / PNG
+                       (split)   (CLIF→MEDS)  + codes.parquet   (sparse, leak-free)  (model)   .parquet   JSON / PNG
 ```
 
-| stage | code | output |
+| stage | code | output (folder) |
 |------------------------|------------------------|------------------------|
-| ① cohort | `flair_benchmark/tasks/taskN_*.py` + `_split.py` | `cohort.parquet` |
-| ② FE-meds | `flair_benchmark/features/fe_meds.py` + `flair_benchmark/meds_etl/` | `data/MEDS.parquet`, `metadata/codes.parquet` |
+| ① cohort | `flair_benchmark/tasks/taskN_*.py` + `_split.py` | `cohort.parquet` (PHI) |
+| ② FE-meds | `flair_benchmark/features/fe_meds.py` + `flair_benchmark/meds_etl/` | `MEDS.parquet` (PHI), `codes.parquet` (non-PHI) |
 | ③ featurize | `flair_baseline/featurize.py` | in-memory sparse CSR |
-| ④ train/score | `flair_baseline/train.py` | `model.json`, `vocab.json`, `preds.parquet` |
-| ⑤ report | `flair_benchmark.report.build_report` | `report/*.json` (+ `report/viz/*.png`) |
+| ④ train/score | `flair_baseline/train.py` | `model.json`, `vocab.json` (models), `preds.parquet` (PHI) |
+| ⑤ report | `flair_benchmark.report.build_report` | `report/*.json` (+ `viz/*.png`) (non-PHI) |
+
+Folder routing is owned by `flair_baseline/layout.py` (`TaskPaths`, `report_mode`).
 
 ------------------------------------------------------------------------
 
-## 0. Install (uv, local)
+## 0. Setup (uv, self-contained)
 
 ``` bash
-cd flair_baseline
-uv sync          # installs flair-benchmark from ../ (editable) + xgboost + matplotlib
+git clone <baseline-repo> flair_baseline && cd flair_baseline
+git clone <flair-repo> flair          # FLAIR lib cloned in beside the baseline
+uv sync                               # resolves flair-benchmark from ./flair (editable) + xgboost + matplotlib
+
+cp config/clif_config.template.json config/clif_config.json   # set "site" + "data_directory"
 ```
 
-`pyproject.toml` declares `flair-benchmark` as a path source (`{ path = "..", editable = true }`), so edits to the vendored ETL / tasks are picked up directly. Python 3.12.
+`pyproject.toml` declares `flair-benchmark` as a path source (`{ path = "flair", editable = true }`). Developing inside the FLAIR repo? `ln -s .. flair` instead of cloning. Python 3.12.
 
 ------------------------------------------------------------------------
 
 ## 1. Commands
 
-### `flair-baseline run`
+Two subcommands. `train` fits models at a source site; `infer` scores a shipped model at a new site. Both emit the three site-prefixed folders (§3); the `site` comes from the clif config and prefixes every folder.
+
+### `flair-baseline train`
 
 ```         
-flair-baseline run --clif-config CFG.json [--elf-config flair_elf_config.yaml]
-                   [--out out] [--task NAME] [--train-end YYYY-MM-DD] [--test-start YYYY-MM-DD]
-                   [--report/--no-report] [--viz/--no-viz] [--reuse/--no-reuse]
+flair-baseline train [--clif-config config/clif_config.json] [--elf-config flair_elf_config.yaml]
+                     [--out .] [--task NAME] [--train-end YYYY-MM-DD] [--test-start YYYY-MM-DD]
+                     [--report/--no-report] [--viz/--no-viz] [--reuse/--no-reuse]
 ```
 
 | flag | default | meaning |
 |------------------------|------------------------|------------------------|
-| `--clif-config` | (required) | `clif_config.json` (path, filetype, timezone, `site`). `site=mimic` ⇒ 75/25 split |
-| `--elf-config` | `flair_elf_config.yaml` | event concepts to extract + `feature_exclude_prefixes` |
-| `--out` | `out` | output root; each task writes to `out/<task_name>/` |
+| `--clif-config` | `config/clif_config.template.json` | `clif_config.json` (path, filetype, timezone, `site`). `site=mimic` ⇒ 75/25 split |
+| `--elf-config` | `flair_elf_config.yaml` | event concepts to extract (= the feature set) |
+| `--out` | `.` | root for the three `<site>_baseline_*` folders |
 | `--task` | all 5 | task name or prefix (`task1` → `task1_icu_daily_mortality`) |
 | `--train-end` / `--test-start` | none | date cutoff for non-mimic sites (omit on mimic) |
-| `--report` / `--no-report` | report | build the 9-JSON FLAIR report bundle |
+| `--report` / `--no-report` | report | build the FLAIR report bundle (mode per task; see §2⑤) |
 | `--viz` / `--no-viz` | no-viz | also render sanity-check PNGs into `report/viz/` |
-| `--reuse` / `--no-reuse` | no-reuse | reuse existing `cohort.parquet` + `data/MEDS.parquet` (skip ETL) |
-
-Examples:
+| `--reuse` / `--no-reuse` | no-reuse | reuse existing `cohort.parquet` + `MEDS.parquet` (skip ETL) |
 
 ``` bash
 # all 5 tasks on MIMIC, with report + PNGs
-uv run flair-baseline run --clif-config ../clif_config_mimic.json --out out --viz
+uv run flair-baseline train --clif-config config/clif_config.json --out . --viz
 
 # one task
-uv run flair-baseline run --task task4 --clif-config ../clif_config_mimic.json --out out
-
-# re-featurize/train/report without re-running the ETL (MEDS already on disk)
-uv run flair-baseline run --clif-config ../clif_config_mimic.json --out out --reuse --viz
+uv run flair-baseline train --task task4 --clif-config config/clif_config.json --out .
 ```
 
-### `flair-baseline score` (external site)
+### `flair-baseline infer` (new site — only the models folder travels)
 
 ```         
-flair-baseline score --task NAME --clif-config OTHER_SITE.json
-                     --model out/<task>/model.json --vocab out/<task>/vocab.json
-                     [--elf-config …] [--out out_external]
+flair-baseline infer --models-dir <SITE>_baseline_models [--clif-config config/clif_config.json]
+                     [--elf-config …] [--out .] [--task NAME] [--report/--no-report] [--viz/--no-viz]
 ```
 
-Builds the task cohort on a non-mimic site (→ all rows `test`), featurizes against the **saved vocabulary**, and scores with the saved model. No training.
+Copy a training site's `*_baseline_models/` to the new site. `infer` rebuilds the cohort + features from the **local** data, re-applies the deterministic **75/25 block split**, and scores the shipped model on the resulting **25% test** set — then writes this site's three folders. Send back only `<site>_baseline_non_phi_for_upload/`. Because ELF standardizes the code vocabulary across CLIF sites, the model applies without code remapping.
 
 ------------------------------------------------------------------------
 
@@ -89,10 +92,10 @@ ethnicity_category, window_number, prediction_id
 ```
 
 - `hospitalization_join_id` = stitched-encounter key (clifpy `stitch_encounters`, 6 h gap; one block can span several hospitalizations).
-- **Split** (`flair_benchmark/_split.py`, `assign_split`): on MIMIC the split is decided at the **block grain** — 75 % of distinct `hospitalization_join_id` → `train`, 25 % → `test`, broadcast to all rows. A block never spans both splits (no split leakage). Non-mimic sites with no cutoff dates → **all `test`** (external validation on the full cohort).
+- **Split** (`flair_benchmark/_split.py`, `assign_split`): on MIMIC the split is decided at the **block grain** — 75 % of distinct `hospitalization_join_id` → `train`, 25 % → `test`, broadcast to all rows. A block never spans both splits (no split leakage). `infer` re-applies this same deterministic 75/25 block split at any site (ordered by `prediction_dttm`) so external evaluation runs on a **25% holdout**.
 - `prediction_id = {join_id}-{hospitalization_id}-{patient_id}-{window_number}`.
 
-Written to `out/<task>/cohort.parquet`.
+Written to `<site>_baseline_phi/<task>/cohort.parquet`.
 
 ### ② FE-meds — `fe_meds.build_meds_tables()` + `meds_etl/`
 
@@ -148,51 +151,54 @@ prediction_id, hospitalization_id, hospitalization_join_id, split, <label_column
 
 ### ⑤ Report — `flair_benchmark.report.build_report`
 
-`build_report(preds, task_module, out, cohort_path=cohort, viz=…, site=…)` → 9 JSONs (+ `viz/` PNGs). Demographics (`sex/race/ethnicity/age`) flow in from `cohort.parquet` for fairness + table1.
+`build_report(preds, task_module, out, cohort_path=cohort, viz=…, site=…, mode=…)`. Demographics (`sex/race/ethnicity/age`) flow in from `cohort.parquet` for fairness. Each pillar is one JSON of metrics + raw curve arrays + **95% bootstrap CIs**, evaluated at the task's fixed clinical threshold. `--viz` renders PNGs from those same dicts (local sanity only).
 
-**Two reporting levels — row-level vs encounter-level.** Most JSONs (`curves`, `temporal`, `threshold_analysis`, …) score at **prediction-row** granularity. For a continuous / per-window model (task1 daily, task2 daily, task4 hourly) each stay contributes many correlated rows, so row-level AUROC measures **discrimination only** — it overstates deployed utility and says nothing about alarm burden or how early the alert fires. `encounter.json` (`flair_benchmark/report/encounter.py`) adds the clinically meaningful **encounter (stay) level**:
+The **mode** (chosen per task by `flair_baseline/layout.py:report_mode`) sets how a stay's many rows are scored:
 
-- `counts` — stays / event stays / control stays.
-- `at_clinical_threshold` — one-alarm-per-stay **sensitivity** (caught = an alarm at/before the first positive-label row) & **specificity**, **control-alarm fraction**, **alarms per patient-day** (raw + silenced), **number-needed-to-alert**, and the **lead-time** distribution (median/IQR).
-- `lead_time_hist` — histogram of caught lead times (the TREWS Fig 2 analog).
-- `operating_curve` — stay-sensitivity vs alarms-per-patient-day across thresholds: the deployment trade-off that replaces row-ROC, with the clinical threshold marked.
+| mode | tasks | files |
+|---|---|---|
+| **episodic** | task3, task5 | `discrimination.json`, `calibration.json`, `dca.json`, `fairness.json` |
+| **landmark** | task1, task2 | the four pillars **per lead-time landmark** + `leadtime.json` |
+| **peak** | task4 | `discrimination.json` + `fairness.json` (+ NNE); calibration/DCA omitted (peak-calibration trap) |
 
-Gated to continuous binary tasks; one-per-stay tasks (3, 5) emit `{"reason":"one_per_stay_task"}` (row == stay there). HIPAA suppression (n \< 10) applies to event-stay counts and histogram bins.
+- **episodic** — one prediction per stay; the four pillars straight up.
+- **landmark** — scores at 12 risk-set landmarks counting back from each stay's last window, so discrimination/calibration/DCA/fairness are reported *per lead-time*. `leadtime.json` adds per-window detection sensitivity, median lead-time (+CI), and the **predicted-risk trajectory by outcome** (mean risk for ever-positive vs negative stays at each landmark).
+- **peak** — collapses each stay to its peak risk (a screening view); calibration/DCA are dropped because the max-of-many-windows is inflated and not honestly calibratable.
 
-> Lead-time semantics follow each task's **label horizon**: task4's `label_sepsis_6h` flags the 6 h before ASE onset, so lead time is the genuine pre-onset warning; task1/2's *daily* mortality/LTACH label fires on the event day itself, so most lead times collapse to ≈0 — there the encounter view is useful mainly for alarm burden + sensitivity, not lead time.
->
-> Basis: JMIR 2026 (evaluation strategy / alarm fatigue), Henry 2022 *Nat Med* (TREWS lead-time figure), SepsisAI 2024 (false-alarms + silencing window).
+Why split this way: for a continuous / per-window model each stay contributes many correlated rows, so plain row-level metrics overstate deployed utility. Landmark (per lead-time) and peak (screening) are the two honest reductions; episode tasks have one row per stay already.
 
 ------------------------------------------------------------------------
 
-## 3. Output tree (per task)
+## 3. Output tree (three site-prefixed folders)
+
+`<site>` is the `site` field from the clif config (slugified). Only the non-PHI folder
+is meant to leave the site; models are what `train` ships to other sites.
 
 ```         
-out/<task_name>/
-  cohort.parquet              # one row per prediction_id (+ split, label, demographics)
-  data/MEDS.parquet           # MEDS events: subject_id,time,code,numeric_value,text_value,
-                              #   hospitalization_id, hospitalization_join_id
-  metadata/codes.parquet      # code registry (description, version, counts, value flags)
-  vocab.json                  # {vocab:[…codes…], extras:["age_at_admission"]}
-  model.json                  # trained XGBoost booster
-  preds.parquet               # prediction_id, …, split, label, y_prob, y_pred
-  report/
+<out>/
+  <site>_baseline_phi/<task_name>/            ← stays local (PHI)
+    cohort.parquet            # one row per prediction_id (+ split, label, demographics)
+    data/MEDS.parquet         # MEDS events: subject_id,time,code,numeric/text_value, hosp ids
+    preds.parquet             # prediction_id, …, split, label, y_prob, y_pred
+
+  <site>_baseline_non_phi_for_upload/<task_name>/   ← upload this
+    codes.parquet             # code registry (description, version, counts<10 floored, value flags)
     table1.json               # cohort characteristics by split & label
-    tripod_ai.json            # TRIPOD-AI reporting skeleton
-    fairness.json             # per-subgroup performance + parity gaps
-    curves.json               # ROC (raw + fixed-grid) / PR (+prevalence) / calibration
-    temporal.json             # discrimination binned over time (by_window / by_year)
-    dca.json                  # decision-curve analysis (+ prevalence focus_range)
-    threshold_analysis.json   # metrics at the clinical threshold
-    encounter.json            # stay-level: sensitivity, alarms/patient-day, lead time,
-                              #   operating curve (continuous tasks; stub for one-per-stay)
-    scorecard.json            # FLAT cross-site headline row (poolable; see §9)
-    viz/                       # only with --viz; stale PNGs cleared each run
-      roc_pr.png  calibration.png  dca.png  threshold_analysis.png  fairness_auroc.png
-      [auroc_by_year.png]                                      ← only on real-date sites
-      [auroc_by_window.png  trajectory_by_outcome.png          ← one-per-window tasks only
-       lead_time.png  encounter_operating_curve.png]           ← continuous tasks only
+    report/
+      discrimination.json     # AUROC/AUPRC + ROC/PR curves + operating point (+CIs)
+      calibration.json        # reliability bins, ECE, Brier, slope/intercept  (episodic/landmark)
+      dca.json                # decision-curve net benefit                     (episodic/landmark)
+      fairness.json           # per-subgroup metrics + parity gaps
+      leadtime.json           # per-window sensitivity, median lead-time, risk trajectory (landmark)
+      viz/                    # only with --viz; PNGs rendered from the JSONs (local sanity)
+
+  <site>_baseline_models/<task_name>/         ← ship to other sites
+    model.json                # trained XGBoost booster
+    vocab.json                # {vocab:[…codes…], extras:["age_at_admission"]}
 ```
+
+Landmark tasks (1, 2) wrap each pillar as `{metadata, landmarks:[…]}` (one entry per
+lead-time) and add `leadtime.json`. Peak task (4) omits `calibration.json`/`dca.json`.
 
 ------------------------------------------------------------------------
 
@@ -276,36 +282,28 @@ Excluding HOSP_DX moved AUROC by ≤ 0.02 vs the leaky version — the post-hoc 
 
 ## 6. Report catalog
 
-| file | shows |
-|------------------------------------|------------------------------------|
-| `table1.json` | cohort counts/characteristics by split & label |
-| `tripod_ai.json` | TRIPOD-AI reporting skeleton |
-| `fairness.json` | per-subgroup AUROC + parity gaps (subgroups n \< 10 dropped) |
-| `curves.json` | ROC (raw + **fixed FPR grid** `grid_fpr`/`tpr_at_grid`, `auroc`+CI) / PR (`auprc`, `baseline`=prevalence, `auprc_lift`) / calibration (10 fixed bins + counts) |
-| `temporal.json` | discrimination binned over time (`by_window`; `by_year` skipped on date-shifted sites) |
-| `dca.json` | decision-curve analysis (prevalence-anchored grid + `focus_range`) |
-| `threshold_analysis.json` | confusion-matrix metrics at the clinical threshold |
-| `encounter.json` | **stay-level**: sensitivity/specificity, control-alarm fraction, alarms/patient-day (raw+silenced), number-needed-to-alert, lead-time dist (**fixed clinical bins**), operating curve (continuous tasks; `one_per_stay_task` stub for 3/5) |
-| `scorecard.json` | **flat cross-site headline row** — discrimination/calibration/row-operating/encounter scalars (see §9) |
+| file | shows | modes |
+|------------------------------------|------------------------------------|---|
+| `discrimination.json` | AUROC/AUPRC (+CIs), raw ROC/PR curves, PR `baseline`=prevalence + `auprc_lift`, operating point at the clinical threshold (direction-aware action block; NNE in peak) | all |
+| `calibration.json` | reliability bins, ECE, Brier, logistic slope/intercept, O:E ratio | episodic, landmark |
+| `dca.json` | decision-curve net benefit vs threshold (+ clinical operating point; complement transform for `clinical_direction: below`) | episodic, landmark |
+| `fairness.json` | per-subgroup metrics + parity gaps at the operating threshold (pinned subgroup set; subgroups n \< 10 dropped) | all |
+| `leadtime.json` | per-window detection sensitivity (+CI), median lead-time (+CI), `trajectory` = predicted risk by eventual outcome | landmark |
 
-### Viz catalog — how to read each PNG
+Landmark files wrap each pillar as `{metadata, landmarks:[…]}` (one entry per lead-time).
 
-PNGs are **local sanity only** (the dashboard renders the JSON). Each is rendered *from the JSON dict*, proving the JSON alone suffices.
+### Viz catalog (only with `--viz`; local sanity, rendered from the JSON)
 
-| png | what it plots | healthy ✅ / watch ⚠️ |
+| png | mode | what it plots |
 |---|---|---|
-| `roc_pr.png` | ROC (titled AUROC) + PR with the **prevalence baseline** dashed line (titled AUPRC + lift) | ✅ ROC bowed to top-left. ⚠️ PR collapses toward the baseline on rare events — judge it by **lift** (AUPRC/prevalence), not raw precision |
-| `calibration.png` | reliability points (10 bins, n≥10) + logistic recalibration; title = slope/intercept/O:E | ✅ points on the diagonal, slope≈1. ⚠️ points hugging y=0 + slope≪1 ⇒ **probabilities uncalibrated** (`scale_pos_weight` inflates risk) — a red note is drawn |
-| `dca.png` | net benefit vs threshold, **zoomed to `focus_range`** (rare-event decision region, includes the clinical threshold) | ✅ model curve above treat-all & treat-none near the clinical threshold. ⚠️ below 0 ⇒ acting on the score loses to "treat none" |
-| `threshold_analysis.png` | ROC with the clinical operating point + pAUC band | ✅ operating point high-left. ⚠️ point far right ⇒ high FPR (alarm fatigue) at that threshold |
-| `auroc_by_window.png` | AUROC per in-stay window (x-label = `hour`/`day` from `window_unit`) | ✅ flat/stable across the stay. ⚠️ decay = model weaker later in stay |
-| `trajectory_by_outcome.png` | mean predicted risk per window, positives vs negatives | ✅ positive line clearly above negative. ⚠️ lines overlapping ⇒ no separation |
-| `auroc_by_year.png` | AUROC per admission year — **only on real-date sites** | skipped (no PNG) when dates are de-id-shifted (MIMIC → 2105-2214) or > 25 distinct years |
-| `fairness_auroc.png` | AUROC per demographic subgroup (sex/race/ethnicity/age) | ✅ bars tightly clustered. ⚠️ wide spread = disparate performance (tiny subgroups n≥10 are noisy) |
-| `lead_time.png` | lead-time distribution (first alarm → event) over **fixed clinical bins** `0-6h…>7d`; title = median | ✅ mass at useful pre-event lead. ⚠️ mass only at 0-6h ⇒ alarm fires too late to act |
-| `encounter_operating_curve.png` | stay-sensitivity vs **alarms/patient-day** across thresholds (clinical point marked) | ✅ high sensitivity at low alarm burden (knee far left). ⚠️ sensitivity only reachable at many alarms/day ⇒ unworkable |
+| `roc_pr.png` | all | ROC (AUROC) + PR with the prevalence baseline (AUPRC + lift) |
+| `calibration.png` | episodic | reliability points + logistic recalibration; title = slope/intercept/O:E |
+| `dca.png` | episodic | net benefit vs threshold, model vs treat-all/treat-none |
+| `fairness_auroc.png` | all | AUROC per demographic subgroup (sex/race/ethnicity/age) |
+| `landmark_skill.png`, `landmark_sensitivity.png`, `landmark_calibration.png` | landmark | metric vs windows-before-end, per-point `n` annotated |
+| `landmark_risk_trajectory.png` | landmark | mean predicted risk vs windows-before-end, positive (label=1) vs negative (label=0) |
 
-**Calibration caveat (rare-event tasks, esp. task4):** `scale_pos_weight` inflates predicted probabilities for the rare positive class — the model **ranks** well (AUROC) but is not calibrated (task4 ECE ≈ 0.17, slope ≪ 1, predicted ≫ observed). This corrupts the calibration plot, the PR precision, *and* DCA net benefit simultaneously. Highest-impact follow-up: Platt/isotonic-recalibrate on a held-out split (or drop `scale_pos_weight`) → all three become meaningful and cross-site comparable.
+**Calibration caveat (rare-event tasks, esp. task4):** `scale_pos_weight` inflates predicted probabilities for the rare positive class — the model **ranks** well (AUROC) but is not calibrated (slope ≪ 1, predicted ≫ observed). This is exactly why task4 runs in **peak** mode (calibration/DCA omitted). For tasks that do report calibration, recalibrate (Platt/isotonic) on a held-out split → slope/ECE/DCA become meaningful and cross-site comparable.
 
 ------------------------------------------------------------------------
 
@@ -332,56 +330,40 @@ PNGs are **local sanity only** (the dashboard renders the JSON). Each is rendere
 
 ## 9. Standardized output & cross-site aggregation
 
-FLAIR is federated: each site runs locally and ships **JSON** (PNGs never leave the site; the central
-dashboard renders the JSON). For results to be *compared and pooled* across sites, the output must be
-standardized — which drives three rules baked into the report:
+FLAIR is federated: each site runs locally and shares only `<site>_baseline_non_phi_for_upload/`
+(the report JSONs + Table 1 + codes registry). PHI (cohort, MEDS, preds) and PNGs never leave the
+site. The report is built to be *pooled* without raw patient data:
 
-**(1) The JSON is the canonical, poolable artifact; PNGs are local sanity.** Every PNG is rendered
-*from* its JSON dict, so the JSON alone is sufficient.
+**(1) JSON is the canonical, poolable artifact; PNGs are local sanity.** Every PNG is rendered
+*from* its JSON dict, so the JSON alone suffices.
 
-**(2) Every curve sits on a FIXED, site-invariant grid with per-cell sufficient statistics**, so a
-coordinator can meta-analyze without raw patient data:
+**(2) Each pillar carries raw curve arrays + per-cell counts + 95% bootstrap CIs**, so a coordinator
+can meta-analyze: n-weighted ROC/PR curves, Σ observed/expected per calibration bin → pooled
+reliability + ECE, n-weighted DCA net benefit, and (landmark) per-lead-time sensitivity + risk
+trajectory. Prevalence-awareness is built in — AUPRC reported as **lift** over prevalence and PR
+carries the prevalence `baseline` — so a 0.15%-prevalence site and a 20%-prevalence site stay
+comparable.
 
-| output | fixed grid | how a coordinator pools across sites |
-|---|---|---|
-| ROC | `grid_fpr` 0:1 @0.01 → `tpr_at_grid` | n-weighted mean of `tpr_at_grid` per FPR (+ CI) = pooled ROC |
-| calibration | 10 equal-width prob bins + `bin_counts` | Σ observed, Σ expected per bin → pooled reliability + ECE |
-| DCA | `0.001–0.05` + `0.01–0.99` thresholds | average net benefit per threshold (n-weighted) |
-| `by_window` | windows `1..7+` | pooled AUROC per in-stay window |
-| lead-time | **fixed clinical bins** `0-6h…>7d` + counts | Σ counts per bin → pooled lead-time distribution |
-| operating curve | thresholds `0.02..0.98` | pooled stay-sensitivity vs alarms/patient-day |
+**(3) PHI suppression:** any cell with n < 10 is suppressed (`"<10"`) and excluded from pools;
+codes.parquet counts are floored at the same threshold.
 
-PHI: any cell with n < 10 is suppressed (`"<10"`) and excluded from pools. Site-specific things that
-**cannot** pool are guarded off: `by_year` is skipped on date-shifted sites (see §6).
-
-**(3) `scorecard.json` — one flat headline row per (site, task)**, identical schema everywhere, built
-by reading the other report dicts (never recomputed). A coordinator concatenates scorecards → a table
-and forest plots. Schema:
-
-``` json
-{ "task","task_type","prediction_unit","site","n_test","prevalence",
-  "discrimination": {"auroc","auroc_ci","auprc","auprc_lift"},
-  "calibration":    {"slope","intercept","ece","o_e_ratio","brier"},
-  "row_operating_at_clinical_threshold": {"threshold","sensitivity","specificity","ppv","npv"},
-  "encounter": {"stay_sensitivity","stay_specificity","control_alarm_fraction",
-                "alarms_per_patient_day_silenced","number_needed_to_alert",
-                "median_lead_hours","n_event_stays"}   // null for one-per-stay tasks
-}
-```
-
-Prevalence-awareness is built in for rare-event sites: AUPRC is reported as **lift** over prevalence,
-PR carries the prevalence `baseline`, and DCA zooms to a prevalence-anchored `focus_range` — so a
-0.15 %-prevalence site and a 20 %-prevalence site stay comparable.
+Each JSON's `metadata` block stamps `task`, `task_script_sha256` (same hash ⇒ identical label logic),
+`flair_version`, `report_mode`, `split`, `n_stays`, `prevalence`, and `evaled_at` (the operating
+threshold) — enough for a coordinator to align and pool sites.
 
 ------------------------------------------------------------------------
 
-## 10. External-site validation
+## 10. External-site validation (`infer`)
 
 ``` bash
-uv run flair-baseline score --task task4 \
-  --clif-config ../other_site.json \
-  --model out/task4_sepsis_abx_6h/model.json \
-  --vocab out/task4_sepsis_abx_6h/vocab.json --out out_external
+# copy a training site's models folder to this site, then:
+uv run flair-baseline infer --task task4 \
+  --models-dir mimic_baseline_models \
+  --clif-config config/clif_config.json --out . --viz
 ```
 
-Non-mimic site → all rows `test`; cohort featurized against the saved vocabulary and scored with the saved model; writes `out_external/<task>/preds.parquet`. Because ELF standardizes the code vocabulary across CLIF sites, the MIMIC-trained model applies without code remapping.
+`infer` rebuilds the cohort + features from the **local** data, re-applies the deterministic 75/25
+block split, featurizes against the **saved vocabulary**, and scores the saved model on the resulting
+**25% test** set — then writes this site's three folders. Because ELF standardizes the code vocabulary
+across CLIF sites, the MIMIC-trained model applies without code remapping. Share back only
+`<site>_baseline_non_phi_for_upload/`.

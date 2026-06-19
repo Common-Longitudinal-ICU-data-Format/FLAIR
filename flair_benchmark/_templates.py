@@ -4,8 +4,9 @@ Stored as string constants (not data files) so they are guaranteed present in
 the PyPI wheel and a fresh `pip install flair-benchmark` user can scaffold a
 working config entirely through the CLI: `flair init-config`.
 
-Keep CLIF_CONFIG_TEMPLATE in sync with clif_config_template.json and
-FEATURE_CONFIG_TEMPLATE in sync with feature_config.yaml at the repo root.
+These string constants are the single source of truth for the config scaffold
+(`flair init-config` writes them out). Keep FEATURE_CONFIG_TEMPLATE in sync with
+feature_config.yaml at the repo root.
 """
 
 CLIF_CONFIG_TEMPLATE = """\
