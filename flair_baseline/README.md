@@ -57,7 +57,17 @@ with the `site` from your config. Only the **non-PHI** folder is meant to leave 
 Model folders keep their **training-site** prefix; PHI + non-PHI folders carry the
 **running-site** prefix.
 
-## Setup (at any site)
+## Two roles
+
+| role | who | does | publishes |
+|---|---|---|---|
+| **Model owner** | the FLAIR baseline team (trains on MIMIC) | `train` → fits the 5 models | uploads `mimic_baseline_models/` to the FLAIR website |
+| **CLIF site** | each participating ICU site | downloads the models, `infer` on local data | uploads its `*_non_phi_for_upload/` results back |
+
+Only two things ever move: the **models folder** (owner → site) and the **non-PHI
+results folder** (site → FLAIR). Patient data never leaves a site.
+
+### Shared setup (both roles, once)
 
 ```bash
 git clone <baseline-repo> flair_baseline && cd flair_baseline
@@ -70,34 +80,45 @@ cp config/clif_config.template.json config/clif_config.json
 
 > Developing inside the FLAIR repo? `ln -s .. flair` instead of cloning, then `uv sync`.
 
-## Train (source site, e.g. MIMIC)
+---
 
-```bash
-# all 5 tasks
-uv run flair-baseline train --clif-config config/clif_config.json --out . --viz
+### Role A — Model owner (FLAIR baseline, on MIMIC)
 
-# a single task
-uv run flair-baseline train --task task1 --clif-config config/clif_config.json --out .
-```
+1. Set `"site": "mimic"` and the MIMIC `data_directory` in `config/clif_config.json`.
+2. Train all 5 tasks:
+   ```bash
+   uv run flair-baseline train --clif-config config/clif_config.json --out . --viz
+   ```
+3. Three folders appear: `mimic_baseline_phi/` (local), `mimic_baseline_non_phi_for_upload/`
+   (MIMIC's own results), and **`mimic_baseline_models/`** — the per-task `model.json` + `vocab.json`.
+4. **Publish `mimic_baseline_models/`** to the FLAIR website as the downloadable model bundle.
+   That folder is all a CLIF site needs.
 
-Produces `mimic_baseline_models/` (the artifact to ship), plus `mimic_baseline_phi/`
-and `mimic_baseline_non_phi_for_upload/`.
+---
 
-## Infer (new site — only the models folder travels)
+### Role B — CLIF site (participating ICU)
 
-Copy a training site's `*_baseline_models/` to the new site, then:
+1. Finish the shared setup above; set your own `"site"` (e.g. `"rush"`) and `data_directory`.
+2. **Download the models folder** from the FLAIR website and drop it into the baseline folder,
+   e.g. `flair_baseline/mimic_baseline_models/` (unzip here; keep the per-task subfolders).
+3. Run inference — scores the downloaded models on a deterministic 25% holdout of your data:
+   ```bash
+   uv run flair-baseline infer \
+     --models-dir mimic_baseline_models \
+     --clif-config config/clif_config.json \
+     --out . --viz
+   # one task only: add --task task1
+   ```
+4. Three folders appear, prefixed with **your** site name:
+   - `rush_baseline_phi/` — cohort, MEDS, preds → **stays on your machine** (PHI, never upload).
+   - `rush_baseline_models/` — the models you ran (already public).
+   - **`rush_baseline_non_phi_for_upload/`** — codes registry, Table 1, report JSONs + PNGs.
+5. **Upload only `rush_baseline_non_phi_for_upload/`** to the FLAIR website (or the provided
+   secure Box link). Nothing else leaves your site.
 
-```bash
-uv run flair-baseline infer \
-  --models-dir mimic_baseline_models \
-  --clif-config config/clif_config.json \
-  --out . --viz
-# single task: add --task task1
-```
-
-This rebuilds the cohort + features from the **local** data, scores the shipped
-model on a deterministic 25% test split, and writes `<site>_baseline_*` folders.
-Send back only `<site>_baseline_non_phi_for_upload/`.
+> Quick check before upload: the folder holds only `codes.parquet`, `table1.json`, and
+> `report/` — no `cohort.parquet`, `MEDS.parquet`, or `preds.parquet`. All cell counts < 10
+> are already suppressed (`"<10"`).
 
 ## Results (MIMIC-IV, 75/25 join-id split)
 
