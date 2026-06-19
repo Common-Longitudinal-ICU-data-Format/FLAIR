@@ -21,10 +21,17 @@ import numpy as np
 import polars as pl
 import pytest
 
+from typer.testing import CliRunner
+
+from flair_benchmark.cli import app
+from flair_benchmark.report.dca import build_dca
+from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.landmark import N_LANDMARKS, build_landmark_report
 from flair_benchmark.report.leadtime import build_leadtime
 from flair_benchmark.report.peak import build_peak_report
 from flair_benchmark.tasks._finalize import finalize_cohort
+
+runner = CliRunner()
 
 HORIZON = 6
 META = {
@@ -154,6 +161,21 @@ def test_leadtime_curve_and_median():
         assert len(m["median_lead_ci"]) == 2
 
 
+def test_leadtime_risk_trajectory_by_outcome():
+    df = make_synth_continuous()
+    traj = build_leadtime(df, META)["trajectory"]
+    assert len(traj) == N_LANDMARKS
+    shallow = [it for it in traj
+               if not it.get("suppressed")
+               and it["mean_prob_positive"] is not None
+               and it["mean_prob_negative"] is not None]
+    assert shallow  # at least some landmarks have both arms populated
+    for it in shallow:
+        # positive-outcome stays carry higher predicted risk than negatives
+        assert it["mean_prob_positive"] > it["mean_prob_negative"]
+        assert "n" in it and "n_positive" in it and "n_negative" in it
+
+
 # ----------------------------------------------------------------- end-to-end
 
 
@@ -194,5 +216,89 @@ def test_landmark_viz_pngs(tmp_path):
     from flair_benchmark.report import build_report
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "lm"),
                          mode="landmark", viz=True)
-    pngs = [p for k, p in paths.items() if k.endswith("_png")]
-    assert pngs and all(p.exists() for p in pngs)
+    pngs = {p.name for k, p in paths.items() if k.endswith("_png")}
+    assert "landmark_risk_trajectory.png" in pngs
+    assert all(p.exists() for k, p in paths.items() if k.endswith("_png"))
+
+
+def test_peak_viz_pngs(tmp_path):
+    pytest.importorskip("matplotlib")
+    df = make_synth_continuous()
+    preds_path = tmp_path / "preds.parquet"
+    df.write_parquet(preds_path)
+
+    from flair_benchmark.report import build_report
+    paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "pk"),
+                         mode="peak", viz=True)
+    pngs = {p.name for k, p in paths.items() if k.endswith("_png")}
+    # peak has discrimination (roc_pr) + fairness; calibration/dca omitted
+    assert "roc_pr.png" in pngs and "fairness_auroc.png" in pngs
+    assert "calibration.png" not in pngs and "dca.png" not in pngs
+
+
+# ----------------------------------------------------------------- CLI
+
+
+def test_cli_peak_mode(tmp_path):
+    df = make_synth_continuous().rename({"label": "label_mortality"})
+    preds = tmp_path / "preds.parquet"
+    df.write_parquet(preds)
+    out = tmp_path / "rep"
+    res = runner.invoke(app, ["build-report", str(preds),
+                              "--task", "task1_icu_daily_mortality",
+                              "--out", str(out), "--mode", "peak", "--no-viz"])
+    assert res.exit_code == 0, res.output
+    assert {p.stem for p in out.glob("*.json")} == {"discrimination", "fairness"}
+
+
+# ------------------------------------------------- single-class guard (P1.1)
+
+
+def test_discrimination_single_class_guard():
+    n = 60
+    df = pl.DataFrame({
+        "label": [0] * n,                       # all-negative cohort, no contrast
+        "y_prob": [i / n for i in range(n)],
+        "y_pred": [0] * n,
+    })
+    d = build_discrimination(df, META)
+    assert "reason" in d["metadata"]
+    assert "metrics" not in d and "curves" not in d
+    assert d["prevalence"] == 0.0
+
+
+# ------------------------------------------------- direction == below (P2)
+
+
+def _balanced_binary(seed: int = 0, n: int = 600) -> pl.DataFrame:
+    rng = np.random.default_rng(seed)
+    y = (rng.random(n) < 0.3).astype(int)
+    p = np.clip(0.45 * y + 0.3 * rng.random(n), 0, 1)
+    return pl.DataFrame({"label": y, "y_prob": p,
+                         "y_pred": (p >= 0.2).astype(int)})
+
+
+def test_below_direction_operating_action_and_dca():
+    meta = {**META, "clinical_direction": "below", "clinical_action": "extubate"}
+    df = _balanced_binary()
+
+    op = build_discrimination(df, meta)["metrics"]["operating_point"]
+    # classifier metrics stay in p>=t convention (direction-agnostic)
+    assert op["direction"] == "below"
+    assert op["sensitivity"] is not None and op["specificity"] is not None
+    # the action block is what flips: act on the LOW-risk side
+    assert op["action"]["acts_on"] == "y_prob < threshold"
+
+    dca = build_dca(df, meta)
+    assert dca["direction"] == "below"
+    assert "complement" in dca["basis"]
+    assert dca["clinical_threshold_original"] == 0.20
+    # evaluated on the complement -> marker threshold is 1 - 0.20 = 0.80
+    assert dca["metrics"]["clinical_threshold"] == pytest.approx(0.80)
+
+
+def test_above_direction_dca_standard():
+    dca = build_dca(_balanced_binary(), META)   # META direction == above
+    assert dca["direction"] == "above"
+    assert "standard" in dca["basis"]
+    assert dca["metrics"]["clinical_threshold"] == 0.20

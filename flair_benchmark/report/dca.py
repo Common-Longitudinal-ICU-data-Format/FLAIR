@@ -48,6 +48,20 @@ def build_dca(preds: pl.DataFrame, meta: dict) -> dict:
     if n == 0:
         out["metadata"]["reason"] = "empty split"
         return out
+
+    # Direction-aware framing. For an act-when-LOW task (e.g. extubate when
+    # failure risk < t) standard "treat if p>=t" net benefit reads backwards.
+    # Evaluate the decision on the complement: predict the non-event with
+    # 1-p and act at 1-t, so the curve describes the treat-the-low-risk action.
+    direction = meta.get("clinical_direction", "above")
+    below = direction == "below"
+    t_clin = meta.get("clinical_threshold")
+    if below:
+        y_true = 1 - y_true
+        y_prob = 1.0 - y_prob
+        t_eval = None if t_clin is None else round(1.0 - t_clin, 6)
+    else:
+        t_eval = t_clin
     prev = float(y_true.mean())
 
     nb_model: list[float | None] = []
@@ -72,16 +86,21 @@ def build_dca(preds: pl.DataFrame, meta: dict) -> dict:
         useful_mask.append(model_nb > max(all_nb, 0.0) + _TOL)
 
     intervals = _contiguous_intervals(THRESHOLDS, useful_mask)
-    clinical = _clinical_marker(meta, nb_model, nb_all, intervals, y_true, y_prob)
+    clinical = _clinical_marker(t_eval, nb_model, nb_all, intervals, y_true, y_prob)
     # zoom the plot to where rare-event decisions live (treating at ~10x prevalence
     # already implies a high alarm rate), but always include the clinical threshold;
     # capped at 1.0. Keeps the full grid in JSON.
-    clin = meta.get("clinical_threshold") or 0.0
+    clin = t_eval or 0.0
     focus_hi = min(1.0, max(0.05, round(10 * prev, 3), round(clin + 0.05, 3)))
     useful_range = (max(intervals, key=lambda iv: iv["high"] - iv["low"])
                     if intervals else None)
     return {
         "task_type": "binary",
+        "direction": direction,
+        "basis": ("complement: predict non-event (1-p), act when y_prob < "
+                  "clinical_threshold" if below else "standard: act when y_prob >= "
+                  "clinical_threshold"),
+        "clinical_threshold_original": t_clin,
         "prevalence": round(prev, 4),
         # scalars (clinical operating point + CI, useful range) first, curves below.
         "metrics": {
@@ -102,11 +121,14 @@ def build_dca(preds: pl.DataFrame, meta: dict) -> dict:
     }
 
 
-def _clinical_marker(meta: dict, nb_model: list, nb_all: list,
+def _clinical_marker(t: float | None, nb_model: list, nb_all: list,
                      intervals: list[dict], y_true: np.ndarray,
                      y_prob: np.ndarray) -> dict:
-    """Net benefit at the task's clinical decision threshold (META) + 95% CI."""
-    t = meta.get("clinical_threshold")
+    """Net benefit at the (direction-adjusted) clinical threshold + 95% CI.
+
+    `t` is the threshold on the evaluated curve: the META clinical_threshold for
+    an "above" task, or its complement (1 - threshold) for a "below" task.
+    """
     if t is None:
         return {}
     idx = int(np.argmin(np.abs(THRESHOLDS - t)))

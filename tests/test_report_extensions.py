@@ -240,8 +240,9 @@ def test_build_report_episodic_end_to_end(tmp_path):
     from flair_benchmark.report import build_report
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "report"),
                          episodic=True)
-    assert set(paths) == {"discrimination", "calibration", "dca", "fairness"}
-    for name, path in paths.items():
+    jsons = {k: p for k, p in paths.items() if not k.endswith("_png")}
+    assert set(jsons) == {"discrimination", "calibration", "dca", "fairness"}
+    for name, path in jsons.items():
         payload = json.loads(path.read_text())
         md = payload["metadata"]
         assert md["report_mode"] == "episodic"

@@ -21,8 +21,8 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED, bootstrap_ci
-from flair_benchmark.report._suppress import MIN_CELL_COUNT
+from flair_benchmark.report._ci import bootstrap_ci
+from flair_benchmark.report._suppress import MIN_CELL_COUNT, suppress
 from flair_benchmark.report.discrimination import _mk_stat
 from flair_benchmark.report.landmark import N_LANDMARKS
 
@@ -47,10 +47,12 @@ def build_leadtime(preds: pl.DataFrame, meta: dict,
 
     curve = _sensitivity_curve(w, label_col, t, n_landmarks, window_unit)
     lead = _median_lead(w, block, label_col, t)
+    trajectory = _risk_trajectory(w, label_col, block, n_landmarks, window_unit)
 
     out["prevalence"] = round(float((preds[label_col] > 0).mean()), 6)
     out["curve"] = curve
     out["metrics"] = lead
+    out["trajectory"] = trajectory
     out["metadata"] = {"clinical_threshold": t, "window_unit": window_unit,
                        "min_cell_count": MIN_CELL_COUNT}
     return out
@@ -77,6 +79,39 @@ def _sensitivity_curve(w: pl.DataFrame, label_col: str, t: float,
                        "sensitivity": None if sens is None else round(float(sens), 4),
                        "sensitivity_ci": ci,
                        "n_positive": int((y_true == 1).sum())})
+    return points
+
+
+def _risk_trajectory(w: pl.DataFrame, label_col: str, block: str,
+                     n_landmarks: int, window_unit: str | None) -> list[dict]:
+    """Mean predicted risk by eventual outcome at each landmark (a trajectory).
+
+    Each stay is tagged with its eventual outcome (ever-positive). At landmark L
+    the one-row-per-stay slice is split into positive- vs negative-outcome stays
+    and their mean y_prob reported — the "predicted risk trajectory by outcome".
+    An arm's mean is nulled when its count < MIN_CELL_COUNT; the whole landmark
+    is suppressed when the slice itself is < MIN_CELL_COUNT.
+    """
+    w = w.with_columns(pl.col(label_col).max().over(block).alias("_outcome"))
+    points: list[dict] = []
+    for lm in range(n_landmarks):
+        sl = w.filter(pl.col("window_number") == pl.col("_w_last") - lm)
+        base = {"windows_before_end": lm, "window_unit": window_unit, "n": sl.height}
+        if sl.height < MIN_CELL_COUNT:
+            points.append({**base, "n": f"<{MIN_CELL_COUNT}", "suppressed": True,
+                           "mean_prob_positive": None, "mean_prob_negative": None})
+            continue
+        pos = sl.filter(pl.col("_outcome") > 0)["y_prob"]
+        neg = sl.filter(pl.col("_outcome") == 0)["y_prob"]
+        points.append({
+            **base,
+            "n_positive": suppress(pos.len()),
+            "n_negative": suppress(neg.len()),
+            "mean_prob_positive": (round(float(pos.mean()), 4)
+                                   if pos.len() >= MIN_CELL_COUNT else None),
+            "mean_prob_negative": (round(float(neg.mean()), 4)
+                                   if neg.len() >= MIN_CELL_COUNT else None),
+        })
     return points
 
 
@@ -113,9 +148,11 @@ def _median_lead(w: pl.DataFrame, block: str, label_col: str, t: float) -> dict:
 
 
 def _median_ci(leads: np.ndarray) -> list[float] | None:
-    """Percentile bootstrap CI for the median, resampling stays."""
-    rng = np.random.default_rng(BOOT_SEED)
-    n = len(leads)
-    meds = [float(np.median(leads[rng.integers(0, n, n)])) for _ in range(BOOT_REPS)]
-    lo, hi = np.percentile(meds, [2.5, 97.5])
-    return [round(float(lo), 2), round(float(hi), 2)]
+    """Percentile bootstrap CI for the median, resampling stays.
+
+    Reuses the shared `_ci.bootstrap_ci` (resample once, percentile 2.5/97.5)
+    so the method matches the rest of the report; the median stat ignores the
+    second array.
+    """
+    return bootstrap_ci(
+        leads, leads, {"median": lambda a, _b: float(np.median(a))})["median"]

@@ -35,6 +35,14 @@ def build_discrimination(preds: pl.DataFrame, meta: dict) -> dict:
         y_true = preds[label_col].to_numpy().astype(int)
         y_prob = preds["y_prob"].to_numpy().astype(float)
         prevalence = round(float(y_true.mean()), 6) if len(y_true) else None
+        # A single-class cohort (all events or all non-events) has no contrast:
+        # AUROC/AUPRC and the ROC/PR curves are undefined. Mirror landmark.py's
+        # guard so episodic/peak degrade to a marker instead of emitting nan
+        # arrays + sklearn UndefinedMetricWarning.
+        if len(np.unique(y_true)) < 2:
+            out["prevalence"] = prevalence
+            out["metadata"]["reason"] = "single label class (no positive/negative contrast)"
+            return out
         roc_curve, roc_metrics = _roc_points(y_true, y_prob)
         pr_curve, pr_metrics = _pr_points(y_true, y_prob, prevalence)
         out["prevalence"] = prevalence
@@ -130,12 +138,41 @@ def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict) -> dict
     return {
         "threshold": t,
         "direction": direction,
+        # sens/spec/PPV/NPV/F1 are reported in risk-classifier convention
+        # (predicted positive = y_prob >= t, label = event), independent of
+        # clinical_direction — these are the standard model-performance numbers.
         **{k: _r1(v) for k, v in point.items()},
         **{f"{k}_ci": ci[k] for k in point},
         "flag_rate": round(n_flag / n, 4) if n else None,
         "tp": suppress(tp), "fp": suppress(fp),
         "fn": suppress(fn), "tn": suppress(tn),
         "n_flagged": n_flag,
+        # the actual clinical decision (direction-aware): act on p<t when the
+        # action fires for LOW risk (e.g. extubate when failure risk < t).
+        "action": _action_block(y_true, y_prob, t, direction),
+    }
+
+
+def _action_block(y_true: np.ndarray, y_prob: np.ndarray, t: float,
+                  direction: str) -> dict:
+    """Direction-aware view of the decision actually taken at threshold t.
+
+    `acted` = p < t when direction == "below" (act on low risk, e.g. extubate),
+    else p >= t. Reports how many are acted on and the observed event rate in
+    each arm — the numbers that flip with direction (unlike sens/spec above).
+    """
+    acted = (y_prob < t) if direction == "below" else (y_prob >= t)
+    n = len(y_true)
+    n_act = int(acted.sum())
+    ev_act = float(y_true[acted].mean()) if n_act else None
+    ev_not = float(y_true[~acted].mean()) if (n - n_act) else None
+    return {
+        "acts_on": "y_prob < threshold" if direction == "below"
+                   else "y_prob >= threshold",
+        "n_acted": suppress(n_act),
+        "act_rate": round(n_act / n, 4) if n else None,
+        "event_rate_in_acted": None if ev_act is None else round(ev_act, 4),
+        "event_rate_in_not_acted": None if ev_not is None else round(ev_not, 4),
     }
 
 

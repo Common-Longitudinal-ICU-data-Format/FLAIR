@@ -203,9 +203,17 @@ def render_landmark_pngs(pillars: dict[str, list[dict]], leadtime: dict,
         plt.close(fig)
         written.append(path)
 
+    def _annotate_n(ax, xs, ys, ns):
+        """Small grey 'n=…' above each plotted landmark point."""
+        for x, y, n in zip(xs, ys, ns):
+            if n is None:
+                continue
+            ax.annotate(f"n={n}", (x, y), textcoords="offset points",
+                        xytext=(0, 7), ha="center", fontsize=6.5, color="0.45")
+
     def _xyci(items, val_at, ci_at):
-        """(xs, ys, lo, hi) over non-suppressed landmarks with a defined value."""
-        xs, ys, lo, hi = [], [], [], []
+        """(xs, ys, lo, hi, ns) over non-suppressed landmarks with a defined value."""
+        xs, ys, lo, hi, ns = [], [], [], [], []
         for it in items:
             if it.get("suppressed"):
                 continue
@@ -214,22 +222,24 @@ def render_landmark_pngs(pillars: dict[str, list[dict]], leadtime: dict,
                 continue
             xs.append(it.get("windows_before_end"))
             ys.append(v)
+            ns.append(it.get("n"))
             if c and c[0] is not None and c[1] is not None:
                 lo.append(c[0])
                 hi.append(c[1])
             else:
                 lo.append(v)
                 hi.append(v)
-        return xs, ys, lo, hi
+        return xs, ys, lo, hi, ns
 
     def _lead_png(items, val_at, ci_at, name, title, ylabel, ylim=None,
                   hline=None):
-        xs, ys, lo, hi = _xyci(items, val_at, ci_at)
+        xs, ys, lo, hi, ns = _xyci(items, val_at, ci_at)
         if not xs:
             return
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.fill_between(xs, lo, hi, alpha=0.2, color="#5b86a6", label="95% CI")
         ax.plot(xs, ys, "-o", color="#5b86a6", ms=4)
+        _annotate_n(ax, xs, ys, ns)
         if hline is not None:
             ax.axhline(hline, color="k", ls="--", lw=0.8)
         ax.invert_xaxis()  # landmark 0 (the endpoint) on the right; the event nears
@@ -252,5 +262,28 @@ def render_landmark_pngs(pillars: dict[str, list[dict]], leadtime: dict,
     _lead_png(pillars.get("calibration", []), _m("slope"), _m("slope_ci"),
               "landmark_calibration.png",
               "Calibration slope over lead time", "calibration slope", hline=1.0)
+
+    # predicted risk trajectory by outcome: mean predicted prob for positive vs
+    # negative stays at each landmark (two lines), with per-point n.
+    traj = leadtime.get("trajectory", [])
+    pts = [it for it in traj if not it.get("suppressed")]
+    if pts:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for key, color, lbl in (("mean_prob_positive", "#1f77b4", "positive (label=1)"),
+                                ("mean_prob_negative", "#ff7f0e", "negative (label=0)")):
+            xs = [it["windows_before_end"] for it in pts if it.get(key) is not None]
+            ys = [it[key] for it in pts if it.get(key) is not None]
+            if not xs:
+                continue
+            ax.plot(xs, ys, "-o", color=color, ms=4, label=lbl)
+            ns = [it.get("n_positive" if "positive" in key else "n_negative")
+                  for it in pts if it.get(key) is not None]
+            _annotate_n(ax, xs, ys, ns)
+        ax.invert_xaxis()
+        ax.set(xlabel="windows before stay end (0 = last window)",
+               ylabel="Mean predicted probability",
+               title="Predicted risk trajectory by outcome", ylim=(0.0, 1.0))
+        ax.legend(loc="best", fontsize=8)
+        _save(fig, "landmark_risk_trajectory.png")
 
     return written

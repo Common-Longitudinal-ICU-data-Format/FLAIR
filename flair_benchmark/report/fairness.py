@@ -172,13 +172,27 @@ def _metrics_one_group(sub: pl.DataFrame, label_col: str, task_type: str) -> dic
                 "mean_y_pred": round(float(y_pred.mean()), 4)}
 
 
-def _gap_triplet(df: pl.DataFrame, group_col: str, label_col: str):
-    """(dp_gap, tpr_gap, fpr_gap) across subgroups with n>=MIN, else Nones."""
+def _eligible_levels(df: pl.DataFrame, group_col: str) -> list:
+    """Subgroup levels passing the n>=MIN floor in the (full) data."""
+    return [lv for lv in df[group_col].unique().drop_nulls().to_list()
+            if df.filter(pl.col(group_col) == lv).height >= MIN_SUBGROUP_N]
+
+
+def _gap_triplet(df: pl.DataFrame, group_col: str, label_col: str,
+                 levels: list):
+    """(dp_gap, tpr_gap, fpr_gap) over a FIXED set of subgroup levels.
+
+    `levels` is pinned from the full data (n>=MIN there); inside a bootstrap
+    resample we do NOT re-apply the n<10 drop, so the gap is always taken over
+    the same group set. If a pinned level vanishes in a resample (0 rows), the
+    whole triplet is None so that resample is discarded — keeps the CI honest
+    instead of silently shrinking the comparison set.
+    """
     pos_rates, tprs, fprs = [], [], []
-    for level in df[group_col].unique().drop_nulls().to_list():
+    for level in levels:
         sub = df.filter(pl.col(group_col) == level)
-        if sub.height < MIN_SUBGROUP_N:
-            continue
+        if sub.height == 0:
+            return None, None, None
         y_true = sub[label_col].to_numpy().astype(float)
         y_pred = sub["y_pred"].to_numpy()
         pos_rates.append(float(y_pred.mean()) if len(y_pred) else 0.0)
@@ -198,7 +212,10 @@ def _parity_gaps(df: pl.DataFrame, group_col: str, label_col: str,
                  task_type: str) -> dict:
     if task_type != "binary":
         return {}
-    dp, tpr_gap, fpr_gap = _gap_triplet(df, group_col, label_col)
+    levels = _eligible_levels(df, group_col)
+    if len(levels) < 2:
+        return {}
+    dp, tpr_gap, fpr_gap = _gap_triplet(df, group_col, label_col, levels)
     if dp is None:
         return {}
     out = {
@@ -206,12 +223,17 @@ def _parity_gaps(df: pl.DataFrame, group_col: str, label_col: str,
         "equalized_odds_tpr_gap": None if tpr_gap is None else round(tpr_gap, 4),
         "equalized_odds_fpr_gap": None if fpr_gap is None else round(fpr_gap, 4),
     }
-    out.update(_parity_gap_ci(df, group_col, label_col))
+    out.update(_parity_gap_ci(df, group_col, label_col, levels))
     return out
 
 
-def _parity_gap_ci(df: pl.DataFrame, group_col: str, label_col: str) -> dict:
-    """95% CI for each parity gap by resampling rows (= stays in episodic)."""
+def _parity_gap_ci(df: pl.DataFrame, group_col: str, label_col: str,
+                   levels: list) -> dict:
+    """95% CI for each parity gap by resampling rows (= stays in episodic).
+
+    The subgroup set is pinned to `levels` (eligible in the full data); a CI is
+    None when too few resamples keep every pinned group populated.
+    """
     rng = np.random.default_rng(_GAP_SEED)
     n = df.height
     keep = [c for c in (group_col, label_col, "y_pred") if c in df.columns]
@@ -220,7 +242,7 @@ def _parity_gap_ci(df: pl.DataFrame, group_col: str, label_col: str) -> dict:
     for _ in range(_GAP_REPS):
         idx = rng.integers(0, n, n)
         boot = sub[idx]
-        dp, tpr_gap, fpr_gap = _gap_triplet(boot, group_col, label_col)
+        dp, tpr_gap, fpr_gap = _gap_triplet(boot, group_col, label_col, levels)
         if dp is not None:
             dps.append(dp)
         if tpr_gap is not None:

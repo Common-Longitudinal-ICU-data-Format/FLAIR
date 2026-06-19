@@ -38,7 +38,7 @@ _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
 def build_report(preds_path: str, task_module, out_dir: str,
                  split: str = "test", episodic: bool = False,
                  cohort_path: str | None = None,
-                 viz: bool = False, site: str | None = None,
+                 viz: bool = True, site: str | None = None,
                  mode: str | None = None) -> dict[str, Path]:
     """Read preds parquet, look up META, write the report JSON bundle.
 
