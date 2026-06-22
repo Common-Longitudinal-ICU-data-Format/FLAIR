@@ -13,4 +13,4 @@ templates.env.globals["current_site"] = current_site
 templates.env.globals["is_admin"] = is_admin
 templates.env.globals["public_mode"] = settings.public_mode
 # Bump on any static asset change to bust the browser cache of /static/css/site.css.
-templates.env.globals["asset_ver"] = "7"
+templates.env.globals["asset_ver"] = "10"

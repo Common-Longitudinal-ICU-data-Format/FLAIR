@@ -16,13 +16,16 @@
   }
   const fmt = (v) => (v == null || !isFinite(v) ? "—" : Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 1 ? v.toFixed(2) : v.toFixed(3));
 
+  let _clipSeq = 0;
   function chart(cfg) {
     const W = 380, H = 300, P = { l: 52, r: 16, t: 28, b: 44 };
     const iw = W - P.l - P.r, ih = H - P.t - P.b;
     const [x0, x1] = cfg.xDomain, [y0, y1] = cfg.yDomain;
     const sx = (x) => P.l + ((x - x0) / (x1 - x0 || 1)) * iw;
     const sy = (y) => P.t + ih - ((y - y0) / (y1 - y0 || 1)) * ih;
+    const clipId = `clip${_clipSeq++}`;
     let s = `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">`;
+    s += `<defs><clipPath id="${clipId}"><rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}"/></clipPath></defs>`;
     s += `<text x="${W / 2}" y="16" text-anchor="middle" class="c-title">${cfg.title}</text>`;
     ticks(y0, y1).forEach((t) => {
       const y = sy(t);
@@ -37,24 +40,31 @@
     });
     s += `<text x="${P.l + iw / 2}" y="${H - 6}" text-anchor="middle" class="c-axis">${cfg.xLabel || ""}</text>`;
     s += `<text transform="translate(13 ${P.t + ih / 2}) rotate(-90)" text-anchor="middle" class="c-axis">${cfg.yLabel || ""}</text>`;
-    if (cfg.diagonal) s += `<line x1="${sx(x0)}" y1="${sy(y0)}" x2="${sx(x1)}" y2="${sy(y1)}" class="c-diag"/>`;
+    // Everything data-mapped is clipped to the inner plot rect so nothing spills out.
+    let g = `<g clip-path="url(#${clipId})">`;
+    (cfg.bands || []).forEach((b) => {
+      const bx0 = sx(b.x0), bx1 = sx(b.x1);
+      g += `<rect x="${Math.min(bx0, bx1).toFixed(1)}" y="${P.t}" width="${Math.abs(bx1 - bx0).toFixed(1)}" height="${ih}" fill="${b.color}" opacity="0.16"/>`;
+    });
+    if (cfg.diagonal) g += `<line x1="${sx(x0)}" y1="${sy(y0)}" x2="${sx(x1)}" y2="${sy(y1)}" class="c-diag"/>`;
     (cfg.hlines || []).forEach((h) => {
-      s += `<line x1="${P.l}" y1="${sy(h.y)}" x2="${W - P.r}" y2="${sy(h.y)}" stroke="${h.color}" stroke-dasharray="4 3" stroke-width="1"/>`;
+      g += `<line x1="${P.l}" y1="${sy(h.y)}" x2="${W - P.r}" y2="${sy(h.y)}" stroke="${h.color}" stroke-dasharray="4 3" stroke-width="1"/>`;
     });
     (cfg.vlines || []).forEach((v) => {
-      s += `<line x1="${sx(v.x)}" y1="${P.t}" x2="${sx(v.x)}" y2="${P.t + ih}" stroke="${v.color}" stroke-dasharray="3 3" stroke-width="1"/>`;
+      g += `<line x1="${sx(v.x)}" y1="${P.t}" x2="${sx(v.x)}" y2="${P.t + ih}" stroke="${v.color}" stroke-dasharray="3 3" stroke-width="1"/>`;
     });
     const finite = (p) => p && isFinite(p[0]) && isFinite(p[1]);
     (cfg.series || []).forEach((ser) => {
       const pts = (ser.pts || []).filter(finite);
       if (pts.length > 1) {
         const d = pts.map((p, i) => `${i ? "L" : "M"}${sx(p[0]).toFixed(1)} ${sy(p[1]).toFixed(1)}`).join(" ");
-        s += `<path d="${d}" fill="none" stroke="${ser.color}" stroke-width="2"${ser.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
+        g += `<path d="${d}" fill="none" stroke="${ser.color}" stroke-width="2"${ser.dash ? ' stroke-dasharray="5 4"' : ""}/>`;
       }
       if (ser.markers) pts.forEach((p) => {
-        s += `<circle cx="${sx(p[0]).toFixed(1)}" cy="${sy(p[1]).toFixed(1)}" r="3" fill="${ser.color}"/>`;
+        g += `<circle cx="${sx(p[0]).toFixed(1)}" cy="${sy(p[1]).toFixed(1)}" r="${ser.r || 3}" fill="${ser.color}"/>`;
       });
     });
+    s += g + `</g>`;
     s += `<rect x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" class="c-frame"/></svg>`;
     if (cfg.legend) {
       s += `<div class="c-legend">` + cfg.legend.map((l) =>
@@ -81,6 +91,13 @@
   }
 
   const zip = (a, b) => (a || []).map((v, i) => [v, (b || [])[i]]);
+  // Fit a y-domain to the data so nothing clips out of view. Pass the same series
+  // arrays handed to chart(); lo/hi cap the axis (e.g. AUROC ∈ [0,1]).
+  function fitY(seriesPts, { lo = -Infinity, hi = Infinity, pad = 0.04, fallback = [0, 1] } = {}) {
+    const ys = seriesPts.flat().map((p) => p && p[1]).filter((v) => v != null && isFinite(v));
+    if (!ys.length) return fallback;
+    return [Math.max(lo, Math.min(...ys) - pad), Math.min(hi, Math.max(...ys) + pad)];
+  }
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   const none = (msg) => `<p class="muted">${msg}</p>`;
   const ci = (a) => (a && a.length === 2 ? ` <span class="ci">(${fmt(a[0])}–${fmt(a[1])})</span>` : "");
@@ -125,9 +142,11 @@
         xDomain: [0, 1], yDomain: [0, 1],
         series: lms.map((l) => ({ pts: zip((l.curves || {}).pr?.recall, (l.curves || {}).pr?.precision), color: lmColor(l.landmark_index, n) })),
       });
+      const aucPts = [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).auroc]), color: COL.blue, markers: true }];
       const auc = chart({
-        ...LEAD_X, title: "AUROC by lead-time", yLabel: "AUROC", yDomain: [0.5, 1],
-        series: [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).auroc]), color: COL.blue, markers: true }],
+        ...LEAD_X, title: "AUROC by lead-time", yLabel: "AUROC",
+        yDomain: fitY(aucPts.map((s) => s.pts), { lo: 0, hi: 1, fallback: [0.5, 1] }),
+        series: aucPts,
       });
       return `${leadLegend()}<div class="chart-grid">${roc}${pr}${auc}</div>`;
     }
@@ -164,10 +183,12 @@
         xDomain: [0, 1], yDomain: [0, 1], diagonal: true,
         series: lms.map((l) => { const sm = (l.curves || {}).smoothed || {}; return { pts: zip(sm.pred_grid, sm.obs_smoothed), color: lmColor(l.landmark_index, n) }; }),
       });
+      const slopePts = [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).slope]), color: COL.purple, markers: true }];
       const slope = chart({
-        ...LEAD_X, title: "Calibration slope by lead-time", yLabel: "slope", yDomain: [0, 2],
+        ...LEAD_X, title: "Calibration slope by lead-time", yLabel: "slope",
+        yDomain: fitY([...slopePts.map((s) => s.pts), [[0, 1]]], { lo: 0, fallback: [0, 2] }),
         hlines: [{ y: 1, color: COL.grey }],
-        series: [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).slope]), color: COL.purple, markers: true }],
+        series: slopePts,
       });
       return `${leadLegend()}<div class="chart-grid">${rel}${slope}</div>`;
     }
@@ -198,7 +219,8 @@
       const lms = r.dca.landmarks || [];
       const n = lms.length;
       const all = lms.flatMap((l) => (l.curves || {}).net_benefit_model || []).filter(isFinite);
-      const yHi = Math.max(0.0001, ...all) * 1.05, yLo = Math.min(0, ...all);
+      const yHi = Math.min(1, Math.max(0.0001, ...all) * 1.05);
+      const yLo = Math.max(-1, Math.min(all.length ? Math.min(...all) - 0.02 : 0, -0.5 * yHi));
       const ch = chart({
         title: "Decision curve (model net benefit) — all lead-times", xLabel: "threshold probability", yLabel: "net benefit",
         xDomain: (lms[0] && (lms[0].curves || {}).focus_range) || [0, 1], yDomain: [yLo, yHi],
@@ -212,23 +234,38 @@
     const c = d.curves || {}, m = d.metrics || {};
     const th = c.thresholds || [];
     const xr = c.focus_range || [Math.min(...th), Math.max(...th)];
-    const ys = [...(c.net_benefit_model || []), ...(c.net_benefit_all || [])].filter(isFinite);
-    const yLo = Math.min(0, ...ys), yHi = Math.max(0.0001, ...ys) * 1.05;
+    const model = (c.net_benefit_model || []).filter(isFinite);
+    const allY = [...model, ...(c.net_benefit_all || []).filter(isFinite)];
+    // Scale to the readable region: treat-all dives steeply negative as threshold→1,
+    // so anchor the floor to the model curve and let treat-all clip at the bottom.
+    const yHi = Math.min(1, Math.max(0.0001, ...allY) * 1.05);
+    const yLo = Math.max(-1, Math.min(model.length ? Math.min(...model) - 0.02 : 0, -0.5 * yHi));
     const nbAll = Array.isArray(c.net_benefit_all) ? zip(th, c.net_benefit_all) : [];
     const ct = m.clinical_threshold;
+    const nb = m.net_benefit_at_clinical_threshold || {};
+    const ur = m.useful_range || {};
+    const intervals = Array.isArray(m.all_useful_intervals) && m.all_useful_intervals.length
+      ? m.all_useful_intervals
+      : (ur.low != null && ur.high != null ? [[ur.low, ur.high]] : []);
+    const bands = intervals.filter((iv) => iv && iv.length === 2).map((iv) => ({ x0: iv[0], x1: iv[1], color: COL.sage }));
+    const opPt = ct != null && nb.model != null ? [{ pts: [[ct, nb.model]], color: COL.terra, markers: true, r: 4 }] : [];
     const ch = chart({
       title: "Decision curve (net benefit)", xLabel: "threshold probability", yLabel: "net benefit",
       xDomain: xr, yDomain: [yLo, yHi],
+      bands,
       hlines: [{ y: 0, color: COL.grey }],
       vlines: ct != null ? [{ x: ct, color: COL.terra }] : [],
       series: [
         { pts: zip(th, c.net_benefit_model), color: COL.blue },
         { pts: nbAll, color: COL.grey, dash: true },
+        ...opPt,
       ],
-      legend: [{ color: COL.blue, label: "model" }, { color: COL.grey, label: "treat all" }],
+      legend: [
+        { color: COL.blue, label: "model" }, { color: COL.grey, label: "treat all" },
+        { color: COL.grey, label: "treat none" }, { color: COL.sage, label: "useful range" },
+        ...(ct != null ? [{ color: COL.terra, label: `clinical threshold (${fmt(ct)})` }] : []),
+      ],
     });
-    const nb = m.net_benefit_at_clinical_threshold || {};
-    const ur = m.useful_range || {};
     const tbl = `<table class="rep-tbl"><tbody>
       ${row("Net benefit @ clinical threshold", fmt(nb.model) + ci(nb.model_ci))}
       ${row("Clinically useful", m.clinically_useful ? "yes" : "no")}
@@ -274,12 +311,14 @@
       const palette = [COL.blue, COL.sage, COL.terra, COL.purple, COL.grey, COL.ink, "#c0496b"];
       for (const dim of dims) {
         const levels = Object.keys((lms[0].subgroups[dim]) || {});
+        const fSeries = levels.map((lv, k) => ({
+          pts: lms.map((l) => [dayOf(l), (((l.subgroups || {})[dim] || {})[lv] || {}).auroc]),
+          color: palette[k % palette.length], markers: true,
+        }));
         out += chart({
-          ...LEAD_X, title: dim.replace("_category", "").replace(/_/g, " ") + " — AUROC", yLabel: "AUROC", yDomain: [0.5, 1],
-          series: levels.map((lv, k) => ({
-            pts: lms.map((l) => [dayOf(l), (((l.subgroups || {})[dim] || {})[lv] || {}).auroc]),
-            color: palette[k % palette.length], markers: true,
-          })),
+          ...LEAD_X, title: dim.replace("_category", "").replace(/_/g, " ") + " — AUROC", yLabel: "AUROC",
+          yDomain: fitY(fSeries.map((s) => s.pts), { lo: 0, hi: 1, fallback: [0.5, 1] }),
+          series: fSeries,
           legend: levels.map((lv, k) => ({ color: palette[k % palette.length], label: lv })),
         });
       }
@@ -312,9 +351,11 @@
   function leadtime(r) {
     if (!r.leadtime) return none("Lead-time analysis applies to landmark (continuous) tasks only.");
     const lms = (r.discrimination && r.discrimination.landmarks) || [];
+    const skillPts = [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).auroc]), color: COL.blue, markers: true }];
     const skill = chart({
-      ...LEAD_X, title: "Skill over lead-time", yLabel: "AUROC", yDomain: [0.5, 1],
-      series: [{ pts: lms.map((l) => [dayOf(l), (l.metrics || {}).auroc]), color: COL.blue, markers: true }],
+      ...LEAD_X, title: "Skill over lead-time", yLabel: "AUROC",
+      yDomain: fitY(skillPts.map((s) => s.pts), { lo: 0, hi: 1, fallback: [0.5, 1] }),
+      series: skillPts,
     });
     const cv = r.leadtime.curve || [];
     const sens = chart({
@@ -342,8 +383,16 @@
     const t = r.table1;
     if (!t) return none("No cohort table.");
     let out = `<p class="count">n = ${(t.n_total || 0).toLocaleString()} hospitalizations (cell suppression at n&lt;${(t.metadata || {}).min_cell_count || 10}).</p>`;
-    for (const [k, v] of Object.entries(t.continuous || {})) {
-      out += `<p><strong>${esc(k.replace(/_/g, " "))}</strong>: median ${fmt(v.median)} (IQR ${fmt(v.q25)}–${fmt(v.q75)}), mean ${fmt(v.mean)} ± ${fmt(v.std)}.</p>`;
+    const cont = Object.entries(t.continuous || {});
+    if (cont.length) {
+      out += `<table class="rep-tbl"><thead><tr><th>Characteristic</th>
+        <th class="num">Median (IQR)</th><th class="num">Mean ± SD</th></tr></thead><tbody>`;
+      for (const [k, v] of cont) {
+        out += `<tr><td>${esc(k.replace(/_/g, " "))}</td>
+          <td class="num">${fmt(v.median)} (${fmt(v.q25)}–${fmt(v.q75)})</td>
+          <td class="num">${fmt(v.mean)} ± ${fmt(v.std)}</td></tr>`;
+      }
+      out += `</tbody></table>`;
     }
     for (const [dim, groups] of Object.entries(t.categorical || {})) {
       out += `<h4>${esc(dim.replace("_category", "").replace(/_/g, " "))}</h4><table class="rep-tbl"><tbody>`;

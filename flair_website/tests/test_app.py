@@ -47,12 +47,21 @@ def test_report_api_missing_is_404(client):
 def test_leaderboard_real_numbers(client):
     data = client.get("/api/leaderboard").json()
     assert len(data["tasks"]) == 5
-    assert [c["key"] for c in data["columns"]] == ["mimic"]
+    assert [c["key"] for c in data["columns"]] == ["mimic", "rush"]
     rows = data["by_task"]["task1_icu_daily_mortality"]
     assert any(r["id"] == "flair-xgboost-baseline" for r in rows)
     base = rows[0]
     assert base["pooled"]["auroc"] > 0.5
     assert base["split"]["ratio"] == "75/25"
+
+
+def test_rush_site_present(client):
+    data = client.get("/api/leaderboard").json()
+    # rush carries real numbers and a renderable report bundle
+    cell = data["by_task"]["task1_icu_daily_mortality"][0]["cells"]["rush"]
+    assert cell and cell["auroc"] > 0.5
+    r = client.get("/api/report/flair-xgboost-baseline/rush/task1_icu_daily_mortality")
+    assert r.status_code == 200 and r.json()["mode"] == "landmark"
 
 
 def test_results_carry_report_mode(client):

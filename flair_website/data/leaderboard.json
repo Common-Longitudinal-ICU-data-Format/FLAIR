@@ -5,6 +5,10 @@
     {
       "key": "mimic",
       "label": "MIMIC-CLIF"
+    },
+    {
+      "key": "rush",
+      "label": "RUSH"
     }
   ],
   "models": [
@@ -35,6 +39,19 @@
             "cal_slope": 1.19,
             "cal_intercept": -1.242,
             "brier": 0.1107
+          },
+          "rush": {
+            "n_test": 13839,
+            "prevalence": 0.09979,
+            "auroc": 0.7477,
+            "auroc_ci": [
+              0.7347,
+              0.7626
+            ],
+            "auprc": 0.3293,
+            "cal_slope": 0.8776,
+            "cal_intercept": -1.8304,
+            "brier": 0.1508
           }
         },
         "task2_icu_daily_ltach": {
@@ -50,6 +67,19 @@
             "cal_slope": 1.0122,
             "cal_intercept": -1.7738,
             "brier": 0.0955
+          },
+          "rush": {
+            "n_test": 13839,
+            "prevalence": 0.023629,
+            "auroc": 0.6579,
+            "auroc_ci": [
+              0.6215,
+              0.6913
+            ],
+            "auprc": 0.0888,
+            "cal_slope": 0.8433,
+            "cal_intercept": -2.5085,
+            "brier": 0.0549
           }
         },
         "task3_extubation_failure_24h": {
@@ -65,6 +95,19 @@
             "cal_slope": 0.4461,
             "cal_intercept": -1.8644,
             "brier": 0.0695
+          },
+          "rush": {
+            "n_test": 2242,
+            "prevalence": 0.087422,
+            "auroc": 0.565,
+            "auroc_ci": [
+              0.5218,
+              0.6053
+            ],
+            "auprc": 0.1291,
+            "cal_slope": 0.16,
+            "cal_intercept": -1.8435,
+            "brier": 0.087
           }
         },
         "task4_sepsis_abx_6h": {
@@ -77,6 +120,19 @@
               0.7094
             ],
             "auprc": 0.1344,
+            "cal_slope": null,
+            "cal_intercept": null,
+            "brier": null
+          },
+          "rush": {
+            "n_test": 61061,
+            "prevalence": 0.030936,
+            "auroc": 0.4067,
+            "auroc_ci": [
+              0.3911,
+              0.421
+            ],
+            "auprc": 0.026,
             "cal_slope": null,
             "cal_intercept": null,
             "brier": null
@@ -95,6 +151,19 @@
             "cal_slope": 0.6782,
             "cal_intercept": -1.8862,
             "brier": 0.1511
+          },
+          "rush": {
+            "n_test": 8952,
+            "prevalence": 0.100313,
+            "auroc": 0.5093,
+            "auroc_ci": [
+              0.4892,
+              0.5308
+            ],
+            "auprc": 0.1056,
+            "cal_slope": -0.0006,
+            "cal_intercept": -2.1942,
+            "brier": 0.1967
           }
         }
       }

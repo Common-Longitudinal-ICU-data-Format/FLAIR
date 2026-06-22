@@ -4,6 +4,9 @@ Public benchmark site + private federated **orchestration portal** for the FLAIR
 ICU benchmark. Self-contained: its own `uv` environment, deployable on any
 service (Fly / Render / Railway / a plain VPS) from one `Dockerfile`.
 
+**Role guides** (`docs/`): [submitter](docs/submitter.md) · [site lead](docs/site-lead.md) ·
+[committee](docs/committee.md) · [developer](docs/dev.md) · [index](docs/README.md).
+
 - **Public** (no login): landing, task catalog, **model-driven leaderboard** (pick a task →
   models ranked by pooled AUROC; expand a model → per-site table whose **columns are sites**,
   add/remove sites and the pooled number recomputes). Sites shown anonymized (`A`, `B`, …)
