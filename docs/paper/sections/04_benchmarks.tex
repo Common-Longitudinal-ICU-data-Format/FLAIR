@@ -78,45 +78,78 @@ adapted to CLIF. Every row of a CLIF event table (\texttt{vitals},
 sparse integer count vector over those tokens. The featurizer is
 config-free and exhaustive, every schema-locked category flows
 through with no per-task curation, so the same code runs unchanged on
-MIMIC-CLIF and at every consortium site. Two simple heads consume the
-count vectors: a single XGBoost head, emitting a probability score
-\texttt{y\_prob}. It is trained on MIMIC-CLIF
-and shipped frozen to sites; hyperparameter grids, the token
-dictionary, and the missingness convention (absent token $=$ zero
-count) are given in the supplementary appendix
+MIMIC-CLIF and at every consortium site. A single XGBoost head consumes
+the count vectors and emits a probability score \texttt{y\_prob}. It is
+trained on MIMIC-CLIF and shipped frozen to sites; hyperparameter grids,
+the token dictionary, and the missingness convention (absent token $=$
+zero count) are given in the supplementary appendix
 (Sec.~\ref{sec:supp}). Internal-test performance on MIMIC-CLIF is
-summarized in Table~\ref{tab:baseline}.
+summarized in Table~\ref{tab:baseline}; the per-task clinical
+thresholds, alarm directions, and report modes are single-sourced in
+one registry (\texttt{flair\_benchmark/\_constants.py}) and folded into
+each task's audit hash, so a policy change is visible at every site. At
+the first external site (Rush), the same MIMIC-trained models lose
+discrimination across every task, from a modest drop on landmark
+mortality ($0.864\rightarrow0.748$) to a collapse on sepsis (peak AUROC
+$0.693\rightarrow0.407$); this cross-site degradation is the failure
+mode FLAIR exists to surface.
 
 \begin{table}[t]
 \centering
-\caption{XGBoost count-featurization baseline on the MIMIC-CLIF
-internal test split (75/25 hold-out on stitched encounters,
-\texttt{hospitalization\_join\_id}, so an encounter never spans train and
-test). AUROC shown with 1{,}000-iteration bootstrap 95\% CI.}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\caption{Federated leaderboard skeleton: XGBoost count-featurization
+baseline, headline \emph{mode-matched} AUROC (the deployed,
+stay-level metric, \S\ref{sec:eval-modes}) with 1{,}000-iteration
+bootstrap 95\% CI. MIMIC-CLIF is the internal test split (75/25
+hold-out on stitched encounters, \texttt{hospitalization\_join\_id}, so
+an encounter never spans train and test); Rush is the first external
+site, the MIMIC-trained model scored on a deterministic 25\% hold-out of
+Rush data; remaining site columns read \texttt{TBD}. Full internal
+detail, including row-level AUROC and AUPRC, is in
+Table~\ref{tab:supp-baseline-full}.}
 \label{tab:baseline}
-\begin{tabular}{l c c}
+\begin{tabular}{l l c c cc}
 \toprule
-Task & AUROC (95\% CI) & AUPRC \\
+Task & Mode & MIMIC-CLIF AUROC (95\% CI) & Rush AUROC (95\% CI) & Site C & Site D \\
 \midrule
-T1, ICU daily mortality       & 0.790 (0.784--0.795) & 0.502 \\
-T2, LTAC discharge            & 0.757 (0.751--0.762) & 0.377 \\
-T3, Extubation failure 24\,h  & 0.701 (0.672--0.729) & 0.124 \\
-T4, Sepsis 6\,h               & 0.812 (0.792--0.854) & 0.021 \\
-T5, Unplanned ICU readmission & 0.645 (0.628--0.660) & 0.252 \\
+T1, ICU daily mortality       & landmark & 0.864 (0.856--0.872) & 0.748 (0.735--0.763) & TBD & TBD \\
+T2, LTAC discharge            & landmark & 0.789 (0.775--0.803) & 0.658 (0.622--0.691) & TBD & TBD \\
+T3, Extubation failure 24\,h  & episodic & 0.696 (0.665--0.719) & 0.565 (0.522--0.605) & TBD & TBD \\
+T4, Sepsis 6\,h               & peak     & 0.693 (0.678--0.709) & 0.407 (0.391--0.421) & TBD & TBD \\
+T5, Unplanned ICU readmission & episodic & 0.641 (0.626--0.658) & 0.509 (0.489--0.531) & TBD & TBD \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection*{Evaluation modes}
+\label{sec:eval-modes}
+
+A task's temporal pattern dictates how its predictions are scored, so
+the report builder runs in one of three \emph{modes}, single-sourced per
+task in the policy registry. \textbf{Episodic} (T3, T5, one-per-stay)
+scores one row per stay directly. \textbf{Peak} (T4, hourly screening)
+collapses a stay's many windows to its single highest risk before
+scoring, the unit of action for a screening alarm; per-window pooling
+would inflate apparent skill, and naive recalibration on the peak is
+ill-posed, so calibration and decision curves are omitted (the
+``peak-trap''). \textbf{Landmark} (T1, T2, daily) scores a sequence of
+lead-time risk sets and reports a lead-time profile, the early-warning
+view. The distinction is load-bearing: the sepsis baseline scores
+row-level AUROC 0.82 but mode-matched peak AUROC 0.69, and the
+mode-matched number is the one a unit would experience. Mode-matched
+AUROC is therefore the headline metric in Table~\ref{tab:baseline}.
 
 \subsection*{Leaderboard mechanics}
 
 For each task and site, FLAIR reports area under the receiver-operating
 characteristic curve (AUROC), area under the precision--recall curve
 (AUPRC), and F$_1$ at the operating threshold, each with 1{,}000-iteration
-bootstrap 95\% confidence intervals. Calibration is summarized by
-slope, intercept, and Brier score, with raw reliability points
-downsampled into \texttt{curves.json} so that the central dashboard can
-render reliability and ROC/PR curves without re-touching patient
-data. Fairness is reported as per-subgroup AUROC across sex, race,
+bootstrap 95\% confidence intervals, in \texttt{discrimination.json}.
+Calibration is summarized by slope, intercept, and Brier score, with raw
+reliability points stored in \texttt{calibration.json} so that the
+central dashboard can render reliability and ROC/PR curves without
+re-touching patient data. Fairness is reported as per-subgroup AUROC across sex, race,
 ethnicity, and age bins together with explicit parity gaps. The
 leaderboard ranks submissions on the primary metric for each task and
 displays per-site variance prominently: a single high pooled AUROC

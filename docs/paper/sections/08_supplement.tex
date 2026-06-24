@@ -59,29 +59,37 @@ search. Search spaces mirror the EHRSHOT count-baseline configuration.
 \subsection*{S3. Full baseline results on MIMIC-CLIF}
 
 Per-task internal-test discrimination and calibration for the XGBoost
-baseline on the 75/25 stitched-encounter hold-out. Calibration slope
-$<1$ and a negative intercept indicate over-confident scores
-(\texttt{scale\_pos\_weight} inflates risk on rare events); ranking is
-valid but probabilities need recalibration before use as decision
-thresholds.
+baseline on the 75/25 stitched-encounter hold-out, scored in each task's
+report mode (\S\ref{sec:eval-modes}). All metrics are mode-matched and
+stay-level; landmark rows are the lead-0 risk set. For the episodic and
+peak tasks (rare events trained with \texttt{scale\_pos\_weight}) the
+calibration slope is $<1$ with a negative intercept, indicating
+over-confident scores: ranking is valid but probabilities need
+recalibration before use as decision thresholds. The landmark tasks are
+close to calibrated in slope. Peak (T4) omits calibration by design (the
+peak-trap). For context, the row-level (per-window) sepsis AUROC is
+$0.815$, well above its mode-matched peak AUROC $0.693$, the inflation
+that motivates mode-matched scoring.
 
 \begin{table}[h]
 \centering
 \footnotesize
 \setlength{\tabcolsep}{4pt}
-\caption{XGBoost count-featurization baseline: full per-task metrics on
-the MIMIC-CLIF internal test split (75/25 hold-out on
-\texttt{hospitalization\_join\_id}).}
+\caption{XGBoost count-featurization baseline: full mode-matched
+per-task metrics on the MIMIC-CLIF internal test split (75/25 hold-out
+on \texttt{hospitalization\_join\_id}). $n$ is stays scored; prevalence
+is the mode-matched event rate; AUROC/AUPRC carry 1{,}000-iteration
+bootstrap 95\% CIs.}
 \label{tab:supp-baseline-full}
-\begin{tabular}{l rr ccccc}
+\begin{tabular}{l l rr cc ccc}
 \toprule
-Task & $n_{\mathrm{test}}$ & Prev. & AUROC & AUPRC & Cal.\ slope & Cal.\ intercept & Brier \\
+Task & Mode & $n$ & Prev. & AUROC (95\% CI) & AUPRC & Cal.\ slope & Cal.\ int. & Brier \\
 \midrule
-T1, ICU daily mortality       & 49{,}362    & 0.199  & 0.790 & 0.502 & 0.79 & $-1.08$ & 0.164 \\
-T2, LTAC discharge            & 49{,}362    & 0.145  & 0.757 & 0.377 & 0.85 & $-1.31$ & 0.150 \\
-T3, Extubation failure 24\,h  & 6{,}694     & 0.054  & 0.701 & 0.124 & 0.46 & $-1.82$ & 0.068 \\
-T4, Sepsis 6\,h               & 3{,}608{,}449 & 0.0015 & 0.812 & 0.021 & 0.73 & $-5.53$ & 0.065 \\
-T5, Unplanned ICU readmission & 16{,}814    & 0.093  & 0.645 & 0.252 & 0.69 & $-1.88$ & 0.150 \\
+T1, ICU daily mortality       & landmark & 18{,}195 & 0.134  & 0.864 (0.856--0.872) & 0.587 & 1.19 & $-1.24$ & 0.111 \\
+T2, LTAC discharge            & landmark & 18{,}195 & 0.065  & 0.789 (0.775--0.803) & 0.288 & 1.01 & $-1.77$ & 0.096 \\
+T3, Extubation failure 24\,h  & episodic & 6{,}693  & 0.054  & 0.696 (0.665--0.719) & 0.134 & 0.45 & $-1.86$ & 0.070 \\
+T4, Sepsis 6\,h               & peak     & 19{,}943 & 0.063  & 0.693 (0.678--0.709) & 0.134 & --- & --- & --- \\
+T5, Unplanned ICU readmission & episodic & 16{,}806 & 0.093  & 0.641 (0.626--0.658) & 0.248 & 0.68 & $-1.89$ & 0.151 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -89,102 +97,95 @@ T5, Unplanned ICU readmission & 16{,}814    & 0.093  & 0.645 & 0.252 & 0.69 & $-
 \clearpage
 \subsection*{S4. MIMIC-CLIF baseline curves}
 
-The per-task report PNGs the FLAIR library renders from the aggregate
-report JSONs (the same artifacts each consortium site emits). All plots
-are XGBoost on the MIMIC-CLIF 75/25 stitched-encounter test split.
-Continuous, one-per-window tasks (T1, T2, T4) additionally carry the
-encounter-level operating curve and lead-time distribution; the
-one-per-stay tasks (T3, T5) do not.
+The per-task report PNGs the FLAIR library renders from the report
+JSONs (the same artifacts each consortium site emits), scored in each
+task's mode (\S\ref{sec:eval-modes}). All plots are XGBoost. Figure
+\ref{fig:supp-roc-pr} overlays both sites' ROC per task; the remaining
+panels (calibration, decision curves, landmark lead-time, fairness) are
+MIMIC-CLIF and follow each task's mode.
 
-% --- Figure S1: ROC / PR ---------------------------------------------
-\begin{figure}[htbp]
+% --- Figure S1: per-task ROC, all sites overlaid --------------------
+\begin{figure}[p]
   \centering
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t2}\caption{T2 LTAC discharge}\end{subfigure}
+  \begin{subfigure}{0.46\textwidth}\includegraphics[width=\linewidth]{figures/roc_overlay_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
+  \begin{subfigure}{0.46\textwidth}\includegraphics[width=\linewidth]{figures/roc_overlay_t2}\caption{T2 LTAC discharge}\end{subfigure}
 
   \medskip
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
+  \begin{subfigure}{0.46\textwidth}\includegraphics[width=\linewidth]{figures/roc_overlay_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
+  \begin{subfigure}{0.46\textwidth}\includegraphics[width=\linewidth]{figures/roc_overlay_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
 
   \medskip
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/roc_pr_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
-  \caption{\textbf{ROC and precision--recall curves.} Each panel pairs
-  ROC (left) and PR (right); the PR dashed line marks the task
-  prevalence baseline. AUPRC is most informative relative to that
-  baseline (lift): T4 has low absolute AUPRC (0.021) but a $13.6\times$
-  lift over its 0.15\% prevalence.}
+  \begin{subfigure}{0.46\textwidth}\includegraphics[width=\linewidth]{figures/roc_overlay_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
+  \caption{\textbf{Per-task ROC, all sites overlaid.} One ROC per task
+  with MIMIC-CLIF (blue) and Rush (terracotta) on the same axes, each
+  legend showing the site AUROC; the dashed diagonal is chance. The
+  external-site curves sit below MIMIC on every task, and the sepsis (T4)
+  Rush curve crosses below chance (AUROC 0.41), the discrimination
+  collapse mode-matched scoring exposes. \emph{Landmark tasks (T1, T2)
+  pool all 12 lead-time risk sets into one curve} (mean true-positive
+  rate on the shared false-positive-rate grid), so the pooled AUROC here
+  is lower than the lead-0 value reported in Table~\ref{tab:baseline}.}
   \label{fig:supp-roc-pr}
 \end{figure}
 
 % --- Figure S2: Calibration ------------------------------------------
 \begin{figure}[htbp]
   \centering
-  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
-  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t2}\caption{T2 LTAC discharge}\end{subfigure}
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/landmark_calib_t1}\caption{T1 ICU daily mortality (landmark)}\end{subfigure}\hfill
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/landmark_calib_t2}\caption{T2 LTAC discharge (landmark)}\end{subfigure}
 
   \medskip
-  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
-  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
-
-  \medskip
-  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t3}\caption{T3 Extubation failure 24\,h (episodic)}\end{subfigure}\hfill
+  \begin{subfigure}{0.40\textwidth}\includegraphics[width=\linewidth]{figures/calibration_t5}\caption{T5 Unplanned ICU readmission (episodic)}\end{subfigure}
   \caption{\textbf{Reliability (calibration) curves.} Reliability points
   (bins with $n\ge10$) against the diagonal, with the logistic
-  recalibration slope/intercept in each title. All slopes are $<1$:
-  \texttt{scale\_pos\_weight} over-inflates predicted risk, so the
-  baseline ranks well but is not calibrated out of the box.}
+  recalibration slope/intercept in each title. The episodic tasks have
+  slope $<1$ (\texttt{scale\_pos\_weight} over-inflates predicted risk);
+  the landmark tasks are closer to calibrated in slope. Peak (T4) omits
+  calibration by design (the peak-trap).}
   \label{fig:supp-calibration}
 \end{figure}
 
-% --- Figure S3: Decision curve analysis ------------------------------
+% --- Figure S3: Decision curve analysis (episodic) -------------------
 \begin{figure}[htbp]
   \centering
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t2}\caption{T2 LTAC discharge}\end{subfigure}
-
-  \medskip
   \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
-
-  \medskip
   \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/dca_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
-  \caption{\textbf{Decision curve analysis.} Net benefit of the model
-  vs.\ treat-all / treat-none, zoomed to the rare-event decision region
-  ($x$-axis capped near $10\times$ prevalence); the red dotted line is
-  the task's clinical threshold. The model beats both defaults across
-  the useful threshold band where it sits above them.}
+  \caption{\textbf{Decision curve analysis (episodic tasks).} Net benefit
+  of the model vs.\ treat-all / treat-none near the rare-event decision
+  region; the red dotted line is the task's clinical threshold. The model
+  beats both defaults across the useful threshold band.}
   \label{fig:supp-dca}
 \end{figure}
 
-% --- Figure S4: Encounter operating curve (continuous tasks) ---------
+% --- Figure S4: Landmark lead-time views (T1, T2) --------------------
 \begin{figure}[htbp]
   \centering
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/enc_opcurve_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/enc_opcurve_t2}\caption{T2 LTAC discharge}\end{subfigure}
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/landmark_skill_t1}\caption{T1 skill over lead time}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/landmark_skill_t2}\caption{T2 skill over lead time}\end{subfigure}
 
   \medskip
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/enc_opcurve_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
-  \caption{\textbf{Encounter operating curve (continuous tasks).}
-  Stay-level sensitivity (any alarm before the event) against alarms per
-  patient-day as the threshold sweeps; the red marker is the clinical
-  threshold. This is the alarm-burden view a unit actually experiences,
-  collapsing the many per-window predictions of one stay into a single
-  caught/missed outcome.}
-  \label{fig:supp-enc-opcurve}
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/leadtime_sens_t1}\caption{T1 lead-time sensitivity}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/landmark_risk_t1}\caption{T1 risk trajectory by outcome}\end{subfigure}
+  \caption{\textbf{Landmark lead-time views (T1, T2).} AUROC at each
+  lead-time landmark (top), the share of event stays alarmed by lead time
+  (bottom left), and the mean predicted-risk trajectory split by outcome
+  (bottom right). These replace the single operating point for tasks
+  scored as a sequence of daily risk sets.}
+  \label{fig:supp-landmark}
 \end{figure}
 
-% --- Figure S5: Lead time (continuous tasks) -------------------------
+% --- Figure S5: Fairness AUROC --------------------------------------
 \begin{figure}[htbp]
   \centering
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/lead_time_t1}\caption{T1 ICU daily mortality}\end{subfigure}\hfill
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/lead_time_t2}\caption{T2 LTAC discharge}\end{subfigure}
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/fairness_auroc_t3}\caption{T3 Extubation failure 24\,h}\end{subfigure}\hfill
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/fairness_auroc_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
 
   \medskip
-  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/lead_time_t4}\caption{T4 Sepsis 6\,h}\end{subfigure}
-  \caption{\textbf{Lead-time distribution (continuous tasks).} For
-  caught event stays, the time from first alarm to the event over fixed
-  clinical bins ($0$--$6$\,h, $6$--$12$\,h, $12$--$24$\,h, $1$--$2$\,d,
-  $2$--$7$\,d, $>7$\,d); the title reports the median. Fixed bins make
-  the histogram poolable across sites.}
-  \label{fig:supp-lead-time}
+  \begin{subfigure}{0.49\textwidth}\includegraphics[width=\linewidth]{figures/fairness_auroc_t5}\caption{T5 Unplanned ICU readmission}\end{subfigure}
+  \caption{\textbf{Subgroup AUROC (fairness).} Per-subgroup AUROC across
+  sex, race, ethnicity, and age bins with 95\% CIs; subgroups with
+  $n<10$ are suppressed. Overlapping intervals across subgroups indicate
+  no large discrimination-parity gap at the MIMIC-CLIF entry point.}
+  \label{fig:supp-fairness}
 \end{figure}

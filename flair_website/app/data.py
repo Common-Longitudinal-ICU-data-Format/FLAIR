@@ -118,7 +118,8 @@ def public_leaderboard_by_task(sites: list[dict] | None = None) -> dict:
                 if not sc:
                     continue
                 cells[key] = {"auroc": sc["auroc"], "auroc_ci": sc["auroc_ci"],
-                              "n_test": sc["n_test"]}
+                              "n_test": sc["n_test"],
+                              "has_report": report_exists(m["id"], key, t["id"])}
                 pool_rows.append(sc)
             pooled = _weighted_pool(pool_rows)
             if pooled is None:

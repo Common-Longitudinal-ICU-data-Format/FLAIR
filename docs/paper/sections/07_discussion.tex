@@ -27,10 +27,20 @@ about patients than the weight updates exchanged in federated learning
 model to sites, is bounded by central governance: the Benchmark Committee
 security-reviews the submitted code and model and validates it on synthetic
 data before any site runs it, so model intellectual property and inversion
-risk stay contained. Because those safeguards are fixed by design, participation can
-move from a per-pair data use agreement to a templated agreement,
-shrinking the legal latency that has historically capped multi-site
-validation at a handful of sites.
+risk stay contained. The asymmetry also bounds patient risk: only
+aggregate, cell-suppressed metrics leave a site and no model object ever
+does, so the federated outputs present far less re-identification surface
+than a shared model would --- there is no per-site model for
+membership-inference or model-inversion attacks to target. Because those
+safeguards are fixed by design, participation can move from a per-pair data
+use agreement to a templated agreement, shrinking the legal latency that has
+historically capped multi-site validation at a handful of sites.
+Evaluation-only federation is also a deliberate stepping stone toward
+federated learning: the substrate it establishes --- a common schema, a
+code-to-data Portal, and templated governance --- is precisely what a
+future federated-training system would need, with each out-of-distribution
+consortium site then serving as a held-out validation node for
+federated-trained models.
 
 \paragraph{Limitations.} Adoption is bounded by the institutions that
 have implemented CLIF; non-CLIF sites cannot currently participate
@@ -38,7 +48,8 @@ without an ETL effort. The current task suite is restricted to binary
 classification on structured EHR variables and excludes notes,
 waveforms, and images. Aggregate-only outputs constrain some
 fine-grained bias analyses; subgroups below the suppression threshold
-are not visible.
+are not visible. FLAIR also federates evaluation only; orchestrating
+federated \emph{learning} across sites is out of current scope.
 
 \paragraph{Roadmap.} Near-term work extends the suite to opt-in
 prospective silent-trial evaluation \citep{joshi2025silenttrials},
@@ -54,7 +65,11 @@ near-real-time benchmarking is a configuration of the existing
 protocol rather than a new system. The model-to-data primitive
 underpinning FLAIR is data-modality-agnostic; once CLIF stabilizes
 multimodal extensions, the same contract will apply to notes and
-waveforms.
+waveforms. Federated learning is a feasible longer-term extension on
+the same foundation, but a materially heavier one: it requires live
+site-to-server connectivity, stronger security guarantees on the
+exchanged updates, and its own institutional review, rather than the
+one-directional aggregate-report exchange FLAIR uses today.
 
 \paragraph{Conclusion.} FLAIR makes privacy-preserving multi-site
 external validation of EHR-based clinical decision support a routine,

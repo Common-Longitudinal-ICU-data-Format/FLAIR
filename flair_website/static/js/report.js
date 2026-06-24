@@ -3,8 +3,10 @@
 // Mode-aware: episodic/peak tasks are flat; landmark tasks carry a per-lead-time
 // `landmarks[]` array on each pillar + a leadtime pillar, surfaced via a selector.
 (function () {
-  const panel = document.getElementById("report");
-  if (!panel) return;
+  // Default render target is #report (task-detail page). The merged Task
+  // Leaderboard has no #report and instead calls window.FlairReport.render(...)
+  // with its own per-row host element.
+  let panel = document.getElementById("report");
 
   // ---- tiny SVG chart kit -------------------------------------------------
   const COL = { blue: "#5b86a6", purple: "#8a72ad", sage: "#5e9b78", terra: "#b9744e", grey: "#9a9a96", ink: "#1a1a1a" };
@@ -412,7 +414,10 @@
     return t;
   }
 
-  function render(report, label) {
+  function render(report, label, targetEl, opts) {
+    opts = opts || {};
+    const host = targetEl || panel;
+    if (!host) return;
     state.li = 0;
     state.all = false;
     const TABS = buildTabs(report);
@@ -440,27 +445,27 @@
       </div>`;
     }
 
-    panel.innerHTML =
+    host.innerHTML =
       `<div class="report-head"><h3>${esc(label)}</h3><button class="rep-close" aria-label="close">✕</button></div>` +
       prov + sel +
       `<div class="rep-tabs">` +
       TABS.map((t, i) => `<button class="rep-tab${i ? "" : " active"}" data-i="${i}">${t[0]}</button>`).join("") +
       `</div><div class="rep-body"></div>`;
-    panel.hidden = false;
-    const body = panel.querySelector(".rep-body");
+    host.hidden = false;
+    const body = host.querySelector(".rep-body");
     let active = 0;
     const show = (i) => { active = i; body.innerHTML = TABS[i][1](report); };
     show(0);
-    panel.querySelectorAll(".rep-tab").forEach((tab) => {
+    host.querySelectorAll(".rep-tab").forEach((tab) => {
       tab.addEventListener("click", () => {
-        panel.querySelectorAll(".rep-tab").forEach((x) => x.classList.remove("active"));
+        host.querySelectorAll(".rep-tab").forEach((x) => x.classList.remove("active"));
         tab.classList.add("active");
         show(Number(tab.dataset.i));
       });
     });
-    const lmAll = panel.querySelector(".lm-all-cb");
-    const lmSlider = panel.querySelector(".lm-slider");
-    const lmNow = panel.querySelector(".lm-now");
+    const lmAll = host.querySelector(".lm-all-cb");
+    const lmSlider = host.querySelector(".lm-slider");
+    const lmNow = host.querySelector(".lm-now");
     const nLm = lmSlider ? Number(lmSlider.max) : 12;
     const updateNow = () => {
       if (!lmNow) return;
@@ -476,24 +481,32 @@
       state.li = nLm - Number(e.target.value);
       updateNow(); show(active);
     });
-    panel.querySelector(".rep-close").addEventListener("click", () => { panel.hidden = true; });
-    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    host.querySelector(".rep-close").addEventListener("click", () => {
+      host.hidden = true;
+      if (typeof opts.onClose === "function") opts.onClose();
+    });
+    if (opts.scroll !== false) host.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  document.querySelectorAll(".site-rep[data-model]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      document.querySelectorAll(".site-rep").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      panel.hidden = false;
-      panel.innerHTML = `<p class="muted">Loading report…</p>`;
-      const { model, site, task, label } = btn.dataset;
-      try {
-        const res = await fetch(`/api/report/${model}/${site}/${task}`);
-        if (!res.ok) throw new Error("not found");
-        render(await res.json(), label);
-      } catch (e) {
-        panel.innerHTML = `<p class="error">Report not available.</p>`;
-      }
+  // Auto-bind only when the single shared #report panel exists (task-detail page).
+  if (panel) {
+    document.querySelectorAll(".site-rep[data-model]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        document.querySelectorAll(".site-rep").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        panel.hidden = false;
+        panel.innerHTML = `<p class="muted">Loading report…</p>`;
+        const { model, site, task, label } = btn.dataset;
+        try {
+          const res = await fetch(`/api/report/${model}/${site}/${task}`);
+          if (!res.ok) throw new Error("not found");
+          render(await res.json(), label);
+        } catch (e) {
+          panel.innerHTML = `<p class="error">Report not available.</p>`;
+        }
+      });
     });
-  });
+  }
+
+  window.FlairReport = { render };
 })();

@@ -21,19 +21,22 @@ binary classification tasks span outcome, deterioration, and
 intervention targets (ICU daily mortality, daily discharge to
 long-term acute care, extubation failure, sepsis, unplanned ICU
 readmission). Models run as committee-reviewed code or containers at each
-site and emit aggregate-only JSON reports (cohort characteristics, full
-TRIPOD+AI metrics, subgroup fairness gaps, calibration curves) with
-HIPAA cell suppression. The full FLAIR stack, library, task
+site and emit aggregate-only JSON reports (cohort characteristics,
+discrimination, calibration, and subgroup fairness metrics following
+TRIPOD+AI) with HIPAA cell suppression. The full FLAIR stack, library, task
 definitions, container/code specification, and report generators, is
 released open source (Apache~2.0) at
 \texttt{github.com/clif-consortium/FLAIR}, and the task catalog is
 designed to grow: any contributor can add a new benchmark task as a
 single-file Python module via GitHub pull request.
 
-\noindent\textbf{Results.} Across \est{$\sim$12 consortium sites and
-$\sim$500{,}000 ICU stays}, baseline models trained on MIMIC-CLIF show
-\est{moderate AUROC retention with clinically meaningful calibration
-drift} on external sites \todo{populate from federated run}.
+\noindent\textbf{Results.} Mode-matched baselines trained on MIMIC-CLIF
+discriminate well on internal test (landmark mortality AUROC 0.86,
+sepsis peak 0.69). At the first external site (Rush, 13{,}839 ICU
+stays) discrimination drops on every task, from a modest decline on
+mortality (0.86$\rightarrow$0.75) to a collapse on sepsis
+(0.69$\rightarrow$0.41), quantifying the cross-site distribution shift
+the benchmark exists to surface.
 
 \noindent\textbf{Conclusions.} FLAIR shrinks retrospective multi-site
 CDSS validation from years to weeks, exposes models to a growing

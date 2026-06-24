@@ -420,9 +420,212 @@ footer .sep { color: var(--rule); }
 .prevnext a { font-weight: 600; }
 .prevnext .spacer { flex: 1; }
 
+/* ============================================================
+   Landing motion: "how it works" federation diagram + reveals
+   (all namespaced under .howit / [data-reveal] / .reveal-hero)
+   ============================================================ */
+
+/* --- scroll reveals + hero entrance --- */
+html.js [data-reveal] > * { opacity: 0; }
+[data-reveal].is-revealed > * {
+  animation: reveal-up .6s cubic-bezier(.2,.6,.2,1) var(--rev-delay, 0ms) both;
+}
+.reveal-hero > * { animation: hero-in .7s cubic-bezier(.2,.6,.2,1) both; }
+.reveal-hero > *:nth-child(1) { animation-delay: .04s; }
+.reveal-hero > *:nth-child(2) { animation-delay: .12s; }
+.reveal-hero > *:nth-child(3) { animation-delay: .20s; }
+.reveal-hero > *:nth-child(4) { animation-delay: .28s; }
+.reveal-hero > *:nth-child(5) { animation-delay: .36s; }
+
+@keyframes reveal-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes hero-in   { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+/* --- flowing federation pipeline --- */
+.howit { margin: 56px 0 8px; }
+.howit > .section-head { margin-top: 0; }
+
+/* wrap holds the conduit rail + flowing tokens + the ordered stations */
+.flow-wrap { position: relative; max-width: 880px; margin: 30px auto 0; }
+.flow-wrap::before { content: ""; position: absolute; left: 15px; top: 16px; bottom: 16px;
+  width: 2px; background: var(--rule); border-radius: 2px; }
+.flow { list-style: none; margin: 0; padding: 0; }
+.flow-step { position: relative; display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 200px; column-gap: 18px; align-items: center;
+  padding-bottom: 30px; }
+.flow-step:last-child { padding-bottom: 0; }
+.flow-step.c-blue { --acc: var(--c-blue); }
+.flow-step.c-purple { --acc: var(--c-purple); }
+.flow-step.c-sage { --acc: var(--c-sage); }
+.flow-step.c-terracotta { --acc: var(--c-terracotta); }
+.flow-step.c-ink { --acc: var(--ink); }
+
+/* numbered marker (the steps are a real ordered pipeline) */
+.flow-mark { position: relative; z-index: 2; align-self: start; width: 32px; height: 32px;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-family: var(--sans); font-weight: 800; font-size: 14px; color: #fff;
+  background: var(--acc, var(--c-blue)); box-shadow: 0 0 0 4px #fff, var(--shadow-sm);
+  transition: transform .4s cubic-bezier(.2,.6,.2,1), opacity .4s; }
+
+/* ambient token stream flowing down the conduit */
+.flow-stream { position: absolute; left: 0; top: 0; bottom: 0; width: 32px; z-index: 0;
+  pointer-events: none; }
+.flow-stream .tok { position: absolute; left: 16px; top: -2%; width: 5px; height: 5px;
+  border-radius: 50%; transform: translateX(-50%); background: var(--c-blue); opacity: 0; }
+html.js .flow-stream .tok { animation: tok-fall 3.4s linear infinite;
+  animation-delay: calc(var(--n, 0) * -0.68s); }
+@keyframes tok-fall { 0% { top: -2%; opacity: 0; } 8% { opacity: .5; } 88% { opacity: .5; } 100% { top: 102%; opacity: 0; } }
+
+/* the guided lead token glides station to station (JS sets its top) */
+.flow-lead { position: absolute; left: 16px; top: 0; width: 11px; height: 11px; border-radius: 50%;
+  transform: translate(-50%, -50%); background: var(--c-blue);
+  box-shadow: 0 0 0 4px rgba(91,134,166,.18); opacity: 0; z-index: 1; pointer-events: none;
+  transition: top .5s cubic-bezier(.4,.5,.3,1), opacity .3s; }
+.flow-lead.show { opacity: 1; }
+.flow-wrap.paused .tok, .flow-wrap.paused .lane-tok { animation-play-state: paused; }
+
+/* side note in the right margin, tethered by a dotted leader */
+.flow-note { position: relative; align-self: center; padding-left: 4px; font-size: 13px;
+  line-height: 1.45; color: var(--muted); transition: opacity .45s ease, transform .45s ease; }
+.note-eyebrow { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--acc, var(--c-blue)); margin-bottom: 3px; }
+.flow-note::before { content: ""; position: absolute; left: -18px; top: 9px; width: 16px;
+  border-top: 2px dotted var(--acc, var(--c-blue)); transform: scaleX(1); transform-origin: left;
+  transition: transform .45s ease .08s; }
+
+/* fan-out / merge: code travels to every site and aggregate returns */
+.fan { display: block; width: 100%; max-width: 300px; height: auto; margin: 14px auto 2px; overflow: visible; }
+.fan .lane { fill: none; stroke: var(--rule); stroke-width: 1.5; }
+.fan .hub { fill: var(--ink); }
+.fan .site { fill: #fff; stroke: var(--c-sage); stroke-width: 1.5; }
+.fan .lane-tok { fill: var(--c-sage); offset-distance: 0%; opacity: 0; }
+html.js .fan .lane-tok { animation: lane-flow 2.6s linear infinite; animation-delay: calc(var(--i, 0) * .3s); }
+@keyframes lane-flow { 0% { offset-distance: 0%; opacity: 0; } 10% { opacity: 1; } 88% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
+
+/* card */
+.flow-card { background: #fff; border: 1px solid var(--rule);
+  border-left: 3px solid var(--acc, var(--c-blue)); border-radius: var(--radius);
+  padding: 16px 20px 18px; box-shadow: var(--shadow-sm);
+  transition: opacity .5s ease, transform .5s ease; }
+.flow-card h3 { margin: 0 0 4px; font-size: 17px; }
+.flow-card p { margin: 0; font-size: 14px; color: #3a3d44; }
+.flow-card .more { display: inline-block; margin-top: 14px; font-size: 14px; font-weight: 600; }
+.flow-card .more:hover { text-decoration: none; }
+
+/* chips */
+.chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.chip { font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--rule); color: var(--muted); }
+.chip.ok { background: var(--c-sage-soft); border-color: transparent; color: #2f5d44; }
+.chip.ok::before { content: "\2713\00a0"; }
+
+/* audit checks */
+.checks { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.checks li { position: relative; padding-left: 24px; font-size: 13.5px; color: #3a3d44; line-height: 1.45; }
+.checks .tick { position: absolute; left: 0; top: 2px; width: 15px; height: 15px; border-radius: 50%;
+  background: var(--c-sage-soft); }
+.checks .tick::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px;
+  border: solid var(--c-sage); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+/* mini charts (illustrative, one colored curve per site) */
+.mini-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+.spark { margin: 0; }
+.spark svg { width: 100%; height: auto; display: block; border-radius: 8px; }
+.spark figcaption { font-family: var(--mono); font-size: 10.5px; color: var(--muted);
+  text-align: center; margin-top: 5px; }
+.spark-frame { fill: var(--panel); stroke: var(--rule); stroke-width: 1; }
+.spark-ref { stroke: #c9c9c4; stroke-width: 1; stroke-dasharray: 3 3; }
+.spark-zero { stroke: var(--rule); stroke-width: 1; }
+.spark-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  vector-effect: non-scaling-stroke; stroke-dasharray: 260; stroke-dashoffset: 0; }
+.spark-line.s1 { stroke: var(--c-blue); }
+.spark-line.s2 { stroke: var(--c-terracotta); }
+.spark-line.s3 { stroke: var(--c-sage); }
+@keyframes spark-draw { to { stroke-dashoffset: 0; } }
+
+/* mini legend */
+.mini-legend { display: flex; gap: 14px; justify-content: center; margin-top: 10px;
+  font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.mini-legend .ml { display: inline-flex; align-items: center; gap: 6px; }
+.mini-legend .ml i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.mini-legend .s1 i { background: var(--c-blue); }
+.mini-legend .s2 i { background: var(--c-terracotta); }
+.mini-legend .s3 i { background: var(--c-sage); }
+
+/* mock ranking */
+.rank-mock { margin-top: 12px; display: grid; gap: 6px; }
+.rk { display: grid; grid-template-columns: 16px 60px 1fr 32px; align-items: center; gap: 10px; font-size: 12.5px; }
+.rk-n { font-family: var(--mono); color: var(--muted); }
+.rk-nm { font-family: var(--mono); color: var(--ink); }
+.rk-bar { height: 7px; background: var(--panel); border-radius: 999px; overflow: hidden; }
+.rk-bar i { display: block; height: 100%; background: var(--c-terracotta); border-radius: 999px; }
+.rk-v { font-family: var(--mono); text-align: right; color: var(--ink); }
+
+/* --- guided pass: when JS present, start hidden and light up step by step (.on) --- */
+html.js .flow-mark { opacity: 0; transform: scale(.6); }
+html.js .flow-card { opacity: 0; transform: translateY(12px); }
+html.js .flow-note { opacity: 0; transform: translateX(8px); }
+html.js .flow-note::before { transform: scaleX(0); }
+html.js .spark-line { stroke-dashoffset: 260; }
+html.js .flow-step.on .flow-mark { opacity: 1; transform: scale(1); }
+html.js .flow-step.on .flow-card { opacity: 1; transform: translateY(0); }
+html.js .flow-step.on .flow-note { opacity: 1; transform: translateX(0); }
+html.js .flow-step.on .flow-note::before { transform: scaleX(1); }
+html.js .flow-step.on .spark-line { animation: spark-draw .8s ease calc(.2s + var(--i,0) * .12s) forwards; }
+
+/* replay */
+.howit-legend { display: flex; justify-content: center; margin-top: 8px; }
+.howit-replay { font-family: var(--sans); font-size: 12.5px; padding: 6px 15px; border: 1px solid var(--rule);
+  background: #fff; border-radius: 999px; color: var(--muted); cursor: pointer;
+  transition: border-color var(--ease), color var(--ease); }
+.howit-replay:hover { border-color: var(--ink); color: var(--ink); }
+
+/* reduced motion: full static state, no movement */
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal] > *, .reveal-hero > * { opacity: 1 !important; }
+  [data-reveal] > *, .reveal-hero > *, .flow-card, .flow-mark, .flow-note,
+  .spark-line, .tok, .lane-tok, .flow-lead { animation: none !important; }
+  html.js .flow-card, html.js .flow-mark, html.js .flow-note {
+    opacity: 1 !important; transform: none !important; transition: none !important; }
+  html.js .flow-note::before { transform: scaleX(1) !important; }
+  html.js .spark-line { stroke-dashoffset: 0 !important; }
+  .tok, .lane-tok, .flow-lead { opacity: 0 !important; }
+}
+
+/* ============================================================
+   Task Leaderboard — task accordion + inline reports
+   ============================================================ */
+.acc-list { margin: 22px 0 8px; border-top: 1px solid var(--rule); }
+.task-acc { border-bottom: 1px solid var(--rule); }
+.task-acc-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 15px 8px;
+  background: none; border: none; cursor: pointer; font-family: var(--sans); font-size: 16px;
+  color: var(--ink); text-align: left; transition: background var(--ease); }
+.task-acc-head:hover { background: var(--panel); }
+.task-acc-head .dot { margin-right: 0; }
+.task-acc-head .ta-title { font-weight: 600; }
+.task-acc-head .pill { margin: 0; }
+.task-acc-head .ta-count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.task-acc-head .ta-chev { margin-left: auto; color: var(--muted); transition: transform var(--ease); }
+.task-acc-head.open .ta-chev { transform: rotate(180deg); }
+.task-acc-body { display: none; padding: 0 8px 18px; }
+.task-acc-body.open { display: block; }
+
+/* inline report controls inside an expanded model row */
+.rep-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 14px; }
+.rep-permalink { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.rep-permalink:hover { text-decoration: none; }
+.lb-detail .report-panel { margin: 14px 0 2px; }
+
 @media (max-width: 980px) {
   .statcards { grid-template-columns: repeat(2, 1fr); }
   .three-col { grid-template-columns: 1fr; }
+}
+
+/* side notes drop below the card once the margin gets tight */
+@media (max-width: 860px) {
+  .flow-wrap { max-width: 640px; }
+  .flow-step { grid-template-columns: 32px minmax(0, 1fr); column-gap: 18px; align-items: start; }
+  .flow-note { grid-column: 2; align-self: start; margin-top: 10px; padding-left: 0; }
+  .flow-note::before { left: 0; top: -8px; width: 26px; }
 }
 
 @media (max-width: 760px) {
@@ -437,4 +640,12 @@ footer .sep { color: var(--rule); }
   .hero-xl .tagline { font-size: 17px; }
   nav.top { gap: 14px; padding: 13px 20px; }
   nav.top .links { display: none; }
+  .howit { margin-top: 40px; }
+  .flow-wrap { margin-top: 22px; }
+  .flow-wrap::before { left: 13px; }
+  .flow-step { grid-template-columns: 28px minmax(0, 1fr); column-gap: 14px; }
+  .flow-stream { width: 28px; }
+  .flow-stream .tok, .flow-lead { left: 14px; }
+  .mini-charts { gap: 8px; }
+  .flow-card { padding: 14px 16px 16px; }
 }

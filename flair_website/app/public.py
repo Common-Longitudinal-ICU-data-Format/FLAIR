@@ -28,9 +28,17 @@ def index(request: Request):
     )
 
 
+def _task_leaderboard(request: Request):
+    """Merged Task Leaderboard: all tasks listed, each expandable to its ranking
+    and per-model detailed reports. Served at both /leaderboard and /tasks."""
+    return templates.TemplateResponse(
+        request, "task_leaderboard.html", {"board": public_leaderboard_by_task()}
+    )
+
+
 @router.get("/tasks", response_class=HTMLResponse)
 def task_catalog(request: Request):
-    return templates.TemplateResponse(request, "tasks.html", {"tasks": tasks()})
+    return _task_leaderboard(request)
 
 
 @router.get("/tasks/{task_id}", response_class=HTMLResponse)
@@ -55,9 +63,7 @@ def api_report(model_id: str, site_key: str, task_id: str):
 
 @router.get("/leaderboard", response_class=HTMLResponse)
 def leaderboard(request: Request):
-    return templates.TemplateResponse(
-        request, "leaderboard.html", {"board": public_leaderboard_by_task()}
-    )
+    return _task_leaderboard(request)
 
 
 @router.get("/api/leaderboard")

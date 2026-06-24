@@ -19,7 +19,7 @@
   % ---- top band: central develop + distribute (blue) ----
   \node[card={blue}{37mm}] (n1)
     {\textbf{FLAIR Library}\\ \emph{central $\cdot$ public}\\[1pt]
-     \texttt{flair-baseline run}\\ cohorts $\cdot$ 75/25 split\\
+     \texttt{flair-baseline train}\\ cohorts $\cdot$ 75/25 split\\
      count feats $\cdot$ XGBoost\\ $\rightarrow$ \texttt{model.json}, \texttt{vocab.json}};
   \node[card={blue}{37mm}, right=of n1] (n2)
     {\textbf{Build / submit model}\\ baseline \emph{or} community PR\\[1pt]
@@ -33,14 +33,14 @@
 
   % ---- middle band: site silos (orange) ----
   \node[card={orange}{37mm}, below=13mm of n1] (s1)
-    {\textbf{Site 1}\\ local CLIF tables\\ \texttt{flair-baseline score}\\
-     $\rightarrow$ 9-JSON bundle ($n{<}10$)};
+    {\textbf{Site 1}\\ local CLIF tables\\ \texttt{flair-baseline infer}\\
+     $\rightarrow$ report bundle ($n{<}10$)};
   \node[card={orange}{37mm}, right=of s1] (s2)
-    {\textbf{Site 2}\\ local CLIF tables\\ \texttt{flair-baseline score}\\
-     $\rightarrow$ 9-JSON bundle ($n{<}10$)};
+    {\textbf{Site 2}\\ local CLIF tables\\ \texttt{flair-baseline infer}\\
+     $\rightarrow$ report bundle ($n{<}10$)};
   \node[card={orange}{37mm}, right=of s2] (sN)
-    {\textbf{Site N}\\ local CLIF tables\\ \texttt{flair-baseline score}\\
-     $\rightarrow$ 9-JSON bundle ($n{<}10$)};
+    {\textbf{Site N}\\ local CLIF tables\\ \texttt{flair-baseline infer}\\
+     $\rightarrow$ report bundle ($n{<}10$)};
   \node[font=\sffamily\bfseries, text=orange!45!black] (sdots) at ($(s2.east)!0.5!(sN.west)$) {$\cdots$};
   \begin{scope}[on background layer]
     \node[zone={orange}, fit=(s1)(sN), inner sep=7mm] (silo) {};
@@ -50,7 +50,7 @@
 
   % ---- bottom band: aggregate + publish ----
   \node[card={blue}{40mm}, below=14mm of silo.south west, anchor=north west] (a4)
-    {\textbf{Aggregate}\\ \emph{central FLAIR}\\ pool the per-site\\ 9-JSON reports};
+    {\textbf{Aggregate}\\ \emph{central FLAIR}\\ pool the per-site\\ report bundles};
   \node[card={violet}{56mm}, right=of a4] (a5)
     {\textbf{Publish $\cdot$ leaderboard}\\ per-site \textbf{forest plot} (the headline)
      $+$ pooled scalar\\ HIPAA-safe $\cdot$ no PHI shared};
@@ -69,17 +69,18 @@
   \caption{\textbf{The FLAIR model-to-data loop.} Patient-level data never
   leaves any site; only a model crosses in and an aggregate report crosses
   out. \emph{Develop (central, public):} a model is built against MIMIC-CLIF
-  with \texttt{flair-baseline run} (cohorts, a 75/25 split on
+  with \texttt{flair-baseline train} (cohorts, a 75/25 split on
   \texttt{hospitalization\_join\_id}, count features, an XGBoost head) or
   submitted by the community as a pull request; the Benchmark Committee
   reviews it for clinical and security soundness. \emph{Ship:} the FLAIR
-  Portal distributes the approved model and code to the 12+ CLIF sites.
-  \emph{Run locally:} each Site Lead / Data Steward applies it with
-  \texttt{flair-baseline score} on the site's own CLIF tables and returns a
-  \textbf{nine-JSON aggregate report} (\texttt{curves}, \texttt{dca},
-  \texttt{encounter}, \texttt{fairness}, \texttt{scorecard}, \texttt{table1},
-  \texttt{temporal}, \texttt{threshold\_analysis}, \texttt{tripod\_ai}) with
-  cell suppression at $n<10$ --- predictions and metrics only, no patient
+  Portal distributes the approved model folder and code to the 12+ CLIF
+  sites. \emph{Run locally:} each Site Lead / Data Steward applies it with
+  \texttt{flair-baseline infer} on the site's own CLIF tables, which writes
+  three site-prefixed folders, and returns only the non-PHI \textbf{report
+  bundle}, a \emph{mode-keyed} set of JSONs (\texttt{discrimination},
+  \texttt{calibration}, \texttt{dca}, \texttt{fairness}, and, for landmark
+  tasks, \texttt{leadtime}) plus \texttt{table1.json} and a suppressed code
+  registry, with cell suppression at $n<10$ --- metrics only, no patient
   rows. \emph{Aggregate \& publish:} the Portal pools the per-site reports
   into the public leaderboard, where the per-site \textbf{forest plot}, not
   the pooled scalar, is the headline signal.}
@@ -112,7 +113,7 @@ wrapped in a container. A \emph{Model Owner} submits a frozen model, as
 code or wrapped in a container. At each institution a \emph{Site Lead / Data
 Steward} pulls the approved submission from the Portal, runs it in
 CLIF-WorkBench against local CLIF tables, and returns only the
-standardized nine-JSON aggregate report. The lifecycle is therefore
+standardized non-PHI report bundle. The lifecycle is therefore
 register~$\rightarrow$~approve~$\rightarrow$~execute~$\rightarrow$~release:
 no patient-level data leaves any site, and every site runs byte-identical
 Portal-distributed code.
@@ -121,11 +122,14 @@ Portal-distributed code.
 
 A clinical decision support developer using FLAIR works entirely
 against MIMIC-CLIF during development. The library exposes CLIF tables
-through \texttt{clifpy}, the canonical CLIF Python interface, and
-ships a single CLI: \texttt{flair load-task} builds a task-specific
-cohort parquet; the developer engineers features and trains a model
-on the cohort and the wide CLIF feature set; the report builder
-emits the nine-JSON aggregate report bundle. Submission to the consortium consists
+through \texttt{clifpy}, the canonical CLIF Python interface. The
+benchmark CLI exposes \texttt{flair load-task} (build a task-specific
+cohort parquet) and \texttt{flair build-report} (score predictions into
+the report bundle); the reference baseline wraps these as
+\texttt{flair-baseline train} and \texttt{flair-baseline infer}. Each
+run writes three site-prefixed folders, separating PHI (cohort, events,
+predictions; stays local) from the non-PHI upload bundle and the model
+folder that ships to other sites. Submission to the consortium consists
 of code and a frozen model artifact, optionally packaged as a container
 image (Docker or Singularity) that wraps both. The model-to-data paradigm
 itself is not new, it was introduced by the DREAM Challenges
@@ -147,11 +151,11 @@ review of its code and model and a synthetic-data validation pass before
 release, sites execute only audited artifacts. The submitted code is
 permitted to read the site's CLIF tables, write a predictions parquet (cohort plus
 \texttt{y\_true}, \texttt{y\_pred}, \texttt{y\_prob}), and invoke the
-FLAIR report builder, which produces a nine-JSON report bundle
-(\texttt{curves}, \texttt{dca}, \texttt{encounter}, \texttt{fairness},
-\texttt{scorecard}, \texttt{table1}, \texttt{temporal},
-\texttt{threshold\_analysis}, \texttt{tripod\_ai}). Every JSON carries the
-FLAIR library version and the generation timestamp. Sites retain final approval over which models
+FLAIR report builder, which produces a mode-keyed report bundle
+(\texttt{discrimination}, \texttt{calibration}, \texttt{dca},
+\texttt{fairness}, and \texttt{leadtime} for landmark tasks; peak tasks
+omit calibration and decision curves). Every JSON carries the FLAIR
+library version, the generation timestamp, and the task audit hash. Sites retain final approval over which models
 execute; the simplicity of the per-task module, one Python file
 expressing cohort, label, and exclusions in a few hundred lines, 
 makes that pre-execution audit tractable.

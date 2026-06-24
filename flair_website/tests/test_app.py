@@ -72,6 +72,23 @@ def test_results_carry_report_mode(client):
     assert mode["task4_sepsis_abx_6h"] == "peak"
 
 
+def test_leaderboard_cells_have_report_flag(client):
+    # merged Task Leaderboard needs to know which (model, site, task) has a report
+    data = client.get("/api/leaderboard").json()
+    cells = data["by_task"]["task1_icu_daily_mortality"][0]["cells"]
+    assert cells["mimic"]["has_report"] is True
+    assert cells["rush"]["has_report"] is True
+
+
+def test_task_leaderboard_merged_page(client):
+    # /tasks and /leaderboard render the same merged accordion page
+    for path in ("/leaderboard", "/tasks"):
+        html = client.get(path).text
+        assert "Task Leaderboard" in html, path
+        assert "ICU Daily In-Hospital Mortality" in html, path  # all tasks listed
+        assert "outcome" in html and "intervention" in html, path  # class pills
+
+
 def test_no_pii_or_inspect_leak(client):
     blobs = [client.get("/").text, client.get("/leaderboard").text,
              client.get("/api/leaderboard").text]

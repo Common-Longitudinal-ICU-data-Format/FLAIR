@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script>document.documentElement.classList.add('js')</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="FLAIR — a federated benchmark for ICU clinical decision support across academic medical centers, built on the Common Longitudinal ICU Format (CLIF).">
@@ -16,8 +17,7 @@
 <nav class="top">
   <a class="brand" href="/"><span class="logo"></span>FLAIR</a>
   <div class="links">
-    <a href="/leaderboard">Leaderboard</a>
-    <a href="/tasks">Tasks</a>
+    <a href="/leaderboard">Task Leaderboard</a>
     <a href="/docs">Docs</a>
     {% if not public_mode %}<a href="/submit">Submit a model</a>{% endif %}
     {% if is_admin(request) %}<a href="/admin">Queue</a><a href="/admin/runs">Run orchestration</a>{% endif %}
@@ -41,8 +41,7 @@
   <div class="foot-top">
     <span class="foot-brand">FLAIR</span>
     <span class="sep">·</span><a href="/docs">FLAIR 101</a>
-    <span class="sep">·</span><a href="/leaderboard">Leaderboard</a>
-    <span class="sep">·</span><a href="/tasks">Tasks</a>
+    <span class="sep">·</span><a href="/leaderboard">Task Leaderboard</a>
     <span class="sep">·</span><a href="https://github.com/clif-consortium/FLAIR">GitHub</a>
   </div>
   Federated Learning &amp; AI Research on ICU data — the code travels, the data does not.

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 
-<section class="hero-xl">
+<section class="hero-xl reveal-hero">
   <h1>FLAIR</h1>
   <p class="tagline">A federated benchmark for ICU clinical decision support across academic
     medical centers, built on the Common Longitudinal ICU Format (CLIF).</p>
@@ -25,14 +25,153 @@
   </div>
 </section>
 
-<div class="statcards">
-  <div class="statcard b"><div class="num">~500,000</div><div class="lbl">ICU stays across the consortium</div></div>
-  <div class="statcard p"><div class="num">12+</div><div class="lbl">academic medical centers</div></div>
-  <div class="statcard s"><div class="num">~2,000</div><div class="lbl">ICU beds covered</div></div>
-  <div class="statcard t"><div class="num">5</div><div class="lbl">benchmark tasks (a seed, not a ceiling)</div></div>
+<section class="howit" data-reveal aria-labelledby="howit-h">
+  <div class="section-head">
+    <h2 id="howit-h">From a <span class="accent">model</span> to the leaderboard</h2>
+    <span class="count">One submission, the whole federation — the code travels, the data does not.</span>
+  </div>
+
+  <div class="flow-wrap">
+    <div class="flow-stream" aria-hidden="true">
+      <span class="tok" style="--n:0"></span>
+      <span class="tok" style="--n:1"></span>
+      <span class="tok" style="--n:2"></span>
+      <span class="tok" style="--n:3"></span>
+      <span class="tok" style="--n:4"></span>
+    </div>
+    <span class="flow-lead" aria-hidden="true"></span>
+
+    <ol class="flow" aria-label="How FLAIR evaluates a model, in five steps">
+
+    <li class="flow-step c-blue" data-step="1">
+      <span class="flow-mark" aria-hidden="true">1</span>
+      <div class="flow-card">
+        <h3>Model owner submits</h3>
+        <p>Code, weights, and a uv / Docker environment — already running on public MIMIC-CLIF.</p>
+        <div class="chips">
+          <span class="chip">model code</span>
+          <span class="chip">weights</span>
+          <span class="chip">uv / Docker</span>
+          <span class="chip ok">runs on MIMIC-CLIF</span>
+        </div>
+      </div>
+      <aside class="flow-note"><span class="note-eyebrow">what ships</span>Code, weights, and the exact env — already passing on public MIMIC-CLIF.</aside>
+    </li>
+
+    <li class="flow-step c-purple" data-step="2">
+      <span class="flow-mark" aria-hidden="true">2</span>
+      <div class="flow-card">
+        <h3>Committee audits</h3>
+        <p>Two gates clear before anything reaches a site.</p>
+        <ul class="checks">
+          <li><span class="tick" aria-hidden="true"></span>Agentic summary — an agent reads the code and reports what the model does</li>
+          <li><span class="tick" aria-hidden="true"></span>Smoke test on synthetic data — the container runs end to end on fake records</li>
+        </ul>
+        <div class="chips"><span class="chip ok">all green → approved</span></div>
+      </div>
+      <aside class="flow-note"><span class="note-eyebrow">before any site</span>An agent summarizes the code, then it runs end to end on synthetic data.</aside>
+    </li>
+
+    <li class="flow-step c-sage" data-step="3">
+      <span class="flow-mark" aria-hidden="true">3</span>
+      <div class="flow-card">
+        <h3>Posted to every site</h3>
+        <p>One approved run goes to all participating sites at once. Each runs the code on its own
+          CLIF tables; only non-PHI aggregate JSON comes back.</p>
+        <svg class="fan" viewBox="0 0 240 64" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+          <path class="lane" d="M120 5 L24 32 L120 59"/>
+          <path class="lane" d="M120 5 L72 32 L120 59"/>
+          <path class="lane" d="M120 5 L120 32 L120 59"/>
+          <path class="lane" d="M120 5 L168 32 L120 59"/>
+          <path class="lane" d="M120 5 L216 32 L120 59"/>
+          <circle class="hub" cx="120" cy="5" r="3.5"/>
+          <circle class="hub" cx="120" cy="59" r="3.5"/>
+          <circle class="site" cx="24" cy="32" r="4"/>
+          <circle class="site" cx="72" cy="32" r="4"/>
+          <circle class="site" cx="120" cy="32" r="4"/>
+          <circle class="site" cx="168" cy="32" r="4"/>
+          <circle class="site" cx="216" cy="32" r="4"/>
+          <circle class="lane-tok" style="--i:0;offset-path:path('M120 5 L24 32 L120 59')" r="2.6"/>
+          <circle class="lane-tok" style="--i:1;offset-path:path('M120 5 L72 32 L120 59')" r="2.6"/>
+          <circle class="lane-tok" style="--i:2;offset-path:path('M120 5 L120 32 L120 59')" r="2.6"/>
+          <circle class="lane-tok" style="--i:3;offset-path:path('M120 5 L168 32 L120 59')" r="2.6"/>
+          <circle class="lane-tok" style="--i:4;offset-path:path('M120 5 L216 32 L120 59')" r="2.6"/>
+        </svg>
+      </div>
+      <aside class="flow-note"><span class="note-eyebrow">the federation</span>The code travels to each site; the data never leaves.</aside>
+    </li>
+
+    <li class="flow-step c-terracotta wide" data-step="4">
+      <span class="flow-mark" aria-hidden="true">4</span>
+      <div class="flow-card">
+        <h3>Charted on the FLAIR leaderboard</h3>
+        <p>Results land on the public board: every site's curves side by side, and models ranked by
+          pooled AUROC — with the per-site spread kept in view.</p>
+        <div class="mini-charts" aria-hidden="true">
+          <figure class="spark">
+            <svg viewBox="0 0 120 96" preserveAspectRatio="none">
+              <rect class="spark-frame" x="14" y="8" width="98" height="78"/>
+              <line class="spark-ref" x1="14" y1="86" x2="112" y2="8"/>
+              <polyline class="spark-line s1" style="--i:0" points="14,86 20,40 40,22 70,12 112,8"/>
+              <polyline class="spark-line s2" style="--i:1" points="14,86 24,48 48,28 78,15 112,8"/>
+              <polyline class="spark-line s3" style="--i:2" points="14,86 30,56 56,36 86,19 112,8"/>
+            </svg>
+            <figcaption>ROC</figcaption>
+          </figure>
+          <figure class="spark">
+            <svg viewBox="0 0 120 96" preserveAspectRatio="none">
+              <rect class="spark-frame" x="14" y="8" width="98" height="78"/>
+              <line class="spark-ref" x1="14" y1="86" x2="112" y2="8"/>
+              <polyline class="spark-line s1" style="--i:0" points="14,84 40,62 70,38 112,12"/>
+              <polyline class="spark-line s2" style="--i:1" points="14,86 40,70 70,48 112,18"/>
+              <polyline class="spark-line s3" style="--i:2" points="14,85 40,58 70,42 112,15"/>
+            </svg>
+            <figcaption>Calibration</figcaption>
+          </figure>
+          <figure class="spark">
+            <svg viewBox="0 0 120 96" preserveAspectRatio="none">
+              <rect class="spark-frame" x="14" y="8" width="98" height="78"/>
+              <!-- zero baseline (treat none) + treat-all diving below it -->
+              <line class="spark-zero" x1="14" y1="78" x2="112" y2="78"/>
+              <line class="spark-ref" x1="14" y1="34" x2="108" y2="94"/>
+              <!-- per-site model net benefit: high at low threshold, convex decay toward zero -->
+              <polyline class="spark-line s1" style="--i:0" points="14,30 36,42 64,58 88,68 112,74"/>
+              <polyline class="spark-line s2" style="--i:1" points="14,36 36,48 64,62 88,71 112,76"/>
+              <polyline class="spark-line s3" style="--i:2" points="14,33 36,45 64,60 88,70 112,75"/>
+            </svg>
+            <figcaption>Net benefit</figcaption>
+          </figure>
+        </div>
+        <div class="mini-legend" aria-hidden="true">
+          <span class="ml s1"><i></i>one site</span>
+          <span class="ml s2"><i></i>another</span>
+          <span class="ml s3"><i></i>another</span>
+        </div>
+        <div class="rank-mock" aria-hidden="true">
+          <div class="rk"><span class="rk-n">1</span><span class="rk-nm">model A</span><span class="rk-bar"><i style="width:84%"></i></span><span class="rk-v">.84</span></div>
+          <div class="rk"><span class="rk-n">2</span><span class="rk-nm">model B</span><span class="rk-bar"><i style="width:78%"></i></span><span class="rk-v">.78</span></div>
+          <div class="rk"><span class="rk-n">3</span><span class="rk-nm">model C</span><span class="rk-bar"><i style="width:71%"></i></span><span class="rk-v">.71</span></div>
+        </div>
+        <a class="more" href="/leaderboard">Open the Task Leaderboard →</a>
+      </div>
+      <aside class="flow-note"><span class="note-eyebrow">one color per site</span>Compare each site's discrimination, calibration, and net-benefit curves side by side.</aside>
+    </li>
+    </ol>
+  </div>
+
+  <div class="howit-legend">
+    <button class="howit-replay" type="button" aria-label="Replay the animation">↺ Replay</button>
+  </div>
+</section>
+
+<div class="statcards" data-reveal>
+  <div class="statcard b"><div class="num" data-countup data-to="500000" data-prefix="~">~500,000</div><div class="lbl">ICU stays across the consortium</div></div>
+  <div class="statcard p"><div class="num" data-countup data-to="12" data-suffix="+">12+</div><div class="lbl">academic medical centers</div></div>
+  <div class="statcard s"><div class="num" data-countup data-to="2000" data-prefix="~">~2,000</div><div class="lbl">ICU beds covered</div></div>
+  <div class="statcard t"><div class="num" data-countup data-to="5">5</div><div class="lbl">benchmark tasks (a seed, not a ceiling)</div></div>
 </div>
 
-<div class="panel">
+<div class="panel" data-reveal>
   <h3>The per-site forest plot is the headline — not a single pooled number.</h3>
   <p class="muted">Models are built and self-evaluated on public MIMIC-CLIF (~70k ICU stays),
     reviewed, then shipped to each site. Each site runs the code against its own CLIF tables
@@ -45,11 +184,11 @@
   </div>
 </div>
 
-<div class="section-head">
+<div class="section-head" data-reveal>
   <h2>What is <span class="accent">FLAIR</span>?</h2>
   <span class="count">Three coupled artifacts: a data layer, a task layer, and a federated protocol.</span>
 </div>
-<div class="three-col">
+<div class="three-col" data-reveal>
   <div class="col b">
     <h3>CLIF-anchored datasets</h3>
     <p>CLIF is a critical-care minimum dataset that harmonizes ICU EHR content into a small set
@@ -73,11 +212,11 @@
   </div>
 </div>
 
-<div class="section-head">
+<div class="section-head" data-reveal>
   <h2>Prediction <span class="accent">tasks</span></h2>
   <span class="count">Click any task for its cohort, label, and operating threshold.</span>
 </div>
-<div class="grid">
+<div class="grid" data-reveal>
   {% for t in tasks %}
   <div class="item">
     <div class="name"><span class="dot {{ t.color }}"></span><a href="/tasks/{{ t.id }}">{{ t.display_name }}</a></div>
@@ -104,4 +243,5 @@
 }{% endraw %}</pre>
 </div>
 
+<script src="/static/js/landing.js?v={{ asset_ver }}"></script>
 {% endblock %}
