@@ -249,8 +249,9 @@ def test_build_report_episodic_end_to_end(tmp_path):
         assert md["split"] == "test" and md["n_stays"] == df.height
 
 
-def test_build_report_split_selection(tmp_path):
-    # mark half the stays "train"; only "test" should be analyzed
+def test_build_report_always_scores_test_only(tmp_path):
+    # mark half the stays "train"; the report must ALWAYS analyze only "test"
+    # (no split override exists) — train rows are never scored.
     df = make_synth(n_stays=400)
     df = df.with_columns(
         pl.when(pl.int_range(pl.len()) < 200).then(pl.lit("train"))
@@ -260,13 +261,29 @@ def test_build_report_split_selection(tmp_path):
 
     from flair_benchmark.report import build_report
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
-                         split="test", episodic=True)
+                         episodic=True)
     disc = json.loads(paths["discrimination"].read_text())
     assert disc["metadata"]["n_stays"] == 200
+    assert disc["metadata"]["split"] == "test"
 
-    with pytest.raises(ValueError, match="not found"):
-        build_report(str(preds_path), _fake_task(), str(tmp_path / "r2"),
-                     split="val", episodic=True)
+    # A preds file with no 'test' rows is rejected (can't silently report on train).
+    no_test = df.with_columns(pl.lit("train").alias("split"))
+    no_test_path = tmp_path / "no_test.parquet"
+    no_test.write_parquet(no_test_path)
+    with pytest.raises(ValueError, match="test"):
+        build_report(str(no_test_path), _fake_task(), str(tmp_path / "r2"),
+                     episodic=True)
+
+
+def test_build_report_requires_prediction_id(tmp_path):
+    # prediction_id is part of the always-required preds contract.
+    df = make_synth(n_stays=50).drop("prediction_id")
+    preds_path = tmp_path / "preds.parquet"
+    df.write_parquet(preds_path)
+    from flair_benchmark.report import build_report
+    with pytest.raises(ValueError, match="prediction_id"):
+        build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
+                     episodic=True)
 
 
 def test_build_report_continuous_requires_mode(tmp_path):

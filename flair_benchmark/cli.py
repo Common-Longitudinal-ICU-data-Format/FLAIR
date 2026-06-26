@@ -101,8 +101,6 @@ def build_report_cmd(
     task: str = typer.Option(..., "--task", help="Task name"),
     out: str = typer.Option(..., "--out",
                             help="Output directory for the report JSONs"),
-    split: str = typer.Option("test", "--split",
-                              help="Which split to analyze (default: test)."),
     mode: Optional[str] = typer.Option(
         None, "--mode",
         help="How to score the task: 'episodic' (one-per-stay), 'peak' "
@@ -127,7 +125,7 @@ def build_report_cmd(
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
-    paths = build_report(preds, task_module, out, split=split, episodic=episodic,
+    paths = build_report(preds, task_module, out, episodic=episodic,
                          mode=mode, cohort_path=cohort, viz=viz)
     for kind, path in paths.items():
         typer.echo(f"  {kind:24s} → {path}")

@@ -36,14 +36,16 @@ _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
 
 
 def build_report(preds_path: str, task_module, out_dir: str,
-                 split: str = "test", episodic: bool = False,
+                 episodic: bool = False,
                  cohort_path: str | None = None,
                  viz: bool = True, site: str | None = None,
                  mode: str | None = None) -> dict[str, Path]:
     """Read preds parquet, look up META, write the report JSON bundle.
 
-    `split` selects which split to analyze (default "test"). `mode` chooses how a
-    continuous (multi-row-per-stay) task is scored:
+    Reports are ALWAYS computed on the held-out `test` split — the home site trains on
+    `train`, every site (incl. inference-only) is scored on `test`, so cross-site
+    numbers are comparable. `mode` chooses how a continuous (multi-row-per-stay) task
+    is scored:
 
       episodic : one prediction per stay -> discrimination/calibration/dca/fairness.
       peak     : collapse to stay-peak risk -> discrimination + fairness (+ NNE);
@@ -64,13 +66,16 @@ def build_report(preds_path: str, task_module, out_dir: str,
     preds = _attach_cohort_context(preds, cohort_path, meta)
     preds = _ensure_y_pred(preds, meta)
 
+    # Reports are always scored on the held-out 'test' split only.
+    split = "test"
     available = sorted(preds["split"].unique().drop_nulls().to_list())
     if split not in available:
         raise ValueError(
-            f"split '{split}' not found in predictions; available: {available}")
+            f"no 'test' rows in predictions; available splits: {available}. "
+            f"Cohorts from `flair load-task` always carry train + test.")
     preds = preds.filter(pl.col("split") == split)
     if preds.height == 0:
-        raise ValueError(f"split '{split}' is empty after filtering")
+        raise ValueError("'test' split is empty after filtering")
 
     block = ("hospitalization_join_id"
              if "hospitalization_join_id" in preds.columns
@@ -235,10 +240,17 @@ def _attach_cohort_context(preds: pl.DataFrame, cohort_path: str | None,
 
 
 def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
-    """Enforce the strict preds parquet contract."""
-    required = {"hospitalization_id", "split", meta["label_column"]}
+    """Enforce the strict preds parquet contract.
+
+    Every predictions parquet must always carry: prediction_id, split, the task label,
+    hospitalization_id, and y_prob (the probability). y_pred is derived from y_prob at
+    0.5 when absent (see _ensure_y_pred).
+    """
+    required = {"hospitalization_id", "prediction_id", "split", meta["label_column"]}
     task_type = meta["task_type"]
-    if task_type == "multiclass":
+    if task_type == "binary":
+        required.add("y_prob")
+    elif task_type == "multiclass":
         required.add("y_pred")
     elif task_type == "regression":
         required.add("y_pred_value")
@@ -247,15 +259,9 @@ def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
         raise ValueError(
             f"Predictions parquet missing required columns for task "
             f"'{meta['name']}' ({task_type}): {sorted(missing)}. "
-            f"Got columns: {sorted(preds.columns)}"
-        )
-
-    # Binary: the site only has to add y_prob to the cohort file — y_pred is
-    # derived at 0.5 when absent (see _ensure_y_pred). Require at least one.
-    if task_type == "binary" and not ({"y_pred", "y_prob"} & set(preds.columns)):
-        raise ValueError(
-            f"Predictions parquet for binary task '{meta['name']}' must contain "
-            f"'y_prob' (recommended) or 'y_pred'. Add y_prob to the cohort file: "
+            f"Got columns: {sorted(preds.columns)}. "
+            f"Every preds parquet must carry prediction_id, split, "
+            f"{meta['label_column']}, and y_prob — add y_prob to the cohort file: "
             f"cohort.with_columns(pl.Series('y_prob', probs))."
         )
 

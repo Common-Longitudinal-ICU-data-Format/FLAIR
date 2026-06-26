@@ -17,7 +17,16 @@ audit hash (see ``_hash.py``), so a change here is captured by the cross-site
 
 from __future__ import annotations
 
+from datetime import date
+
 __version__ = "0.0.1"
+
+# Global data cutoff: rows whose split-temporal date falls after this are dropped from
+# every cohort (see _split.assign_split). The current calendar year is not fully
+# ETL'd at most sites, so querying it yields partial, non-comparable cohorts. Bump
+# this one line when a new year is fully loaded. Skipped for site == "mimic", whose
+# admission dates are de-identified/shifted (a real-date cap would empty the cohort).
+DATA_CUTOFF = date(2025, 12, 31)
 
 # Per-task clinical policy. report_mode is the baseline's recommended scoring
 # unit (episodic | peak | landmark); callers can still override via build_report.

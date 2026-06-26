@@ -201,6 +201,44 @@ def test_date_cutoff_split_is_block_grain_no_straddle():
     assert trains.isdisjoint(tests)
 
 
+def test_no_dates_external_is_temporal_75_25():
+    # External site, no cutoff dates -> temporal 75/25: oldest 75% train, newest 25%
+    # test. Both labels always present regardless of inference-only intent.
+    df = pl.DataFrame({
+        "hospitalization_join_id": [str(i) for i in range(20)],
+        "admission_dttm": [_dt(2020, 1, 1 + i) for i in range(20)],
+    })
+    out = assign_split(df, site="external_site", train_end=None, test_start=None)
+    counts = dict(out.group_by("split").len().iter_rows())
+    assert counts == {"train": 15, "test": 5}
+    # newest admission -> test, oldest -> train (temporal direction).
+    ordered = out.sort("admission_dttm")
+    assert ordered["split"][-1] == "test"
+    assert ordered["split"][0] == "train"
+
+
+def test_mimic_no_dates_is_random_and_skips_cutoff():
+    # MIMIC -> random (not temporal) 75/25, and the data cutoff is NOT applied
+    # (de-identified/shifted dates), so a far-future row survives.
+    df = pl.DataFrame({
+        "hospitalization_join_id": [str(i) for i in range(20)] + ["future"],
+        "admission_dttm": [_dt(2020, 1, 1 + i) for i in range(20)] + [_dt(2026, 5, 1)],
+    })
+    out = assign_split(df, site="mimic", train_end=None, test_start=None)
+    assert set(out["split"].unique()) == {"train", "test"}
+    assert "future" in out["hospitalization_join_id"].to_list()   # cutoff skipped
+
+
+def test_data_cutoff_drops_post_2025_for_nonmimic():
+    df = pl.DataFrame({
+        "hospitalization_join_id": [str(i) for i in range(10)] + ["late"],
+        "admission_dttm": [_dt(2024, 1, 1 + i) for i in range(10)] + [_dt(2026, 6, 1)],
+    })
+    out = assign_split(df, site="external_site", train_end=None, test_start=None)
+    assert "late" not in out["hospitalization_join_id"].to_list()
+    assert out["admission_dttm"].max() <= datetime(2025, 12, 31)
+
+
 # --------------------------------------------------------------------------- #
 # as_encounter_keyed — relabel hospitalization_id -> its join id.
 # --------------------------------------------------------------------------- #

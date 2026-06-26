@@ -13,7 +13,9 @@ Output JSON shape:
     "continuous":  { "age_at_admission": {mean, std, median, q25, q75, min, max, n_missing},
                      "sofa_max": {...}, "charlson_score": {...}, "elix_score": {...} },
     "categorical": { "sex_category": {level: count_or_"<10"}, ... },
-    "by_split":  { "train": {n, continuous, categorical}, "test": {...} },
+    "by_split":  { "total": {n, date_range, continuous, categorical},  # ALWAYS 3 keys
+                   "train": {...}, "test": {...} },          # empty split -> n=0, stats null
+                   # date_range = {"start": "Jan 2020", "end": "Mar 2021"}  (month-year, no day)
     "by_label":  { "1": {...positive...}, "0": {...negative...} },   # the 2 stratified columns
     "by_grain":  { "encounter": {n_total, continuous, categorical, by_split, by_label},
                    "row":       {... same shape at prediction-row grain ...} },
@@ -34,6 +36,23 @@ from flair_benchmark.report._suppress import suppress, suppress_dict
 JOIN_KEY = "hospitalization_join_id"
 CONTINUOUS_VARS = ["age_at_admission", "sofa_max", "charlson_score", "elix_score"]
 CATEGORICAL_VARS = ["sex_category", "race_category", "ethnicity_category"]
+# Date column used for the per-split calendar range (month-year only). First present wins.
+DATE_COLS = ["admission_dttm", "prediction_dttm"]
+
+
+def _first_date_col(df: pl.DataFrame) -> str | None:
+    return next((c for c in DATE_COLS if c in df.columns), None)
+
+
+def _date_range(df: pl.DataFrame) -> dict:
+    """Calendar span of a stratum as month-year strings (e.g. 'Jan 2020'), no day."""
+    col = _first_date_col(df)
+    if col is None or df.height == 0:
+        return {"start": None, "end": None}
+    s = df[col].drop_nulls()
+    if s.len() == 0:
+        return {"start": None, "end": None}
+    return {"start": s.min().strftime("%b %Y"), "end": s.max().strftime("%b %Y")}
 
 
 def build_table1(cohort: pl.DataFrame, meta: dict) -> dict:
@@ -58,7 +77,9 @@ def _to_encounter(cohort: pl.DataFrame, label_col: str, task_type: str) -> pl.Da
     (max over its rows) for binary tasks; covariates are constant per encounter."""
     if JOIN_KEY not in cohort.columns:
         return cohort
-    keep = [c for c in (CONTINUOUS_VARS + CATEGORICAL_VARS + ["split"])
+    date_col = _first_date_col(cohort)
+    keep = [c for c in (CONTINUOUS_VARS + CATEGORICAL_VARS + ["split"]
+                        + ([date_col] if date_col else []))
             if c in cohort.columns]
     label_agg = (pl.col(label_col).max() if task_type == "binary"
                  else pl.col(label_col).first())
@@ -77,9 +98,17 @@ def _block(df: pl.DataFrame, label_col: str, task_type: str) -> dict:
         "by_split": {},
         "by_label": {},
     }
-    if "split" in df.columns:
-        for split_val in df["split"].unique().drop_nulls().to_list():
-            out["by_split"][str(split_val)] = _stratum(df.filter(pl.col("split") == split_val))
+    # Always emit the same 3 columns — total / train / test — so every site (incl.
+    # inference-only, where only 'test' exists) produces an identical schema for
+    # cross-site aggregation. Missing splits are zero-filled (_stratum on empty).
+    has_split = "split" in df.columns
+    out["by_split"] = {
+        "total": _stratum(df),
+        "train": _stratum(df.filter(pl.col("split") == "train")) if has_split
+                 else _stratum(df.head(0)),
+        "test":  _stratum(df.filter(pl.col("split") == "test")) if has_split
+                 else _stratum(df.head(0)),
+    }
 
     if label_col not in df.columns:
         return out
@@ -95,8 +124,11 @@ def _block(df: pl.DataFrame, label_col: str, task_type: str) -> dict:
 
 
 def _stratum(df: pl.DataFrame) -> dict:
+    # True zero (e.g. no training at an inference-only site) is not PHI, so report it
+    # as 0 rather than the '<10' suppression string used for real small counts.
     return {
-        "n": suppress(df.height),
+        "n": 0 if df.height == 0 else suppress(df.height),
+        "date_range": _date_range(df),
         "continuous": {v: _continuous_stats(df, v) for v in CONTINUOUS_VARS
                        if v in df.columns},
         "categorical": {v: _categorical_stats(df, v) for v in CATEGORICAL_VARS

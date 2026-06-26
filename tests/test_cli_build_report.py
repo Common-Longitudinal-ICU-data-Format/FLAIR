@@ -48,7 +48,7 @@ def report_dir(tmp_path_factory) -> Path:
     result = runner.invoke(app, [
         "build-report", str(preds_path),
         "--task", TASK, "--out", str(out_dir),
-        "--split", "test", "--episodic", "--viz",
+        "--episodic", "--viz",
     ])
     assert result.exit_code == 0, result.output
     for kind in EXPECTED_JSONS:

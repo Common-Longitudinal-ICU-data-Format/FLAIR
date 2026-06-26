@@ -7,6 +7,8 @@ cell suppression.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import polars as pl
 import pytest
 
@@ -80,6 +82,64 @@ def test_categorical_suppression():
     sex = t["categorical"]["sex_category"]
     assert sex["Male"] == "<10"
     assert sex["Female"] == 12
+
+
+def test_by_split_always_three_columns():
+    t = build_table1(_cohort(), META)
+    # total / train / test always present, at both grains.
+    assert set(t["by_split"].keys()) == {"total", "train", "test"}
+    assert set(t["by_grain"]["encounter"]["by_split"].keys()) == {"total", "train", "test"}
+    assert set(t["by_grain"]["row"]["by_split"].keys()) == {"total", "train", "test"}
+    # encounter grain: 13 total, 12 test, 1 train encounter (e1) -> suppressed.
+    bs = t["by_split"]
+    assert bs["total"]["n"] == 13
+    assert bs["test"]["n"] == 12
+    assert bs["train"]["n"] == "<10"
+
+
+def test_inference_only_site_zero_filled_train():
+    # External inference-only site: _split.py labels the whole cohort 'test'.
+    # Table 1 must STILL emit train as an explicit zero column (not absent, not '<10').
+    rows = [(f"e{k}", 0, "test", 50 + k, "Female", "Black or African American", "Hispanic")
+            for k in range(12)]
+    cols = ["hospitalization_join_id", "label", "split", "age_at_admission",
+            "sex_category", "race_category", "ethnicity_category"]
+    df = pl.DataFrame(rows, schema=cols, orient="row")
+    t = build_table1(df, META)
+    bs = t["by_split"]
+    assert set(bs.keys()) == {"total", "train", "test"}
+    assert bs["train"]["n"] == 0                          # explicit zero, not '<10'
+    assert bs["total"]["n"] == 12
+    assert bs["test"]["n"] == 12
+    assert bs["train"]["continuous"]["age_at_admission"]["mean"] is None
+    assert bs["train"]["categorical"]["sex_category"] == {}
+
+
+def test_by_split_date_range_month_year():
+    # admission_dttm present -> each split reports a month-year range (no day).
+    rows = [(f"e{i}", 0, "train" if i < 8 else "test",
+             datetime(2020, 1 + (i % 6), 15), 60, "Female",
+             "Black or African American", "Hispanic") for i in range(12)]
+    cols = ["hospitalization_join_id", "label", "split", "admission_dttm",
+            "age_at_admission", "sex_category", "race_category", "ethnicity_category"]
+    df = pl.DataFrame(rows, schema=cols, orient="row")
+    t = build_table1(df, META)
+    tr = t["by_split"]["train"]["date_range"]
+    assert tr == {"start": "Jan 2020", "end": "Jun 2020"}     # month-year, no day
+    assert t["by_split"]["total"]["date_range"]["start"] == "Jan 2020"
+
+
+def test_date_range_none_when_no_date_or_empty():
+    # no date column -> None/None
+    t = build_table1(_cohort(), META)
+    assert t["by_split"]["total"]["date_range"] == {"start": None, "end": None}
+    # empty split (inference-only) -> None/None even with a date column
+    rows = [(f"e{i}", 0, "test", datetime(2021, 3, 2)) for i in range(12)]
+    df = pl.DataFrame(rows, schema=["hospitalization_join_id", "label", "split",
+                                    "admission_dttm"], orient="row")
+    t2 = build_table1(df, META)
+    assert t2["by_split"]["train"]["date_range"] == {"start": None, "end": None}
+    assert t2["by_split"]["test"]["date_range"]["start"] == "Mar 2021"
 
 
 if __name__ == "__main__":
