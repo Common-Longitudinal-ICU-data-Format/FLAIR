@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T2 · ICU Daily LTACH Discharge — FLAIR Task Schematics</title>
+<link rel="stylesheet" href="flair.css">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: true, useMaxWidth: true },
+  themeVariables: { fontSize: '13px', primaryColor: '#eef4fb', primaryBorderColor: '#7aa6cf',
+    lineColor: '#5b6675', primaryTextColor: '#1c2330' } });
+</script>
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <span class="brand">FLAIR Task Schematics</span>
+  <span class="sep">|</span>
+  <a href="index.html">Overview</a>
+  <a href="references.html">References</a>
+</div></div>
+
+<div class="wrap">
+  <p class="eyebrow">Task T2 · continuous · one-per-window</p>
+  <h1>ICU Daily LTACH Discharge at 07:00 Local</h1>
+
+  <p class="lead">
+    At every local 07:00 rounds anchor during the first ICU stay, predict whether
+    the hospitalization will end with transfer to a Long-Term Acute Care Hospital
+    (CLIF <code>discharge_category</code> = <code>Long Term Care Hospital
+    (LTACH)</code>). The cohort is identical to
+    <a href="icu_daily_mortality.html">Task T1</a> (all adult ICU hospitalizations,
+    no <code>discharge_category</code> filter); only the label predicate differs.
+  </p>
+
+  <div class="audit">
+    <span class="tag">Code note</span>
+    Implemented in <code>task2_icu_daily_ltach.py</code> on the
+    <strong>stitched-encounter grain</strong>. Label column <code>label_ltach</code>;
+    display name “ICU Daily LTACH Discharge (7AM, binary).” Build pipeline is shared
+    with T1 (same module helpers).
+  </div>
+
+  <h2>Relationship to Task T1</h2>
+  <p>
+    The build pipeline of T2 is byte-identical to T1's: same cohort filters (adult,
+    valid admission/discharge, \(\ge 1\) ICU ADT record, first ICU stay long enough
+    for at least one 07:00 grid point), same pred_start, pred_stop, decision-point
+    grid, 24h lookback, and temporal split. <strong>Neither task filters on
+    <code>discharge_category</code> at the cohort stage.</strong> The only difference
+    is the final label rule. See the full operational definition in
+    <a href="icu_daily_mortality.html">Task T1</a>; the flowchart below is shared.
+  </p>
+
+  <h2>Label rule (Task T2 only)</h2>
+  <p>
+    Let \(\texttt{disp}_i = \texttt{lower}(\texttt{strip}(\texttt{discharge\_category}_i))\).
+    For \(d\) in the daily 07:00 decision grid \(D_i\):
+  </p>
+  \[ y_i(d) = \mathbb{1}\!\left[\,\texttt{disp}_i\ \text{matches regex}\ \texttt{ltach|long.?term}\,\right]. \]
+  <ul>
+    <li>The label is constant across all rows of \(H_i\) (the eventual disposition
+        is a single encounter-level fact broadcast to every grid point).</li>
+    <li>A null <code>disp</code> or any non-matching value (Expired, Hospice, Home,
+        SNF, Acute Inpatient Rehab Facility, AMA, Other, Still Admitted, …) yields
+        \(y_i(d)=0\).</li>
+    <li><strong>Non-partition property:</strong> because T1 and T2 share the same
+        unconditional cohort with non-overlapping predicates,
+        \(\texttt{label\_mortality}_i + \texttt{label\_ltach}_i \le 1\) but
+        <strong>not</strong> necessarily \(= 1\). A Home discharge is 0 in both; an
+        Expired discharge is 1 in T1 / 0 in T2; an LTACH discharge is 0 in T1 / 1 in T2.</li>
+  </ul>
+
+  <h2>CLIF tables and categories used</h2>
+  <p>
+    Identical to T1: three tables (<code>hospitalization</code>, <code>patient</code>,
+    <code>adt</code>) and the same cohort filters. The ADT filter restricts to
+    <code>location_category = "icu"</code> (case-insensitive); <code>patient</code>
+    is join-only; <code>discharge_category</code> is read from
+    <code>hospitalization</code> for the <em>label only</em> — no cohort filter on
+    it. See the full table + column inventory in
+    <a href="icu_daily_mortality.html#:~:text=CLIF%20tables%20and%20categories%20used">Task T1</a>.
+  </p>
+
+  <h2>Algorithmic flow (shared with Task T1)</h2>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  raw["raw CLIF tables<br/>(hospitalization, patient, ADT)"]
+  cohort["adult cohort<br/>(age ≥ 18; valid admission/discharge)"]
+  icu["filter to ≥ 1 ICU ADT record"]
+  timing["compute_icu_timing<br/>⇒ first_icu_start / end_time"]
+  ps["pred_start = trunc(ICU₁ start, 1d) + 1d + 7h"]
+  pp["pred_stop = min(ICU₁ end, coalesce(death, discharge))"]
+  grid["daily 07:00 grid<br/>d ∈ [pred_start, pred_stop), step = 24h"]
+  label["broadcast label_ltach<br/>y=1 iff disp matches ltach|long.?term<br/>(Expired / Home / null / Still Admitted ⇒ 0)"]
+  split["temporal train/test split"]
+  out(["output parquet<br/>(label_ltach, window_start/end, split)"])
+  xicu["EXCLUDE: no ICU ADT"]
+  xshort["EXCLUDE: stay ends before<br/>first 07:00 grid point"]
+  raw --> cohort --> icu --> timing --> ps --> pp --> grid --> label --> split --> out
+  icu -.-> xicu
+  grid -.-> xshort
+  classDef excl fill:#fbeaea,stroke:#cc6666,stroke-dasharray:4 3,color:#933;
+  classDef outc fill:#e6f6ec,stroke:#3a8a63,stroke-width:2px;
+  class xicu,xshort excl
+  class out outc
+    </pre>
+    <p class="caption">Shared T1/T2 pipeline. The label box is parameterized: T2
+      emits \(y=1\) iff disp matches <code>ltach|long.?term</code>. Everything else
+      — cohort filters, ICU timing, pred_start/pred_stop, the daily 07:00 grid, the
+      24h lookback, the temporal split, the parquet schema — is identical to T1.</p>
+  </div>
+
+  <h2>Design choices and rationale</h2>
+
+  <h4>Why a separate schematic for a different label on the same cohort</h4>
+  <p>
+    A reader scanning the supplement should find one document per FLAIR task, with
+    its own META, label rule, and prevalence numbers. The shared build pipeline is a
+    convenience of implementation, not a property of the task definition: a future
+    site whose <code>discharge_category</code> taxonomy splits LTACH from other
+    long-term destinations more finely could change T2's regex without affecting T1.
+  </p>
+
+  <h4>Prevalence and class imbalance</h4>
+  <p>
+    LTACH transfer is a rare disposition: across all adult ICU stays it sits in the
+    low single digits per-row positive rate. Class imbalance is the dominant
+    modelling challenge, so AUPRC is the primary headline metric. AUROC is reported
+    but is optimistic on heavily imbalanced binary tasks.
+  </p>
+
+  <h4>Why LTACH is the operationally interesting label</h4>
+  <p>
+    LTACH transfer is a planned, resource-intensive disposition decision that
+    triggers care-coordination work several days before discharge
+    <a class="cite" href="references.html#ref-kahn2010ltach">[Kahn&nbsp;2010]</a>. A
+    morning prediction of LTACH-bound trajectory can drive social-work referrals,
+    family conversations, and family-meeting timing.
+  </p>
+
+  <h4>Why an unconditional cohort</h4>
+  <p>
+    Earlier drafts conditioned the cohort on the union of LTACH and in-hospital
+    mortality, manufacturing a balanced binary against T1. That design was retired
+    (see <a href="icu_daily_mortality.html">T1 design choices</a>). The unconditional
+    cohort makes the per-row positive rate interpretable as the prevalence of
+    LTACH-bound trajectories among all ICU survivors-and-non-survivors.
+  </p>
+
+  <h2>Out of scope</h2>
+  <ul>
+    <li>All items in <a href="icu_daily_mortality.html">Task T1</a>'s out-of-scope list carry over.</li>
+    <li>Finer-grained LTACH-vs-skilled-long-term-care distinctions within the LTACH-positive class.</li>
+  </ul>
+
+  <footer>
+    Task T2 · <a href="icu_daily_mortality.html">paired with T1 (Mortality)</a> ·
+    <a href="index.html">overview</a> · <a href="references.html">references</a>.
+  </footer>
+</div>
+</body>
+</html>

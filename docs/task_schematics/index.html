@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FLAIR Task Schematics</title>
+<link rel="stylesheet" href="flair.css">
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <span class="brand">FLAIR Task Schematics</span>
+  <span class="sep">|</span>
+  <a href="index.html">Overview</a>
+  <a href="references.html">References</a>
+</div></div>
+
+<div class="wrap">
+  <p class="eyebrow">FLAIR Benchmark</p>
+  <h1>Task Schematics</h1>
+  <p class="lead">
+    Self-contained design documents for the five FLAIR prediction tasks. Each
+    page specifies the cohort, anchors, prediction window, label rule, and
+    censoring logic, with a build-pipeline flowchart. These HTML pages track
+    the implementation in <code>flair_benchmark/tasks/task&lt;N&gt;_*.py</code>;
+    where code and the original LaTeX spec drifted, the HTML follows the
+    <strong>code</strong> and flags the change.
+  </p>
+
+  <div class="cards">
+    <a class="card" href="icu_daily_mortality.html">
+      <span class="tid">TASK T1 · continuous</span>
+      <h3>ICU Daily In-Hospital Mortality (07:00)</h3>
+      <p>Each morning of the first ICU stay, will this hospitalization end in
+         death or hospice? Unconditional adult-ICU cohort.</p>
+    </a>
+    <a class="card" href="icu_daily_ltach.html">
+      <span class="tid">TASK T2 · continuous</span>
+      <h3>ICU Daily LTACH Discharge (07:00)</h3>
+      <p>Same cohort and grid as T1; predicts transfer to a Long-Term Acute
+         Care Hospital. T1 and T2 are not a partition.</p>
+    </a>
+    <a class="card" href="extubation_failure_24h.html">
+      <span class="tid">TASK T3 · one-per-stay</span>
+      <h3>Extubation Failure within 24h</h3>
+      <p>At the first confirmed extubation, will the patient die or be
+         reintubated within 24h? Consensus-window IMV episode detector.</p>
+    </a>
+    <a class="card" href="sepsis_ase_6h.html">
+      <span class="tid">TASK T4 · continuous</span>
+      <h3>Sepsis (CDC ASE onset) within 6h</h3>
+      <p>Hourly hospital-wide prediction of CDC Adult Sepsis Event onset within
+         6h, censored before <span class="mono">t_zero</span> to avoid label
+         leakage.</p>
+    </a>
+    <a class="card" href="icu_readmission.html">
+      <span class="tid">TASK T5 · one-per-stay</span>
+      <h3>Unplanned ICU Readmission</h3>
+      <p>At first-ICU discharge, will the patient return to the ICU later in the
+         same hospitalization through an unplanned path? ADT-only.</p>
+    </a>
+  </div>
+
+  <h2>Task overview</h2>
+  <table>
+    <thead>
+      <tr><th>Task</th><th>Grain</th><th>Anchor / grid</th><th>Label</th><th>CLIF tables</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><a href="icu_daily_mortality.html">T1 Mortality</a></td>
+        <td>one-per-window (daily)</td>
+        <td>07:00 local, daily</td>
+        <td><code>label_mortality</code></td>
+        <td>hospitalization, patient, adt</td>
+      </tr>
+      <tr>
+        <td><a href="icu_daily_ltach.html">T2 LTACH</a></td>
+        <td>one-per-window (daily)</td>
+        <td>07:00 local, daily</td>
+        <td><code>label_ltach</code></td>
+        <td>hospitalization, patient, adt</td>
+      </tr>
+      <tr>
+        <td><a href="extubation_failure_24h.html">T3 Extubation</a></td>
+        <td>one-per-stay</td>
+        <td>first extubation</td>
+        <td><code>label_extubation_failure_24h</code></td>
+        <td>+ respiratory_support</td>
+      </tr>
+      <tr>
+        <td><a href="sepsis_ase_6h.html">T4 Sepsis</a></td>
+        <td>one-per-window (hourly)</td>
+        <td>first vital → before t_zero</td>
+        <td><code>label_sepsis_6h</code></td>
+        <td>+ vitals, microbiology_culture, labs/meds (via <code>compute_ase</code>)</td>
+      </tr>
+      <tr>
+        <td><a href="icu_readmission.html">T5 Readmission</a></td>
+        <td>one-per-stay</td>
+        <td>first-ICU discharge</td>
+        <td><code>label_icu_readmission</code></td>
+        <td>hospitalization, patient, adt</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Conventions shared by every task</h2>
+
+  <h3>Stitched-encounter grain</h3>
+  <div class="audit">
+    <span class="tag">Code note</span>
+    All five tasks operate on <strong>stitched encounters</strong>, not raw
+    hospitalizations. Member hospitalizations that are contiguous (gap
+    &le; <code>stitch_time_interval_hours</code>, default <strong>6h</strong>)
+    are folded to a single <code>hospitalization_join_id</code> via the
+    encounter index. Anchors are taken as a min/max over the encounter's
+    members (e.g. admission = min, discharge = max, <span class="mono">t_zero</span>
+    / first-vital = min over members), and the output is keyed by encounter so a
+    stitched re-admission becomes one series, not two. The original schematics
+    were written per-hospitalization (<span class="mono">H_i</span>); read
+    every <span class="mono">H_i</span> below as the stitched encounter.
+  </div>
+
+  <h3>Temporal split &amp; output</h3>
+  <p>
+    Each task ends with a temporal train/test split
+    (<code>flair_benchmark._split.assign_split</code>, keyed on
+    <code>prediction_dttm</code>) and persists a parquet with the label column,
+    <code>split</code>, and demographics. Datetimes are naive wall-clock-local
+    per <code>cfg["timezone"]</code>; literal hours (e.g. 07:00) are local
+    hospital time. Tasks are heavily class-imbalanced, so <strong>AUPRC is
+    reported alongside AUROC</strong>.
+  </p>
+
+  <footer>
+    FLAIR Benchmark · CLIF Consortium. Generated from the task schematics;
+    mirrors <code>flair_benchmark/tasks/</code>. See
+    <a href="references.html">references</a>.
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T1 · ICU Daily In-Hospital Mortality — FLAIR Task Schematics</title>
+<link rel="stylesheet" href="flair.css">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: true, useMaxWidth: true },
+  themeVariables: { fontSize: '13px', primaryColor: '#eef4fb', primaryBorderColor: '#7aa6cf',
+    lineColor: '#5b6675', primaryTextColor: '#1c2330' } });
+</script>
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <span class="brand">FLAIR Task Schematics</span>
+  <span class="sep">|</span>
+  <a href="index.html">Overview</a>
+  <a href="references.html">References</a>
+</div></div>
+
+<div class="wrap">
+  <p class="eyebrow">Task T1 · continuous · one-per-window</p>
+  <h1>ICU Daily In-Hospital Mortality at 07:00 Local</h1>
+
+  <p class="lead">
+    At every local 07:00 rounds anchor during the first ICU stay, predict
+    whether the hospitalization will end with the patient dying in hospital,
+    defined by CLIF <code>discharge_category</code> &isin; {<code>Expired</code>,
+    <code>Hospice</code>}. The cohort is all adult ICU hospitalizations —
+    <em>unconditional</em>: no <code>discharge_category</code> filter; every
+    retained stay contributes daily rows, with null and <code>Still Admitted</code>
+    dispositions kept as label-0. <a href="icu_daily_ltach.html">Task T2</a>
+    shares the same cohort and grid with a different (non-complementary) label.
+  </p>
+
+  <div class="audit">
+    <span class="tag">Code note</span>
+    Implemented in <code>task1_icu_daily_mortality.py</code> on the
+    <strong>stitched-encounter grain</strong> (<code>hospitalization_join_id</code>):
+    read every <span class="mono">\(H_i\)</span> below as a stitched encounter,
+    its members folded via the encounter index (default gap 6h). Label column
+    <code>label_mortality</code>; display name “ICU Daily In-Hospital Mortality
+    (7AM, binary)”.
+  </div>
+
+  <h2>FLAIR operational definition</h2>
+  <h3>Anchors and windows</h3>
+  <p>
+    Let \(H_i\) denote a hospitalization with admission time \(t^{\text{adm}}_i\)
+    and discharge or death time \(t^{\text{end}}_i = \min(t^{\text{disch}}_i,\,
+    t^{\text{death}}_i)\). Let \(t^{\text{ICU}_1,\text{start}}_i\) and
+    \(t^{\text{ICU}_1,\text{end}}_i\) be the first ICU-stay endpoints returned by
+    <code>compute_icu_timing</code> on the CLIF ADT table. All datetimes are naive
+    but wall-clock-local per <code>cfg["timezone"]</code>; literal hours are local
+    hospital time.
+  </p>
+
+  <dl class="def">
+    <dt>Prediction-window start (pred_start)</dt>
+    <dd>
+      \[ \text{pred\_start}_i = \text{trunc}\!\bigl(t^{\text{ICU}_1,\text{start}}_i,\,1\text{d}\bigr) + 1\text{d} + 7\text{h}. \]
+      The first decision point is local 07:00 on the calendar day <em>after</em>
+      first ICU admission. A patient admitted at 03:00 Monday gets their first
+      prediction at 07:00 Tuesday.
+    </dd>
+    <dt>Prediction-window stop (pred_stop)</dt>
+    <dd>
+      \[ \text{pred\_stop}_i = \min\!\bigl(t^{\text{ICU}_1,\text{end}}_i,\, \texttt{coalesce}(t^{\text{death}}_i,\, t^{\text{disch}}_i)\bigr). \]
+      Predictions cease at the end of the first ICU stay or the end of the
+      hospitalization (death if recorded, else discharge), whichever comes first.
+    </dd>
+    <dt>Decision-point grid</dt>
+    <dd>
+      Daily 24h step:
+      \( D_i = \{\text{pred\_start}_i + k\cdot 24\text{h} : k\in\mathbb{Z}_{\ge 0},\ \text{pred\_start}_i + k\cdot 24\text{h} < \text{pred\_stop}_i\} \).
+    </dd>
+    <dt>Label (label_mortality)</dt>
+    <dd>
+      Let \(\texttt{disp}_i = \texttt{lower}(\texttt{strip}(\texttt{discharge\_category}_i))\). For \(d \in D_i\):
+      \[ y_i(d) = \mathbb{1}\!\left[ \texttt{disp}_i \in \{\texttt{"expired"},\, \texttt{"hospice"}\} \right]. \]
+      A null <code>disp</code> or any non-matching value (Home, SNF, Rehab, LTACH,
+      AMA, Other, <code>Still Admitted</code>, …) yields \(y_i(d)=0\). The label is
+      <strong>constant across all rows</strong> of \(H_i\) — the eventual
+      disposition is a single fact broadcast to every grid point.
+    </dd>
+  </dl>
+
+  <h3>Cohort (unconditional)</h3>
+  <ul>
+    <li>Age at admission \(\ge 18\) with valid <code>admission_dttm</code> and <code>discharge_dttm</code>.</li>
+    <li>\(\ge 1\) ICU ADT record (first ICU stay is defined).</li>
+    <li>First ICU stay long enough to contain at least one 07:00 grid point after
+        the admission day (i.e. \(\text{pred\_start}_i < \text{pred\_stop}_i\)).</li>
+  </ul>
+  <p>
+    There is <strong>no</strong> <code>discharge_category</code> filter. Stays
+    discharged Home, SNF, Rehab, LTACH, AMA, Other, with <code>Still Admitted</code>
+    status, or with null <code>discharge_category</code> all remain in the cohort
+    and carry label-0.
+  </p>
+
+  <h3>CLIF tables and categories used</h3>
+  <p>Task T1 reads three CLIF v2.1 tables.</p>
+  <table>
+    <thead><tr><th>CLIF table</th><th>Category column</th><th>Usage</th></tr></thead>
+    <tbody>
+      <tr><td><code>hospitalization</code></td><td><code>discharge_category</code></td>
+        <td><em>Label-only</em>: \(y=1\) iff lower/strip value &isin; {Expired, Hospice};
+            null / Still Admitted / any other &rArr; \(y=0\). No cohort filter on this column.</td></tr>
+      <tr><td><code>adt</code></td><td><code>location_category</code></td>
+        <td>Cohort filter: \(\ge 1\) row with value <code>"icu"</code> (case-insensitive).</td></tr>
+      <tr><td><code>patient</code></td><td>—</td>
+        <td>Join only; no category filter. Provides <code>death_dttm</code> for pred_stop.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Canonical <code>discharge_category</code> values mapping to label-1
+    (case-insensitive after lower+strip): <code>Expired</code>,
+    <code>Hospice</code>. Every other canonical value (Home, SNF, Acute Inpatient
+    Rehab Facility, LTACH, Acute Care Hospital, Group Home, Chemical Dependency,
+    AMA, Assisted Living, Still Admitted, Missing, Other, Psychiatric Hospital,
+    Shelter, Jail) plus null maps to label-0.
+  </p>
+  <p><strong>Columns selected:</strong></p>
+  <ul>
+    <li><code>hospitalization</code>: hospitalization_id, patient_id, admission_dttm, discharge_dttm, age_at_admission, discharge_category.</li>
+    <li><code>patient</code>: patient_id, sex_category, race_category, ethnicity_category, death_dttm.</li>
+    <li><code>adt</code>: hospitalization_id, location_category, in_dttm, out_dttm.</li>
+  </ul>
+
+  <h2>Algorithmic flow</h2>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  raw["raw CLIF tables<br/>(hospitalization, patient, ADT)"]
+  cohort["adult cohort<br/>(age ≥ 18; valid admission/discharge)"]
+  icu["filter to ≥ 1 ICU ADT record"]
+  timing["compute_icu_timing<br/>⇒ first_icu_start / end_time"]
+  ps["pred_start = trunc(ICU₁ start, 1d) + 1d + 7h"]
+  pp["pred_stop = min(ICU₁ end, coalesce(death, discharge))"]
+  grid["daily 07:00 grid<br/>d ∈ [pred_start, pred_stop), step = 24h"]
+  label["broadcast label_*<br/>T1: y=1 iff disp ∈ {Expired, Hospice}<br/>T2: y=1 iff disp matches ltach|long.?term<br/>(null / Still Admitted ⇒ 0)"]
+  split["temporal train/test split"]
+  out(["output parquet<br/>(label_mortality or label_ltach,<br/>window_start/end, split)"])
+  xicu["EXCLUDE: no ICU ADT"]
+  xshort["EXCLUDE: stay ends before<br/>first 07:00 grid point"]
+  raw --> cohort --> icu --> timing --> ps --> pp --> grid --> label --> split --> out
+  icu -.-> xicu
+  grid -.-> xshort
+  classDef excl fill:#fbeaea,stroke:#cc6666,stroke-dasharray:4 3,color:#933;
+  classDef outc fill:#e6f6ec,stroke:#3a8a63,stroke-width:2px;
+  class xicu,xshort excl
+  class out outc
+    </pre>
+    <p class="caption">Build pipeline shared by Tasks T1 and T2. The two tasks
+      consume the same cohort, grid, and 24h lookback; they differ only in the
+      final label predicate.</p>
+  </div>
+
+  <ol>
+    <li>Load CLIF tables: <code>hospitalization</code>, <code>patient</code>, <code>adt</code>.</li>
+    <li>Build the adult cohort with valid admission/discharge times.</li>
+    <li>Restrict to hospitalizations with \(\ge 1\) ICU ADT row.</li>
+    <li>Compute first-ICU-stay window via <code>compute_icu_timing(adt)</code>.</li>
+    <li>Compute pred_start by truncating \(t^{\text{ICU}_1,\text{start}}_i\) to date, adding 1 day, then 7 hours.</li>
+    <li>Compute pred_stop \(= \min(t^{\text{ICU}_1,\text{end}}_i,\, \texttt{coalesce}(t^{\text{death}}_i, t^{\text{disch}}_i))\).</li>
+    <li>Explode the daily 07:00 grid \([\text{pred\_start}_i, \text{pred\_stop}_i)\) per encounter (<code>pl.datetime_ranges</code>, <code>interval="24h"</code>, <code>closed="left"</code>).</li>
+    <li>Broadcast the label (disp &isin; {expired, hospice}, null-safe via <code>fill_null(False)</code>) to every grid row.</li>
+    <li>Assign <code>window_start = d − 24h</code>, <code>window_end = d</code> (fixed 24h lookback).</li>
+    <li>Apply temporal train/test split (<code>flair_benchmark._split.assign_split</code>), keyed on <code>prediction_dttm</code>.</li>
+    <li>Select <code>OUTPUT_COLS</code> and persist as parquet.</li>
+  </ol>
+
+  <h2>Design choices and rationale</h2>
+
+  <h4>Why an unconditional cohort</h4>
+  <p>
+    Earlier drafts used a conditional-on-non-survival cohort
+    (<code>discharge_category</code> &isin; {LTACH, Expired, Hospice}) to manufacture
+    a balanced binary task. That was dropped: it conflated the cohort filter with
+    the label predicate, made the per-row positive rate uninterpretable as “ICU
+    mortality risk,” and produced a paired-task framing (T1 + T2 = 1) that
+    misrepresented the clinical question. The unconditional design is the standard
+    form of ICU in-hospital mortality prediction
+    <a class="cite" href="references.html#ref-johnson2023mimiciv">[MIMIC]</a> and
+    makes the per-row positive rate a meaningful ICU mortality prevalence (expected
+    ~10–15% per-row positive in MIMIC-CLIF). AUPRC is reported alongside AUROC.
+  </p>
+
+  <h4>Why 07:00 local rounds anchor</h4>
+  <p>
+    ICU morning rounds are the canonical decision cadence; predictions produced
+    before rounds are actionable that day, after rounds are not. The 07:00
+    timestamp is a wall-clock-local literal, relying on
+    <code>flair_benchmark._clif.pd_to_pl</code> having stripped timezone info from
+    clifpy datetimes (typed to <code>cfg["timezone"]</code>). Sites preferring 06:00
+    or 08:00 re-anchor by adjusting <code>PRED_HOUR</code> without changing the rest
+    of the pipeline.
+  </p>
+
+  <h4>Why daily (not hourly)</h4>
+  <p>
+    The decision being modeled — terminal-trajectory commitment — does not change
+    hour-to-hour. A daily cadence matches the clinical question and keeps row counts
+    manageable.
+  </p>
+
+  <h4>Why Hospice counts as mortality</h4>
+  <p>
+    CLIF separates <code>Expired</code> (death in hospital) from <code>Hospice</code>
+    (alive at discharge to hospice). T1 bundles them: transition-to-hospice is the
+    operational equivalent of a death-in-hospital trajectory — goals of care have
+    shifted from cure to comfort, and the morning-rounds prediction horizon is
+    identical. Sites wanting the strict CLIF definition (Expired only) adjust the
+    literal-set in <code>task1_icu_daily_mortality.py</code>.
+  </p>
+
+  <h4>Why null / Still Admitted are kept as label-0</h4>
+  <p>
+    Dropping these would silently shrink the denominator and bias prevalence upward.
+    Treating them as negatives matches the standard in-hospital mortality definition:
+    “did this patient die during this encounter? If we don't see a death-coded
+    disposition, assume no.” Sites with persistent <code>Still Admitted</code>
+    contamination should investigate that data-quality gap separately.
+  </p>
+
+  <h2>Out of scope</h2>
+  <ul>
+    <li>Multi-class extension to alive-other dispositions (Home, SNF, Rehab, AMA) or LTACH as a third class.</li>
+    <li>Hospital-wide (non-ICU) variant.</li>
+    <li>Input feature engineering and severity-score baselines (e.g. APACHE-III <a class="cite" href="references.html#ref-knaus1991apache3">[APACHE&nbsp;III]</a>, SAPS-II).</li>
+    <li>Survival-time / time-to-event variant.</li>
+  </ul>
+
+  <footer>
+    Task T1 · <a href="icu_daily_ltach.html">paired with T2 (LTACH)</a> ·
+    <a href="index.html">overview</a> · <a href="references.html">references</a>.
+  </footer>
+</div>
+</body>
+</html>

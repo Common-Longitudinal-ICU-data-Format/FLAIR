@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T3 · Extubation Failure within 24h — FLAIR Task Schematics</title>
+<link rel="stylesheet" href="flair.css">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: true, useMaxWidth: true },
+  themeVariables: { fontSize: '13px', primaryColor: '#eef4fb', primaryBorderColor: '#7aa6cf',
+    lineColor: '#5b6675', primaryTextColor: '#1c2330' } });
+</script>
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <span class="brand">FLAIR Task Schematics</span>
+  <span class="sep">|</span>
+  <a href="index.html">Overview</a>
+  <a href="references.html">References</a>
+</div></div>
+
+<div class="wrap">
+  <p class="eyebrow">Task T3 · episode · one-per-stay</p>
+  <h1>Extubation Failure within 24 Hours</h1>
+
+  <p class="lead">
+    At the moment of the first confirmed extubation, predict whether the patient
+    will accumulate less than one ventilator-free day in the next 24 hours — i.e.
+    die or get reintubated. One prediction per hospitalization, anchored at a single
+    per-encounter event. The key algorithmic ingredient is the
+    <strong>consensus-window IMV episode detector</strong>
+    (<code>_ventilation_episodes.detect_imv_episodes</code>), which distinguishes a
+    true extubation from sensor flicker, tracheostomy sentinels, and intermittent
+    ventilator swaps. Ambiguous censoring is dropped to avoid positive-unlabeled bias
+    <a class="cite" href="references.html#ref-epstein1997vfd">[Epstein&nbsp;1997]</a>,
+    <a class="cite" href="references.html#ref-thille2011extubation">[Thille&nbsp;2011]</a>.
+  </p>
+
+  <div class="audit">
+    <span class="tag">Code note</span>
+    Implemented in <code>task3_extubation_failure_24h.py</code> on the
+    <strong>stitched-encounter grain</strong>: respiratory-support rows are
+    relabeled to the stitched encounter before episode detection, so an
+    intubation/extubation spanning a re-admission boundary is one episode. Constants
+    verified against code: <code>HORIZON_HOURS=24</code>,
+    <code>INTUB_WINDOW_MIN_DEFAULT=15</code>, <code>EXTUB_WINDOW_MIN_DEFAULT=30</code>,
+    <code>TRACH_CLOSURE_TOLERANCE_MIN=1</code>.
+  </div>
+
+  <h2>Consensus-window IMV episode detection</h2>
+  <p>
+    A CLIF <code>respiratory_support</code> row is a device-status sample, not a
+    clinical event. A single misclassified row (brief sensor disconnect, vent swap,
+    transient downgrade) should not be counted as intubation or extubation.
+    <code>detect_imv_episodes</code> confirms each transition with a forward
+    consensus window:
+  </p>
+  <dl class="def">
+    <dt>IMV start</dt>
+    <dd>A device <code>imv</code> row at time \(t\) opens an episode iff no
+      contradicting non-IMV row falls in \((t,\, t + \texttt{INTUB\_WINDOW\_MIN}]\),
+      with <strong>INTUB_WINDOW_MIN = 15 minutes</strong>.</dd>
+    <dt>Episode close (true extubation)</dt>
+    <dd>A non-IMV row at time \(t\) (while an episode is open) closes that episode iff
+      no contradicting IMV row falls in \((t,\, t + \texttt{EXTUB\_WINDOW\_MIN}]\),
+      with <strong>EXTUB_WINDOW_MIN = 30 minutes</strong>.</dd>
+    <dt>Trach sentinel</dt>
+    <dd>A row with <code>device_category = "trach collar"</code> or
+      <code>tracheostomy = true</code> closes any open episode at its timestamp and
+      halts further counting for the hospitalization. If the trach sentinel fires
+      before any IMV row, <code>is_pre_existing_trach = true</code>.</dd>
+  </dl>
+  <p>
+    The detector emits one row per confirmed episode: <code>(hospitalization_id,
+    episode_index, episode_start_dttm, episode_end_dttm, is_pre_existing_trach)</code>.
+    The <code>episode_end_dttm</code> is null iff the patient is still on IMV at end
+    of record or the episode was closed by a trach sentinel that did not first pass
+    through a non-IMV transition.
+  </p>
+
+  <h2>FLAIR operational definition</h2>
+  <h3>Index time and label</h3>
+  <p>
+    Let \(H_i\) be a hospitalization that survives the cohort filters. Let
+    \(E^1_i = (s^1_i, e^1_i)\) be its first IMV episode and \(E^2_i = (s^2_i, e^2_i)\)
+    its second (if any).
+  </p>
+  <dl class="def">
+    <dt>Prediction time (t_extub)</dt>
+    <dd>\(t_{\text{extub}}^i = e^1_i = \) <code>episode_end_dttm</code> of the first
+      episode. Exactly one decision point per hospitalization (one-per-stay).</dd>
+    <dt>Reintubation time</dt>
+    <dd>\(t_{\text{reint}}^i = s^2_i\) if \(E^2_i\) exists, \(+\infty\) otherwise.</dd>
+    <dt>Death time</dt>
+    <dd>\(t_{\text{death}}^i\) from <code>hospitalization.death_dttm</code>; \(+\infty\) if null.</dd>
+    <dt>Label horizon</dt>
+    <dd>\((t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}]\).</dd>
+    <dt>Label (label_extubation_failure_24h)</dt>
+    <dd>
+      \[ y_i = \mathbb{1}\!\left[ t_{\text{death}}^i \in (t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}] \ \vee\ t_{\text{reint}}^i \in (t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}] \right]. \]
+    </dd>
+    <dt>Observability end</dt>
+    <dd>\(t_{\text{obs\_end}}^i = \texttt{coalesce}(t_{\text{death}}^i,\, t_{\text{disch}}^i)\).</dd>
+    <dt>Censoring drop</dt>
+    <dd>
+      Keep the row iff
+      \[ t_{\text{death}}^i \in (t_{\text{extub}}^i, t_{\text{extub}}^i + 24\text{h}] \ \vee\ t_{\text{reint}}^i \in (t_{\text{extub}}^i, t_{\text{extub}}^i + 24\text{h}] \ \vee\ t_{\text{obs\_end}}^i \ge t_{\text{extub}}^i + 24\text{h}. \]
+      A patient discharged alive less than 24h after extubation with no observed
+      death or reintubation has <em>unobserved</em> outcome; treating it as \(y_i=0\)
+      would inject positive-unlabeled bias.
+    </dd>
+  </dl>
+
+  <h3>Cohort</h3>
+  <ul>
+    <li>Age at admission \(\ge 18\) with valid <code>admission_dttm</code> and <code>discharge_dttm</code>.</li>
+    <li>\(\ge 1\) ICU ADT record.</li>
+    <li>First IMV episode (<code>episode_index = 1</code>) has non-null <code>episode_end_dttm</code> (a confirmed extubation exists).</li>
+    <li><strong>Exclude</strong> pre-existing tracheostomy (<code>is_pre_existing_trach</code>).</li>
+    <li><strong>Exclude</strong> first episode closed by a trach sentinel (±1 min tolerance via <code>TRACH_CLOSURE_TOLERANCE_MIN = 1</code>; <code>_drop_trach_closed</code>).</li>
+    <li><strong>Exclude</strong> ambiguous censoring (discharged alive &lt;24h post-extubation with no death and no reintubation).</li>
+  </ul>
+
+  <h3>CLIF tables and categories used</h3>
+  <p>Task T3 reads four CLIF v2.1 tables. The cohort entry filter is on
+    <code>adt.location_category</code>; the index event is derived from two
+    category-column predicates in <code>respiratory_support</code>.</p>
+  <table>
+    <thead><tr><th>CLIF table</th><th>Category column</th><th>Literal values kept (case-insensitive)</th></tr></thead>
+    <tbody>
+      <tr><td><code>hospitalization</code></td><td>—</td><td>cohort/demographics join; no category filter</td></tr>
+      <tr><td><code>patient</code></td><td>—</td><td>demographics join; no category filter</td></tr>
+      <tr><td><code>adt</code></td><td><code>location_category</code></td><td>{<code>"icu"</code>}</td></tr>
+      <tr><td><code>respiratory_support</code></td><td><code>device_category</code>, <code>tracheostomy</code></td>
+        <td>{<code>"imv"</code>} classifies a row as IMV; any other value is non-IMV.
+            Trach sentinel: <code>device_category = "trach collar"</code> &or;
+            <code>tracheostomy = true</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    <code>tracheostomy</code> is a <em>boolean</em>, not a category. The trach
+    sentinel fires when either the categorical <code>device_category</code> equals
+    <code>"trach collar"</code> OR the boolean <code>tracheostomy</code> is true. A
+    site that omits one signal can still detect tracheostomies via the other; sites
+    omitting both will silently include trach-decannulation events in the extubation
+    cohort.
+  </p>
+  <p><strong>Columns selected:</strong></p>
+  <ul>
+    <li><code>hospitalization</code>: hospitalization_id, patient_id, admission_dttm, discharge_dttm, age_at_admission, discharge_category (loaded but not filtered).</li>
+    <li><code>patient</code>: patient_id, sex_category, race_category, ethnicity_category, death_dttm.</li>
+    <li><code>adt</code>: hospitalization_id, location_category, in_dttm, out_dttm.</li>
+    <li><code>respiratory_support</code>: hospitalization_id, recorded_dttm, device_category, tracheostomy.</li>
+  </ul>
+
+  <h2>Algorithmic flow</h2>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  raw["raw CLIF tables<br/>(hospitalization, patient, ADT, respiratory_support)"]
+  cohort["adult ICU cohort<br/>(age ≥ 18; ≥ 1 ICU ADT)"]
+  loadresp["load_respiratory_support"]
+  detect["detect_imv_episodes<br/>consensus state machine<br/>IMV ≥ 15min start; non-IMV ≥ 30min close;<br/>trach sentinel closes &amp; halts"]
+  filter["episodes.filter(<br/>episode_index = 1 ∧ episode_end_dttm ≠ ∅<br/>∧ ¬is_pre_existing_trach)"]
+  trach["_drop_trach_closed<br/>trach row within ±1min of episode_end"]
+  pred["t_extub = first extubation<br/>= episode_end_dttm of episode₁"]
+  reint["join reintubation<br/>= episode_start_dttm of episode₂ (left join)"]
+  lab["label = died_in_24h ∨ reintubated_in_24h"]
+  decide{"event observed,<br/>OR obs_end ≥ t_extub + 24h?"}
+  split["temporal train/test split"]
+  out(["output parquet<br/>(label_extubation_failure_24h,<br/>window_start/end, split)"])
+  xicu["EXCLUDE: no ICU ADT"]
+  ximv["EXCLUDE: no IMV episode"]
+  xpre["EXCLUDE: pre-existing trach<br/>OR no confirmed extubation"]
+  xtrach["EXCLUDE: trach-closed first episode<br/>(decannulation ≠ extubation)"]
+  xamb["EXCLUDE: ambiguous censoring<br/>(discharged alive &lt;24h post-extub,<br/>no death, no reintub)"]
+  raw --> cohort --> loadresp --> detect --> filter --> trach --> pred --> reint --> lab --> decide
+  decide -->|yes| split --> out
+  cohort -.-> xicu
+  detect -.-> ximv
+  filter -.-> xpre
+  trach -.-> xtrach
+  decide -.->|no| xamb
+  classDef excl fill:#fbeaea,stroke:#cc6666,stroke-dasharray:4 3,color:#933;
+  classDef outc fill:#e6f6ec,stroke:#3a8a63,stroke-width:2px;
+  class xicu,ximv,xpre,xtrach,xamb excl
+  class out outc
+    </pre>
+    <p class="caption">Build pipeline for T3. Solid arrows: main flow. Dashed red
+      arrows: exclusions. The diamond enforces the censoring rule: any
+      hospitalization whose observation window closes before
+      \(t_{\text{extub}}+24\text{h}\) without an observed death or reintubation is
+      dropped, since its label is unobservable.</p>
+  </div>
+
+  <ol>
+    <li>Load CLIF tables: <code>hospitalization</code>, <code>patient</code>, <code>adt</code>, <code>respiratory_support</code>.</li>
+    <li>Apply adult-ICU cohort filters.</li>
+    <li><code>load_respiratory_support(cfg, hosp_ids)</code> returns all device-status rows for the cohort.</li>
+    <li>Run <code>detect_imv_episodes(resp)</code> (consensus detector above).</li>
+    <li>Filter to first episodes ending in a confirmed extubation: <code>episode_index = 1 ∧ episode_end_dttm ≠ ∅ ∧ ¬is_pre_existing_trach</code>.</li>
+    <li>Drop trach-closed first episodes via <code>_drop_trach_closed</code>: any first episode whose <code>episode_end_dttm</code> coincides with a <code>trach collar</code> or <code>tracheostomy=true</code> row within ±1 minute (decannulation ≠ extubation).</li>
+    <li>Extract second-episode starts as \(t_{\text{reint}}^i\) = <code>episode_start_dttm</code> where <code>episode_index = 2</code> (left join; null if none).</li>
+    <li>Join encounter-level \(t_{\text{death}}^i\) and \(t_{\text{disch}}^i\).</li>
+    <li>Compute \(y_i = \texttt{\_died} \vee \texttt{\_reintub}\).</li>
+    <li>Drop ambiguous censoring rows (the diamond).</li>
+    <li>Set <code>window_start = t_extub − 24h</code>, <code>window_end = t_extub</code> (fixed 24h lookback).</li>
+    <li>Apply temporal split, keyed on \(t_{\text{extub}}^i\); select <code>OUTPUT_COLS</code>; persist as parquet.</li>
+  </ol>
+
+  <h2>Design choices and rationale</h2>
+
+  <h4>Why 15-minute / 30-minute consensus windows</h4>
+  <p>
+    RespiratorySupport in CLIF is a device-status sample: brief sensor dropouts,
+    vent swaps, and transient downgrades produce single rows that look like
+    transitions but are not. The 15-minute IMV consensus on the start side and the
+    30-minute non-IMV consensus on the close side filter these artifacts while still
+    resolving real extubations within a clinically reasonable margin. The asymmetry
+    (15 in, 30 out) reflects asymmetric cost: a missed intubation start loses only a
+    small slice of input-feature window, whereas a false extubation close anchors the
+    entire label.
+  </p>
+
+  <h4>Why drop trach-closed first episodes</h4>
+  <p>
+    The state machine treats a trach sentinel as an episode close so counting halts
+    cleanly, but a tracheostomy decannulation is not the clinical event this task
+    predicts. Modeling it as an extubation would mix a planned airway-management
+    procedure with the unplanned reintubation-vs-failure decision, inflating the
+    cohort with patients whose 24h outcome is dominated by trach-specific physiology.
+  </p>
+
+  <h4>Why drop ambiguous censoring</h4>
+  <p>
+    A patient extubated at 03:00 and discharged alive at 18:00 the same day with no
+    death and no reintubation has only 15 hours of post-extubation observability.
+    Labeling them \(y_i=0\) treats absence of observed failure as evidence of
+    success when it is just censoring — a textbook positive-unlabeled trap. The
+    cohort filter resolves it by dropping the unobservable row. The cost is a small
+    positive-skew in the retained cohort (patients with longer observation are
+    slightly sicker), acknowledged in the paper's Discussion.
+  </p>
+
+  <h4>Why one-per-stay (not continuous)</h4>
+  <p>
+    The decision to extubate is itself the clinical handle. Predictions at arbitrary
+    timesteps before the actual extubation are not actionable because they would be
+    evaluated against a different intervention (extubation at a different time).
+    Restricting to the actual extubation moment makes the label well-defined and the
+    comparison across hospitalizations meaningful.
+  </p>
+
+  <h4>Prevalence implications</h4>
+  <p>
+    MIMIC-CLIF: 26,771 extubation episodes pass the cohort filters, 1,456 positive
+    (5.4%). Reporting AUPRC alongside AUROC is mandatory.
+  </p>
+
+  <h2>Out of scope</h2>
+  <ul>
+    <li>Second-, third-, and later-extubation decision points.</li>
+    <li>Non-invasive ventilation (NIV) as a failure mode (currently only death and reintubation count).</li>
+    <li>A continuous variant predicting extubation failure ahead of the actual extubation.</li>
+    <li>Curated drug-list or ventilator-mode feature design.</li>
+  </ul>
+
+  <footer>
+    Task T3 · <a href="index.html">overview</a> · <a href="references.html">references</a>.
+  </footer>
+</div>
+</body>
+</html>

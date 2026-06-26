@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T5 · Unplanned ICU Readmission — FLAIR Task Schematics</title>
+<link rel="stylesheet" href="flair.css">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: true, useMaxWidth: true },
+  themeVariables: { fontSize: '13px', primaryColor: '#eef4fb', primaryBorderColor: '#7aa6cf',
+    lineColor: '#5b6675', primaryTextColor: '#1c2330' } });
+</script>
+</head>
+<body>
+<div class="topbar"><div class="inner">
+  <span class="brand">FLAIR Task Schematics</span>
+  <span class="sep">|</span>
+  <a href="index.html">Overview</a>
+  <a href="references.html">References</a>
+</div></div>
+
+<div class="wrap">
+  <p class="eyebrow">Task T5 · episode · one-per-stay</p>
+  <h1>Unplanned ICU Readmission</h1>
+
+  <p class="lead">
+    At the end of a patient's first ICU stay, predict whether the patient will
+    return to the ICU later in the <em>same</em> hospitalization through an unplanned
+    path. The signal is derived entirely from the CLIF ADT location history. A
+    <em>planned</em> return — ICU → Procedural → ICU (a trip to the OR or cath lab and
+    back) — is not counted: the procedural segment is removed and the two ICU stays
+    merge into one. One prediction per surviving hospitalization.
+  </p>
+
+  <div class="audit">
+    <span class="tag">Code note</span>
+    Implemented in <code>task5_icu_readmission.py</code> on the
+    <strong>stitched-encounter grain</strong>: <code>compute_readmission_timing</code>
+    runs across the whole stitched encounter's ADT stream, so a true re-admission
+    that the stitcher merged is read as one continuous location history. Constant
+    verified against code: <code>MIN_ICU_STAY_HOURS = 1</code>.
+  </div>
+
+  <h2>FLAIR operational definition</h2>
+  <h3>Anchors and windows</h3>
+  <p>
+    Let \(H_i\) denote a hospitalization. From the CLIF ADT table,
+    <code>compute_readmission_timing</code> computes a merged location sequence and,
+    from it, the first ICU-stay window \([t^{\text{ICU}_1,\text{start}}_i,\,
+    t^{\text{ICU}_1,\text{end}}_i]\) and the start time of a second ICU stay (if any).
+  </p>
+  <dl class="def">
+    <dt>Location standardization</dt>
+    <dd>Each <code>adt.location_category</code> is lowercased and mapped to a coarse
+      bucket <code>std_location</code> ∈ {ICU, Ward, ER, Procedural, Other} via
+      <code>LOCATION_MAPPING</code>. Stepdown, L&amp;D, hospice, psych, rehab,
+      radiology, dialysis, and other all map to <code>Other</code>.</dd>
+    <dt>Procedural-sandwich removal (planned readmission)</dt>
+    <dd>A row with <code>std_location = Procedural</code> whose immediate predecessor
+      and successor (within \(H_i\), ordered by <code>in_dttm</code>) are both ICU is
+      deleted. This collapses ICU → Procedural → ICU into a single ICU stay: a planned
+      procedural excursion is <em>not</em> a readmission.</dd>
+    <dt>Consecutive-location merge</dt>
+    <dd>After sandwich removal, consecutive rows with the same <code>std_location</code>
+      are merged into one group spanning \([\min(\texttt{in\_dttm}),\,
+      \max(\texttt{out\_dttm})]\). Back-to-back ICU rows form a single ICU stay.</dd>
+    <dt>First / second ICU stay</dt>
+    <dd>Rank the merged ICU groups by <code>in_dttm</code>. Group 1 yields
+      \(t^{\text{ICU}_1,\text{start}}_i, t^{\text{ICU}_1,\text{end}}_i\). Group 2, if
+      present, is the unplanned readmission with start
+      <code>second_icu_start_time</code>.</dd>
+    <dt>Prediction time</dt>
+    <dd>\(\text{prediction\_dttm}_i = t^{\text{ICU}_1,\text{end}}_i\) (decision made at first-ICU discharge).</dd>
+    <dt>Input window</dt>
+    <dd>\([\text{window\_start}_i,\, \text{window\_end}_i] = [t^{\text{ICU}_1,\text{start}}_i,\, t^{\text{ICU}_1,\text{end}}_i]\) — the entire first ICU stay (variable length; no fixed lookback).</dd>
+    <dt>Label (label_icu_readmission)</dt>
+    <dd>\[ y_i = \mathbb{1}\!\left[\texttt{second\_icu\_start\_time}_i \neq \varnothing\right]. \]</dd>
+  </dl>
+
+  <h3>Cohort</h3>
+  <ul>
+    <li>Age at admission \(\ge 18\) with valid <code>admission_dttm</code> and <code>discharge_dttm</code>.</li>
+    <li>\(\ge 1\) ICU ADT record (first ICU stay defined).</li>
+    <li><strong>Exclude</strong> hospitalizations with no ICU data — realized as an inner join with the timing table.</li>
+    <li><strong>Exclude</strong> death during the first ICU stay (<code>death_dttm</code> ∈ \([t^{\text{ICU}_1,\text{start}}_i, t^{\text{ICU}_1,\text{end}}_i]\)): the readmission outcome is undefined.</li>
+    <li><strong>Exclude</strong> direct ICU discharge (the last merged location is ICU): no opportunity to readmit.</li>
+    <li><strong>Exclude</strong> a first ICU stay shorter than <code>MIN_ICU_STAY_HOURS = 1</code> hour.</li>
+    <li><strong>Exclude</strong> an intermediate ER visit (an ER location after the first location), which confounds the planned/unplanned distinction.</li>
+  </ul>
+
+  <h3>CLIF tables and categories used</h3>
+  <p>Task T5 reads three CLIF v2.1 tables. The entire readmission signal is the
+    <code>adt.location_category</code> sequence; <code>hospitalization</code> and
+    <code>patient</code> provide cohort filters, the death timestamp, and
+    demographics.</p>
+  <table>
+    <thead><tr><th>CLIF table</th><th>Category column</th><th>Use</th></tr></thead>
+    <tbody>
+      <tr><td><code>hospitalization</code></td><td>—</td><td>cohort/demographics join; <code>age_at_admission</code>, valid dates</td></tr>
+      <tr><td><code>patient</code></td><td>—</td><td>demographics join; <code>death_dttm</code> for the death exclusion</td></tr>
+      <tr><td><code>adt</code></td><td><code>location_category</code></td><td>merged into ICU / Ward / ER / Procedural / Other; sole readmission signal</td></tr>
+    </tbody>
+  </table>
+  <p>No labs, vitals, or medication tables are read — the task is ADT-only.</p>
+  <p><strong>Columns selected:</strong></p>
+  <ul>
+    <li><code>hospitalization</code>: hospitalization_id, patient_id, admission_dttm, discharge_dttm, age_at_admission, discharge_category.</li>
+    <li><code>patient</code>: patient_id, sex_category, race_category, ethnicity_category, death_dttm.</li>
+    <li><code>adt</code>: hospitalization_id, location_category, in_dttm, out_dttm.</li>
+  </ul>
+
+  <h2>Algorithmic flow</h2>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  raw["raw CLIF tables<br/>(hospitalization, patient, ADT)"]
+  cohort["adult ICU cohort<br/>(age ≥ 18; ≥ 1 ICU ADT)"]
+  timing["compute_readmission_timing<br/>map locations; drop ICU→Proc→ICU sandwich;<br/>merge consecutive locations"]
+  rank["rank merged ICU stays<br/>⇒ first_icu, second_icu"]
+  death{"death in 1st ICU?"}
+  direct{"direct ICU discharge?"}
+  short{"1st ICU stay &lt; 1h?"}
+  er{"intermediate ER?"}
+  label["label = 1 iff second_icu_start_time exists"]
+  window["prediction_dttm = ICU₁ end;<br/>window = [ICU₁ start, ICU₁ end]"]
+  split["temporal train/test split"]
+  out(["output parquet<br/>(label_icu_readmission, window_start/end, split)"])
+  xicu["EXCLUDE: no ICU ADT"]
+  xdeath["EXCLUDE: death during 1st ICU"]
+  xdirect["EXCLUDE: direct ICU discharge"]
+  xshort["EXCLUDE: short stay (&lt;1h)"]
+  xer["EXCLUDE: intermediate ER"]
+  raw --> cohort --> timing --> rank --> death
+  death -->|no| direct -->|no| short -->|no| er -->|no| label --> window --> split --> out
+  cohort -.-> xicu
+  death -.->|yes| xdeath
+  direct -.->|yes| xdirect
+  short -.->|yes| xshort
+  er -.->|yes| xer
+  classDef excl fill:#fbeaea,stroke:#cc6666,stroke-dasharray:4 3,color:#933;
+  classDef outc fill:#e6f6ec,stroke:#3a8a63,stroke-width:2px;
+  class xicu,xdeath,xdirect,xshort,xer excl
+  class out outc
+    </pre>
+    <p class="caption">Build pipeline for T5. Solid arrows: main flow. Dashed red
+      arrows: exclusions. The diamonds gate hospitalizations on death-in-ICU, direct
+      ICU discharge, short stay, and intermediate ER. The label is set by the
+      existence of a second merged ICU stay after procedural-sandwich removal and
+      consecutive-location merging.</p>
+  </div>
+
+  <ol>
+    <li>Load CLIF tables: <code>hospitalization</code>, <code>patient</code>, <code>adt</code> via <code>base_icu_cohort</code>.</li>
+    <li>Apply adult-ICU cohort filters (age, valid admission/discharge, ≥1 ICU ADT).</li>
+    <li><code>compute_readmission_timing(adt)</code>: map locations; drop ICU → Procedural → ICU rows; merge consecutive same-location rows; rank ICU groups to extract first/second ICU times; flag <code>is_direct_icu_discharge</code> and <code>has_intermediate_er</code>.</li>
+    <li>Inner-join timing into the cohort (drops no-ICU hospitalizations).</li>
+    <li>Apply the four remaining exclusions: death during first ICU stay; direct ICU discharge; first ICU stay &lt; 1h; intermediate ER.</li>
+    <li>Label \(y_i = \mathbb{1}[\texttt{second\_icu\_start\_time} \neq \varnothing]\).</li>
+    <li>Set <code>prediction_dttm = ICU₁ end</code> and input window \([t^{\text{ICU}_1,\text{start}}, t^{\text{ICU}_1,\text{end}}]\).</li>
+    <li>Assign temporal split (keyed on <code>prediction_dttm</code>); select <code>OUTPUT_COLS</code>; persist as parquet.</li>
+  </ol>
+
+  <h2>Design choices and rationale</h2>
+
+  <h4>Why ADT-only</h4>
+  <p>
+    ICU readmission is a movement event, fully observable from the CLIF ADT location
+    stream without labs, vitals, or notes. Restricting the label to ADT keeps it
+    portable across every CLIF site and avoids the cadence/vocabulary assumptions
+    that complicate the lab- and medication-anchored tasks. The federated ML
+    literature treats unplanned ICU readmission as a structured-EHR target in exactly
+    this spirit <a class="cite" href="references.html#ref-rojas2018readmission">[Rojas&nbsp;2018]</a>.
+  </p>
+
+  <h4>Why remove the procedural sandwich</h4>
+  <p>
+    A patient who leaves the ICU for a scheduled procedure (OR, cath lab,
+    interventional radiology) and returns has not been <em>readmitted</em> in any
+    clinically meaningful sense — the return was planned at the time of transfer.
+    Counting it would inflate the positive rate with non-events and penalize a model
+    for “missing” an outcome that carries no deterioration signal. Collapsing ICU →
+    Procedural → ICU to a single stay encodes the planned/unplanned distinction at the
+    cohort level. Procedural rows that are <em>not</em> bracketed by ICU on both sides
+    are left in place.
+  </p>
+
+  <h4>Why one-per-stay (not continuous)</h4>
+  <p>
+    Unlike the deterioration tasks, readmission has a single natural decision point —
+    the moment of ICU discharge, when a clinician decides the patient is stable enough
+    to leave. A one-per-stay framing matches that decision and keeps the label
+    balanced (each hospitalization contributes one row rather than many
+    trivially-negative hourly rows).
+  </p>
+
+  <h4>Why the four post-cohort exclusions</h4>
+  <p>
+    Death in the first ICU stay makes the outcome undefined; a direct ICU discharge
+    removes any opportunity to readmit (a structurally guaranteed negative); a
+    sub-hour first ICU stay is typically an administrative artifact rather than a true
+    ICU course; an intermediate ER visit muddies the planned/unplanned reading of a
+    subsequent ICU entry. Each is a deterministic ADT/timestamp predicate, applied in
+    a fixed order.
+  </p>
+
+  <h2>Out of scope</h2>
+  <ul>
+    <li>Cross-hospitalization (30-day) ICU or hospital readmission.</li>
+    <li>Third and later ICU readmissions within a stay.</li>
+    <li>Time-to-readmission (survival) labels.</li>
+    <li>ICD- or problem-list–based planned/unplanned adjudication (ADT location categories only).</li>
+    <li>Input feature design.</li>
+  </ul>
+
+  <footer>
+    Task T5 · <a href="index.html">overview</a> · <a href="references.html">references</a>.
+  </footer>
+</div>
+</body>
+</html>
