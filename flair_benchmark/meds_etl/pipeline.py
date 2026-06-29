@@ -6,6 +6,11 @@ The bundled per-domain concept YAMLs live in ``concepts/``.
 """
 from __future__ import annotations
 
+import contextlib
+import itertools
+import sys
+import threading
+import time
 from pathlib import Path
 
 import polars as pl
@@ -15,6 +20,39 @@ from flair_benchmark.meds_etl._emit import MEDS_SCHEMA
 from flair_benchmark.meds_etl.domains import run_domain
 
 _CONCEPTS_DIR = Path(__file__).parent / "concepts"
+
+
+@contextlib.contextmanager
+def _ticker(label: str):
+    """Live spinner + elapsed seconds on stderr while a long step runs.
+
+    Each domain's extraction is a single polars collect (no inner loop to hook),
+    so a background thread ticks an elapsed counter to show it isn't frozen. Only
+    active on an interactive terminal — piped/log runs stay clean.
+    """
+    if not sys.stderr.isatty():
+        yield
+        return
+    stop = threading.Event()
+    t0 = time.time()
+
+    def spin():
+        for ch in itertools.cycle("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"):
+            if stop.is_set():
+                break
+            sys.stderr.write(f"\r  meds_etl: {label} {ch} {int(time.time() - t0)}s ")
+            sys.stderr.flush()
+            time.sleep(0.2)
+
+    th = threading.Thread(target=spin, daemon=True)
+    th.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        th.join(timeout=1)
+        sys.stderr.write("\r" + " " * 48 + "\r")  # clear the spinner line
+        sys.stderr.flush()
 
 
 def load_concept_config(domain: str, concepts_dir: Path | None = None) -> dict:
@@ -39,13 +77,15 @@ def build_meds_events(clif_cfg: dict, elf_cfg: dict,
     frames: list[pl.DataFrame] = []
     versions: dict[str, str] = {}
 
-    for domain, opts in elf_cfg["domains"].items():
+    domains = list(elf_cfg["domains"].items())
+    for i, (domain, opts) in enumerate(domains, 1):
         opts = opts or {}
         domain_cfg = load_concept_config(domain, concepts_dir)
         versions[domain] = domain_cfg.get("elf_version", "0.0.0")
-        print(f"  meds_etl: {domain} …")
-        frame = run_domain(domain, clif_cfg, domain_cfg, hosp_ids, opts)
-        print(f"    {domain}: {frame.height} events")
+        print(f"  meds_etl: {domain} ({i}/{len(domains)}) …", flush=True)
+        with _ticker(f"{domain} ({i}/{len(domains)})"):
+            frame = run_domain(domain, clif_cfg, domain_cfg, hosp_ids, opts)
+        print(f"    {domain}: {frame.height} events", flush=True)
         frames.append(frame)
 
     events = pl.concat(frames, how="vertical") if frames else pl.DataFrame(schema=MEDS_SCHEMA)
