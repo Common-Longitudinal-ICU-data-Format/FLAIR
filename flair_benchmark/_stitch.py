@@ -15,6 +15,7 @@ Public API:
     build_encounter_index(cfg, time_interval)        -> pl.DataFrame  (always rebuilds)
     load_or_build_encounter_index(cfg, time_interval)-> pl.DataFrame  (cached)
     attach_join_id(df, idx)                          -> pl.DataFrame  (left-join + fallback)
+    members_of_joins(idx, join_ids)                  -> list[str]     (join_id -> all member hosp_ids)
 
 The mapping frame has columns: hospitalization_id, hospitalization_join_id, patient_id.
 """
@@ -128,3 +129,30 @@ def attach_join_id(df: pl.DataFrame, idx: pl.DataFrame) -> pl.DataFrame:
     return out.with_columns(
         pl.col(JOIN_ID).fill_null(pl.col("hospitalization_id"))
     )
+
+
+def members_of_joins(idx: pl.DataFrame, join_ids: list[str]) -> list[str]:
+    """All member hospitalization_ids of the given stitched encounters.
+
+    A cohort knows its own hospitalization_ids, but a ``hospitalization_join_id``
+    can stitch several admissions together — and a sibling member may be absent
+    from the cohort (e.g. a non-ICU transfer). Pulling MEDS by cohort ids alone
+    would silently drop that sibling's events. This resolves each join_id back to
+    its FULL member set via the stitch index, so the ETL sees the whole encounter.
+
+    join_ids absent from the index (never stitched) map to themselves, so the
+    returned list always covers the input even for self-blocks. Matched as Utf8.
+    """
+    wanted = {str(j) for j in join_ids}
+    sidx = idx.with_columns(
+        pl.col("hospitalization_id").cast(pl.Utf8),
+        pl.col(JOIN_ID).cast(pl.Utf8),
+    )
+    matched = sidx.filter(pl.col(JOIN_ID).is_in(list(wanted)))
+    members = set(matched["hospitalization_id"].to_list())
+    # Self-fallback: a never-stitched join_id (== its own hospitalization_id) may be
+    # absent from the index's join column; add those raw ids so none are lost. Only
+    # the unmatched ones, so synthetic block ids never leak into the hosp_id list.
+    present = set(matched[JOIN_ID].to_list())
+    members |= (wanted - present)
+    return sorted(members)

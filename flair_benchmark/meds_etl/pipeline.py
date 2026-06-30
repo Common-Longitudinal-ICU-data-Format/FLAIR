@@ -23,26 +23,32 @@ _CONCEPTS_DIR = Path(__file__).parent / "concepts"
 
 
 @contextlib.contextmanager
-def _ticker(label: str):
-    """Live spinner + elapsed seconds on stderr while a long step runs.
+def _ticker(label: str, heartbeat: float = 15.0):
+    """Liveness for a long step that has no inner loop to hook.
 
-    Each domain's extraction is a single polars collect (no inner loop to hook),
-    so a background thread ticks an elapsed counter to show it isn't frozen. Only
-    active on an interactive terminal — piped/log runs stay clean.
+    Each domain's extraction is a single polars collect, so a background thread
+    shows it isn't frozen:
+      - interactive terminal: a smooth spinner + elapsed seconds, redrawn in place.
+      - piped / log run (e.g. ``| tee``): a plain heartbeat line every ``heartbeat``
+        seconds, so external sites tailing the log still see motion.
     """
-    if not sys.stderr.isatty():
-        yield
-        return
+    is_tty = sys.stderr.isatty()
     stop = threading.Event()
     t0 = time.time()
 
     def spin():
-        for ch in itertools.cycle("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"):
-            if stop.is_set():
-                break
-            sys.stderr.write(f"\r  meds_etl: {label} {ch} {int(time.time() - t0)}s ")
-            sys.stderr.flush()
-            time.sleep(0.2)
+        if is_tty:
+            for ch in itertools.cycle("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"):
+                if stop.is_set():
+                    break
+                sys.stderr.write(f"\r  meds_etl: {label} {ch} {int(time.time() - t0)}s ")
+                sys.stderr.flush()
+                time.sleep(0.2)
+        else:
+            # heartbeat lines for non-tty (logs) — coarse, but visible.
+            while not stop.wait(heartbeat):
+                print(f"    {label} … still running ({int(time.time() - t0)}s)",
+                      flush=True)
 
     th = threading.Thread(target=spin, daemon=True)
     th.start()
@@ -51,8 +57,9 @@ def _ticker(label: str):
     finally:
         stop.set()
         th.join(timeout=1)
-        sys.stderr.write("\r" + " " * 48 + "\r")  # clear the spinner line
-        sys.stderr.flush()
+        if is_tty:
+            sys.stderr.write("\r" + " " * 48 + "\r")  # clear the spinner line
+            sys.stderr.flush()
 
 
 def load_concept_config(domain: str, concepts_dir: Path | None = None) -> dict:

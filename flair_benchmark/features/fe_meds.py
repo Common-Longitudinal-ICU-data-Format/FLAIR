@@ -21,6 +21,7 @@ from pathlib import Path
 import polars as pl
 import yaml
 
+from flair_benchmark._stitch import attach_join_id
 from flair_benchmark.meds_etl import build_codes_table, build_meds_events
 
 JOIN_ID = "hospitalization_join_id"
@@ -82,3 +83,58 @@ def build_meds_tables(task_df: pl.DataFrame, clif_cfg: dict, elf_config: str,
     print(f"  FE-meds codes table -> {codes_path} ({codes.height} codes)")
 
     return events
+
+
+def _batches(items: list, size: int) -> list[list]:
+    """Split ``items`` into consecutive chunks of at most ``size`` (last may be smaller)."""
+    return [items[i:i + size] for i in range(0, len(items), size)]
+
+
+def build_shared_meds(clif_cfg: dict, elf_cfg: dict, hosp_ids: list[str],
+                      idx: pl.DataFrame, out_dir: str,
+                      batch_size: int | None = None) -> dict[str, str]:
+    """Build ONE shared MEDS store over ``hosp_ids`` → ``out_dir/MEDS/part-*.parquet``.
+
+    This is the cross-task ETL: ``hosp_ids`` is the union of every task cohort's
+    join-id membership (already expanded via ``members_of_joins``), so the same
+    CLIF→MEDS extraction runs once instead of once per task.
+
+    The join key is attached from the **stitch index** (``attach_join_id``), not a
+    cohort-local mapping, so a stitched sibling hospitalization's events keep the
+    encounter's ``hospitalization_join_id`` even when that sibling is not itself a
+    prediction row. Returns the per-domain ELF ``versions`` for the codes registry.
+
+    ``batch_size=None`` runs a single extraction → ``part-0000.parquet``.
+    ``batch_size=N`` (the hidden ``-pmc`` / poor-man's-compute mode) extracts the
+    hosp_ids in sequential N-sized batches, writing one part file per batch and
+    freeing each frame, so peak memory is bounded by one batch rather than the
+    whole cohort — slower, but it fits a small box.
+    """
+    out = Path(out_dir)
+    meds_dir = out / "MEDS"
+    meds_dir.mkdir(parents=True, exist_ok=True)
+    # Clear any stale part files from a previous (differently-batched) run.
+    for old in meds_dir.glob("part-*.parquet"):
+        old.unlink()
+
+    hosp_ids = [str(h) for h in hosp_ids]
+    batches = _batches(hosp_ids, batch_size) if batch_size else [hosp_ids]
+
+    versions: dict[str, str] = {}
+    total = 0
+    for i, batch in enumerate(batches):
+        events, vers = build_meds_events(clif_cfg, elf_cfg, batch)
+        versions.update(vers)
+        events = attach_join_id(events, idx).select(DATA_COLS)
+        part_path = meds_dir / f"part-{i:04d}.parquet"
+        events.write_parquet(part_path)
+        total += events.height
+        n_b = len(batches)
+        print(f"  shared MEDS: batch {i + 1}/{n_b} "
+              f"({len(batch)} hosp) -> {part_path.name} ({events.height} events)",
+              flush=True)
+        del events
+
+    print(f"  shared MEDS total -> {meds_dir} "
+          f"({total} events across {len(batches)} part file(s))", flush=True)
+    return versions
