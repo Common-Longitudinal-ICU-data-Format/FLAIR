@@ -14,12 +14,13 @@ from flair_benchmark._clif import (
     load_medication_admin_continuous,
     load_medication_admin_intermittent,
 )
+from flair_benchmark._stitch import JOIN_ID, attach_join_id as attach_stitched_join
 from flair_benchmark.features._elf import (
-    attach_join_id,
     attach_subject_id,
     empty_elf,
     finalize,
 )
+from flair_benchmark.features._scope import HORIZON_COL, feature_scope
 
 _TABLES = {
     "medication_admin_continuous": ("MED_CON", load_medication_admin_continuous),
@@ -27,16 +28,12 @@ _TABLES = {
 }
 
 
-def _horizon(task_df: pl.DataFrame) -> pl.DataFrame:
-    """Per-stay latest prediction time (the no-future-data bound)."""
-    return (
-        task_df.with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
-        .group_by("hospitalization_id")
-        .agg(pl.col("prediction_dttm").max().alias("_horizon"))
-    )
-
-
-def _one_table(domain: str, df: pl.DataFrame, horizon: pl.DataFrame) -> pl.DataFrame:
+def _one_table(
+    domain: str,
+    df: pl.DataFrame,
+    horizon: pl.DataFrame,
+    idx: pl.DataFrame,
+) -> pl.DataFrame:
     """CLIF med table (polars) -> ELF events, bounded at the horizon."""
     if df.height == 0:
         return empty_elf()
@@ -75,10 +72,11 @@ def _one_table(domain: str, df: pl.DataFrame, horizon: pl.DataFrame) -> pl.DataF
     )
 
     df = (
-        df.join(horizon, on="hospitalization_id", how="inner")
-        .filter(pl.col("time") <= pl.col("_horizon"))
+        attach_stitched_join(df, idx)
+        .join(horizon, on=JOIN_ID, how="inner")
+        .filter(pl.col("time") <= pl.col(HORIZON_COL))
         .select(["hospitalization_id", "time", "code",
-                 "numeric_value", "unit", "text_value"])
+                 "numeric_value", "unit", "text_value", JOIN_ID])
     )
     return df
 
@@ -90,11 +88,9 @@ def get_meds_stream(task_df: pl.DataFrame, feature_cfg: dict,
     if not meds_cfg:
         return empty_elf()
 
-    hosp_ids = (
-        task_df.with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
-        .select("hospitalization_id").unique()["hospitalization_id"].to_list()
-    )
-    horizon = _horizon(task_df)
+    scope = feature_scope(task_df, clif_cfg)
+    if not scope.hospitalization_ids:
+        return empty_elf()
 
     parts: list[pl.DataFrame] = []
     for table, tspec in meds_cfg.items():
@@ -102,8 +98,12 @@ def get_meds_stream(task_df: pl.DataFrame, feature_cfg: dict,
             continue
         domain, loader = _TABLES[table]
         cats = (tspec or {}).get("categories")
-        df = loader(clif_cfg, hospitalization_ids=hosp_ids, med_categories=cats)
-        events = _one_table(domain, df, horizon)
+        df = loader(
+            clif_cfg,
+            hospitalization_ids=scope.hospitalization_ids,
+            med_categories=cats,
+        )
+        events = _one_table(domain, df, scope.horizons, scope.index)
         if events.height:
             parts.append(events)
 
@@ -112,5 +112,4 @@ def get_meds_stream(task_df: pl.DataFrame, feature_cfg: dict,
 
     elf = pl.concat(parts, how="vertical")
     elf = attach_subject_id(elf, clif_cfg)
-    elf = attach_join_id(elf, clif_cfg)
     return finalize(elf)

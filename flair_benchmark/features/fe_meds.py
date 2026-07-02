@@ -22,6 +22,7 @@ import polars as pl
 import yaml
 
 from flair_benchmark._stitch import attach_join_id
+from flair_benchmark.features._scope import feature_scope
 from flair_benchmark.meds_etl import build_codes_table, build_meds_events
 
 JOIN_ID = "hospitalization_join_id"
@@ -49,25 +50,20 @@ def build_meds_tables(task_df: pl.DataFrame, clif_cfg: dict, elf_config: str,
     """
     elf_cfg = load_elf_config(elf_config)
 
-    # Cohort hospitalization_id ↔ join_id mapping (canonical from the task itself).
-    mapping = (
-        task_df.select(
-            pl.col("hospitalization_id").cast(pl.Utf8),
-            pl.col(JOIN_ID).cast(pl.Utf8),
-        )
-        .unique(subset=["hospitalization_id"])
-    )
-    hosp_ids = mapping["hospitalization_id"].to_list()
+    # require_horizon=False on purpose: unlike wide/meds_stream, this table is
+    # left UNBOUNDED — no time<=horizon cut here. The point-in-time filter runs
+    # downstream in the count featurizer (see module docstring). Do not add a
+    # horizon filter here.
+    scope = feature_scope(task_df, clif_cfg, require_horizon=False)
 
-    events, versions = build_meds_events(clif_cfg, elf_cfg, hosp_ids)
+    events, versions = build_meds_events(clif_cfg, elf_cfg, scope.hospitalization_ids)
 
-    # Attach the encounter-block key; a hosp_id missing from the cohort maps to itself.
-    events = (
-        events.with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
-        .join(mapping, on="hospitalization_id", how="left")
-        .with_columns(pl.col(JOIN_ID).fill_null(pl.col("hospitalization_id")))
-        .select(DATA_COLS)
-    )
+    # Attach the encounter-block key from the full stitch index so sibling
+    # hospitalizations not represented by a prediction row still map correctly.
+    events = attach_join_id(
+        events.with_columns(pl.col("hospitalization_id").cast(pl.Utf8)),
+        scope.index,
+    ).select(DATA_COLS)
 
     out = Path(out_dir)
     (out / "data").mkdir(parents=True, exist_ok=True)

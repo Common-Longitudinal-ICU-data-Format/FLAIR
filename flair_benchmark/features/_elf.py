@@ -92,20 +92,6 @@ def finalize(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-def attach_join_id(df: pl.DataFrame, clif_cfg: dict) -> pl.DataFrame:
-    """Add hospitalization_join_id (stitched-encounter key) to ELF events.
-
-    Uses the same cached encounter index every task built from, so feature
-    rows carry the identical block key as the cohort.
-    """
-    from flair_benchmark._stitch import attach_join_id as _attach
-    from flair_benchmark._stitch import load_or_build_encounter_index
-
-    idx = load_or_build_encounter_index(
-        clif_cfg, clif_cfg.get("stitch_time_interval_hours", 6))
-    return _attach(df, idx)
-
-
 def attach_subject_id(df: pl.DataFrame, clif_cfg: dict) -> pl.DataFrame:
     """Add subject_id (= patient_id) by joining the hospitalization table.
 

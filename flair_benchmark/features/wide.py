@@ -12,14 +12,15 @@ from __future__ import annotations
 import polars as pl
 
 from flair_benchmark._clif import pd_to_pl
+from flair_benchmark._stitch import JOIN_ID, attach_join_id as attach_stitched_join
 from flair_benchmark.features._config import V1_TABLES
 from flair_benchmark.features._elf import (
-    attach_join_id,
     attach_subject_id,
     build_code,
     empty_elf,
     finalize,
 )
+from flair_benchmark.features._scope import HORIZON_COL, feature_scope
 from flair_benchmark.features._units import RESP_CATEGORICAL, unit_for
 
 # CLIF table -> ELF code domain prefix.
@@ -32,17 +33,7 @@ DOMAIN = {
     "respiratory_support": "RESP",
 }
 
-_IDX = ["hospitalization_id", "subject_id", "time"]
-
-
-def _cohort_windows(task_df: pl.DataFrame):
-    """Per-stay no-future cutoff + the hospitalization_id list (as strings)."""
-    bounds = (
-        task_df.with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
-        .group_by("hospitalization_id")
-        .agg(pl.col("prediction_dttm").max().alias("end_time"))
-    )
-    return bounds, bounds["hospitalization_id"].to_list()
+_IDX = ["hospitalization_id", JOIN_ID, "subject_id", "time"]
 
 
 def _feature_maps(wide_cfg: dict, units_override: dict | None):
@@ -84,7 +75,9 @@ def get_wide_feature_dataset(task_df: pl.DataFrame, feature_cfg: dict,
     if not category_filters:
         return empty_elf()
 
-    bounds, hosp_ids = _cohort_windows(task_df)
+    scope = feature_scope(task_df, clif_cfg)
+    if not scope.hospitalization_ids:
+        return empty_elf()
 
     # clifpy create_wide_dataset loads its own base tables (patient/hospitalization/
     # adt) — only pass the feature tables + hospitalization_ids. The per-stay time
@@ -100,7 +93,7 @@ def get_wide_feature_dataset(task_df: pl.DataFrame, feature_cfg: dict,
     co.create_wide_dataset(
         tables_to_load=list(category_filters),
         category_filters=category_filters,
-        hospitalization_ids=hosp_ids,
+        hospitalization_ids=scope.hospitalization_ids,
         output_format="dataframe",
         show_progress=False,
     )
@@ -115,14 +108,15 @@ def get_wide_feature_dataset(task_df: pl.DataFrame, feature_cfg: dict,
     else:
         wide = attach_subject_id(wide, clif_cfg)
     wide = wide.rename({"event_time": "time"})
+    wide = attach_stitched_join(wide, scope.index)
 
     # No-future-data guard: keep only events at or before each stay's
     # max(prediction_dttm). No lower bound — all history up to the
     # prediction time may be used.
     wide = (
-        wide.join(bounds, on="hospitalization_id", how="inner")
-        .filter(pl.col("time") <= pl.col("end_time"))
-        .drop("end_time")
+        wide.join(scope.horizons, on=JOIN_ID, how="inner")
+        .filter(pl.col("time") <= pl.col(HORIZON_COL))
+        .drop(HORIZON_COL)
     )
     if wide.height == 0:
         return empty_elf()
@@ -176,5 +170,4 @@ def get_wide_feature_dataset(task_df: pl.DataFrame, feature_cfg: dict,
         return empty_elf()
 
     elf = pl.concat(parts, how="vertical")
-    elf = attach_join_id(elf, clif_cfg)
     return finalize(elf)
