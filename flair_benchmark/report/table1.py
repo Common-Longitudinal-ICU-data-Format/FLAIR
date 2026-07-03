@@ -10,10 +10,15 @@ Output JSON shape:
   {
     "n_total": int,            # encounters (flat keys are encounter-grain)
     "n_rows":  int,            # prediction rows
+    "prevalence": float|None,  # binary: positive rate (6 dp). None when either the
+                               # positive or negative count is a nonzero value < 10
+                               # (prevalence x n would recover a suppressed cell);
+                               # true extremes 0.0 / 1.0 are shown. Multiclass:
+                               # {level: proportion_or_None}; regression: None.
     "continuous":  { "age_at_admission": {mean, std, median, q25, q75, min, max, n_missing},
                      "sofa_max": {...}, "charlson_score": {...}, "elix_score": {...} },
     "categorical": { "sex_category": {level: count_or_"<10"}, ... },
-    "by_split":  { "total": {n, date_range, continuous, categorical},  # ALWAYS 3 keys
+    "by_split":  { "total": {n, date_range, prevalence, continuous, categorical},  # ALWAYS 3 keys
                    "train": {...}, "test": {...} },          # empty split -> n=0, stats null
                    # date_range = {"start": "Jan 2020", "end": "Mar 2021"}  (month-year, no day)
     "by_label":  { "1": {...positive...}, "0": {...negative...} },   # the 2 stratified columns
@@ -31,7 +36,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from flair_benchmark.report._suppress import suppress, suppress_dict
+from flair_benchmark.report._suppress import MIN_CELL_COUNT, suppress, suppress_dict
 
 JOIN_KEY = "hospitalization_join_id"
 CONTINUOUS_VARS = ["age_at_admission", "sofa_max", "charlson_score", "elix_score"]
@@ -81,16 +86,47 @@ def _to_encounter(cohort: pl.DataFrame, label_col: str, task_type: str) -> pl.Da
     keep = [c for c in (CONTINUOUS_VARS + CATEGORICAL_VARS + ["split"]
                         + ([date_col] if date_col else []))
             if c in cohort.columns]
-    label_agg = (pl.col(label_col).max() if task_type == "binary"
-                 else pl.col(label_col).first())
-    return cohort.group_by(JOIN_KEY).agg(
-        [label_agg.alias(label_col), *[pl.col(c).first() for c in keep]]
-    )
+    aggs = [pl.col(c).first() for c in keep]
+    if label_col in cohort.columns:
+        label_agg = (pl.col(label_col).max() if task_type == "binary"
+                     else pl.col(label_col).first())
+        aggs = [label_agg.alias(label_col), *aggs]
+    return cohort.group_by(JOIN_KEY).agg(aggs)
+
+
+def _prevalence(df: pl.DataFrame, label_col: str | None, task_type: str | None):
+    """Outcome prevalence of a stratum, suppression-aware.
+
+    Disclosable iff the underlying label counts would survive ``suppress()``:
+    a published prevalence times the stratum's n recovers the positive count
+    (and 1-p the negative), so any nonzero count below MIN_CELL_COUNT forces
+    None. True extremes (0.0 / 1.0) are shown — a true zero is not PHI.
+    """
+    if label_col is None or label_col not in df.columns:
+        return None
+    s = df[label_col].drop_nulls()
+    n = s.len()
+    if n == 0:
+        return None
+    if task_type == "binary":
+        n_pos = int((s > 0).sum())
+        n_neg = n - n_pos
+        if 0 < n_pos < MIN_CELL_COUNT or 0 < n_neg < MIN_CELL_COUNT:
+            return None
+        return round(n_pos / n, 6)
+    if task_type == "multiclass":
+        counts = s.value_counts()
+        return {
+            str(level): (round(cnt / n, 6) if cnt >= MIN_CELL_COUNT else None)
+            for level, cnt in counts.iter_rows()
+        }
+    return None
 
 
 def _block(df: pl.DataFrame, label_col: str, task_type: str) -> dict:
     out: dict = {
         "n_total": df.height,
+        "prevalence": _prevalence(df, label_col, task_type),
         "continuous": {v: _continuous_stats(df, v) for v in CONTINUOUS_VARS
                        if v in df.columns},
         "categorical": {v: _categorical_stats(df, v) for v in CATEGORICAL_VARS
@@ -103,11 +139,11 @@ def _block(df: pl.DataFrame, label_col: str, task_type: str) -> dict:
     # cross-site aggregation. Missing splits are zero-filled (_stratum on empty).
     has_split = "split" in df.columns
     out["by_split"] = {
-        "total": _stratum(df),
-        "train": _stratum(df.filter(pl.col("split") == "train")) if has_split
-                 else _stratum(df.head(0)),
-        "test":  _stratum(df.filter(pl.col("split") == "test")) if has_split
-                 else _stratum(df.head(0)),
+        "total": _stratum(df, label_col, task_type),
+        "train": _stratum(df.filter(pl.col("split") == "train"), label_col, task_type)
+                 if has_split else _stratum(df.head(0), label_col, task_type),
+        "test":  _stratum(df.filter(pl.col("split") == "test"), label_col, task_type)
+                 if has_split else _stratum(df.head(0), label_col, task_type),
     }
 
     if label_col not in df.columns:
@@ -123,12 +159,16 @@ def _block(df: pl.DataFrame, label_col: str, task_type: str) -> dict:
     return out
 
 
-def _stratum(df: pl.DataFrame) -> dict:
+def _stratum(df: pl.DataFrame, label_col: str | None = None,
+             task_type: str | None = None) -> dict:
     # True zero (e.g. no training at an inference-only site) is not PHI, so report it
     # as 0 rather than the '<10' suppression string used for real small counts.
+    # by_label strata omit the label args: prevalence conditioned on the label is
+    # degenerate, so the key stays present but None for a uniform stratum schema.
     return {
         "n": 0 if df.height == 0 else suppress(df.height),
         "date_range": _date_range(df),
+        "prevalence": _prevalence(df, label_col, task_type),
         "continuous": {v: _continuous_stats(df, v) for v in CONTINUOUS_VARS
                        if v in df.columns},
         "categorical": {v: _categorical_stats(df, v) for v in CATEGORICAL_VARS

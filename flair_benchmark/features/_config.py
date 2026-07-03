@@ -9,7 +9,7 @@ feature_config.yaml shape::
       vitals:    {categories: [heart_rate, sbp, spo2]}
       labs:      {categories: [creatinine, lactate]}
       medication_admin_continuous: {categories: [norepinephrine]}
-      patient_assessments: {categories: [gcs_total, rass]}
+      patient_assessments: {categories: [gcs_total, RASS]}
       respiratory_support: {columns: [device_category, fio2_set, peep_set]}
 
     meds_stream:                             # lightweight ELF pull (no conversion)

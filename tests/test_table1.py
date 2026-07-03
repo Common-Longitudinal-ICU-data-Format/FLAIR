@@ -142,5 +142,132 @@ def test_date_range_none_when_no_date_or_empty():
     assert t2["by_split"]["test"]["date_range"]["start"] == "Mar 2021"
 
 
+def _cohort_large():
+    # 10 ever-positive encounters (p1..p10; p1 has 3 rows, one positive) and
+    # 20 negative encounters (n1..n20) -> both label cells clear suppression.
+    rows = []
+    rows += [("p1", 1 if i == 1 else 0, "train", 70, "Male", "White", "Non-Hispanic")
+             for i in range(3)]
+    rows += [(f"p{k}", 1, "train", 60 + k, "Male", "White", "Non-Hispanic")
+             for k in range(2, 11)]
+    rows += [(f"n{k}", 0, "test", 40 + k, "Female", "Black or African American",
+              "Hispanic") for k in range(1, 21)]
+    cols = ["hospitalization_join_id", "label", "split", "age_at_admission",
+            "sex_category", "race_category", "ethnicity_category"]
+    return pl.DataFrame(rows, schema=cols, orient="row")
+
+
+def test_prevalence_encounter_vs_row_grain():
+    t = build_table1(_cohort_large(), META)
+    # encounter grain: 10 positive of 30 encounters.
+    assert t["prevalence"] == round(10 / 30, 6)
+    assert t["by_grain"]["encounter"]["prevalence"] == round(10 / 30, 6)
+    # row grain: p1 contributes 1 positive + 2 negative rows -> 10 of 32.
+    assert t["by_grain"]["row"]["prevalence"] == round(10 / 32, 6)
+
+
+def test_prevalence_suppressed_small_positive_count():
+    # _cohort(): 1 ever-positive encounter (<10) -> prevalence must be None,
+    # else prevalence * n recovers the suppressed count.
+    t = build_table1(_cohort(), META)
+    assert t["prevalence"] is None
+    assert t["by_grain"]["encounter"]["prevalence"] is None
+    assert t["by_grain"]["row"]["prevalence"] is None
+
+
+def test_prevalence_suppressed_small_negative_count():
+    # 12 positives, 1 negative -> complement rule suppresses too.
+    rows = [(f"e{k}", 1, "train", 60, "Male", "White", "Non-Hispanic")
+            for k in range(12)]
+    rows.append(("e99", 0, "train", 60, "Male", "White", "Non-Hispanic"))
+    cols = ["hospitalization_join_id", "label", "split", "age_at_admission",
+            "sex_category", "race_category", "ethnicity_category"]
+    t = build_table1(pl.DataFrame(rows, schema=cols, orient="row"), META)
+    assert t["prevalence"] is None
+
+
+def test_prevalence_true_extremes_not_suppressed():
+    # All-negative -> 0.0; all-positive -> 1.0 (true zero is not PHI).
+    cols = ["hospitalization_join_id", "label", "split", "age_at_admission",
+            "sex_category", "race_category", "ethnicity_category"]
+    neg = pl.DataFrame([(f"e{k}", 0, "test", 50, "Female",
+                         "Black or African American", "Hispanic")
+                        for k in range(12)], schema=cols, orient="row")
+    pos = pl.DataFrame([(f"e{k}", 1, "test", 50, "Female",
+                         "Black or African American", "Hispanic")
+                        for k in range(12)], schema=cols, orient="row")
+    assert build_table1(neg, META)["prevalence"] == 0.0
+    assert build_table1(pos, META)["prevalence"] == 1.0
+
+
+def test_prevalence_by_split():
+    t = build_table1(_cohort_large(), META)
+    bs = t["by_split"]
+    # total: 10/30. train: 10 pos, 0 neg -> 1.0. test: 0 pos, 20 neg -> 0.0.
+    assert bs["total"]["prevalence"] == round(10 / 30, 6)
+    assert bs["train"]["prevalence"] == 1.0
+    assert bs["test"]["prevalence"] == 0.0
+    # by_label strata carry the key but None (degenerate conditioned on label).
+    assert t["by_label"]["1"]["prevalence"] is None
+
+
+def test_prevalence_by_split_at_both_grains():
+    # total/train/test prevalence must exist at BOTH encounter and row grain.
+    t = build_table1(_cohort_large(), META)
+    for grain in ("encounter", "row"):
+        bs = t["by_grain"][grain]["by_split"]
+        assert set(bs.keys()) == {"total", "train", "test"}
+        for stratum in bs.values():
+            assert "prevalence" in stratum
+    # row grain differs from encounter grain: p1's extra negative rows dilute train.
+    enc = t["by_grain"]["encounter"]["by_split"]
+    row = t["by_grain"]["row"]["by_split"]
+    assert enc["train"]["prevalence"] == 1.0            # 10 pos encounters, 0 neg
+    # row grain train: 10 pos rows + p1's 2 neg rows -> n_neg=2 < 10 -> suppressed.
+    assert row["train"]["prevalence"] is None
+    assert enc["test"]["prevalence"] == 0.0
+    assert row["test"]["prevalence"] == 0.0
+    assert row["total"]["prevalence"] == round(10 / 32, 6)
+
+
+def test_prevalence_empty_split_and_missing_label():
+    # inference-only site: empty train stratum -> None.
+    rows = [(f"e{k}", 0, "test", 50 + k, "Female", "Black or African American",
+             "Hispanic") for k in range(12)]
+    cols = ["hospitalization_join_id", "label", "split", "age_at_admission",
+            "sex_category", "race_category", "ethnicity_category"]
+    t = build_table1(pl.DataFrame(rows, schema=cols, orient="row"), META)
+    assert t["by_split"]["train"]["prevalence"] is None
+    # missing label column -> None, no crash.
+    df = _cohort_large().drop("label")
+    t2 = build_table1(df, META)
+    assert t2["prevalence"] is None
+
+
+def test_prevalence_regression_none():
+    meta = {"label_column": "label", "task_type": "regression"}
+    df = _cohort_large().with_columns(pl.col("label").cast(pl.Float64) * 3.5)
+    t = build_table1(df, meta)
+    assert t["prevalence"] is None
+
+
+def test_prevalence_multiclass_per_level():
+    meta = {"label_column": "label", "task_type": "multiclass"}
+    # 12 of class 0, 15 of class 1, 2 of class 2 -> small level suppressed.
+    rows = [(f"a{k}", 0, "train", 60, "Male", "White", "Non-Hispanic")
+            for k in range(12)]
+    rows += [(f"b{k}", 1, "train", 60, "Male", "White", "Non-Hispanic")
+             for k in range(15)]
+    rows += [(f"c{k}", 2, "train", 60, "Male", "White", "Non-Hispanic")
+             for k in range(2)]
+    cols = ["hospitalization_join_id", "label", "split", "age_at_admission",
+            "sex_category", "race_category", "ethnicity_category"]
+    t = build_table1(pl.DataFrame(rows, schema=cols, orient="row"), meta)
+    prev = t["prevalence"]
+    assert prev["0"] == round(12 / 29, 6)
+    assert prev["1"] == round(15 / 29, 6)
+    assert prev["2"] is None
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))

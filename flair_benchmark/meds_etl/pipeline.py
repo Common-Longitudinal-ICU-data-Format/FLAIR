@@ -76,7 +76,7 @@ def build_meds_events(clif_cfg: dict, elf_cfg: dict,
     elf_cfg schema:
         domains:
           VITAL: {}
-          PA:    {category_col: assessment_category, categories: [gcs_total, rass]}
+          PA:    {category_col: assessment_category, categories: [gcs_total, RASS]}
           ...
     hosp_ids restricts every table to the cohort (matched as Utf8). Pass None for all.
     """
