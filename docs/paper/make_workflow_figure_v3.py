@@ -137,7 +137,7 @@ def main():
         draw,
         (560, 205, 910, 430),
         "2. Review and approve",
-        "Benchmark Committee checks reproducibility, clinical face validity, task fit, and security before dispatch.",
+        "Benchmark Committee checks reproducibility, clinical face validity, task fit, and security; stamps a task audit hash before dispatch.",
         BLUE_LIGHT,
         BLUE,
         25,
@@ -165,12 +165,15 @@ def main():
     draw.rounded_rectangle((980, 205, 1120, 935), radius=12, fill="#f8fafc", outline=GRAY_DARK, width=3)
     for i in range(-150, 800, 36):
         draw.line((970, 205 + i, 1130, 365 + i), fill="#b3bac7", width=3)
-    text(draw, (1050, 365), "CODE /", fill=BLUE, fnt=font(22, True), anchor="mm")
-    text(draw, (1050, 395), "MODEL IN", fill=BLUE, fnt=font(22, True), anchor="mm")
+    text(draw, (1050, 352), "CODE /", fill=BLUE, fnt=font(22, True), anchor="mm")
+    text(draw, (1050, 382), "MODEL IN", fill=BLUE, fnt=font(22, True), anchor="mm")
+    text(draw, (1050, 414), "byte-identical", fill=BLUE, fnt=font(15), anchor="mm")
+    text(draw, (1050, 434), "+ audit hash", fill=BLUE, fnt=font(15), anchor="mm")
     text(draw, (1050, 600), "PRIVACY", fill=GRAY_DARK, fnt=font(30, True), anchor="mm")
     text(draw, (1050, 635), "BOUNDARY", fill=GRAY_DARK, fnt=font(30, True), anchor="mm")
-    text(draw, (1050, 815), "AGGREGATE", fill=ORANGE, fnt=font(20, True), anchor="mm")
-    text(draw, (1050, 842), "JSON OUT", fill=ORANGE, fnt=font(20, True), anchor="mm")
+    text(draw, (1050, 806), "AGGREGATE", fill=ORANGE, fnt=font(21, True), anchor="mm")
+    text(draw, (1050, 832), "JSON OUT", fill=ORANGE, fnt=font(21, True), anchor="mm")
+    text(draw, (1050, 860), "cell-suppressed", fill=ORANGE, fnt=font(15), anchor="mm")
 
     # Site silo background
     draw.rounded_rectangle((1175, 205, 2160, 935), radius=24, fill="#fff9f0", outline=ORANGE, width=4)

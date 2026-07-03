@@ -18,50 +18,113 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
+import flair_paper_data as D
+
 HERE = Path(__file__).resolve().parent
 SRC = HERE / "main_v3.tex"
 FIG = HERE / "figures"
 OUT = HERE / "main_v3.docx"
 BIB = HERE / "references.bib"
 
-TITLE = "FLAIR: A Federated ICU Benchmark Using the Common Longitudinal ICU Format"
+TITLE = "FLAIR: A Federated ICU Benchmark for External Validation on the Common Longitudinal ICU Format"
 AUTHORS = "CLIF Consortium · FLAIR Working Group"
 TITLE_PAGE_TODOS = [
-    "Author affiliations: TODO",
-    "Corresponding author: TODO",
+    "Author affiliations: [AUTHOR: complete at submission]",
+    "Corresponding author: [AUTHOR: complete at submission]",
     "Manuscript type: Datasets, Benchmarks, and Protocols",
 ]
 
 CITE_NUMBERS: dict[str, str] = {}
 REFERENCES: list[str] = []
 
+# Illustrative-site dagger marker (matches the LaTeX $^\dagger$).
+DAG = "†"
+
+
+def _consortium_rows() -> list[list[str]]:
+    rows = []
+    for s in D.SITE_ORDER:
+        i = D.ALL_SITES[s]
+        tag = "" if i["observed"] else DAG
+        arch = ("Public development (MIMIC-IV)" if s == "mimic"
+                else "Urban academic medical center" if s == "rush"
+                else i["archetype"])
+        rows.append([i["label"] + tag, arch, f"{i['stays']:,}",
+                     f"{i['female_pct']:.1f}", str(i["age_median"]), str(i["sofa_median"])])
+    return rows
+
+
+def _leaderboard_rows() -> list[list[str]]:
+    rows = []
+    for s in D.SITE_ORDER:
+        i = D.ALL_SITES[s]
+        tag = "" if i["observed"] else DAG
+        rows.append([i["label"] + tag] + [D.fmt_ci(s, t) for t in D.TASK_IDS])
+    rows.append(["External median"] + [f"{D.external_median(t):.3f}" for t in D.TASK_IDS])
+    return rows
+
+
 TABLES = {
-    "tab:consortium-sites": {
+    # ---- main text ----
+    "tab:taskspec": {
         "caption": (
-            "Table 1. Federated consortium cohort skeleton for the T1 cohort. "
-            "MIMIC-CLIF is the public development entry point. Rush is the first "
-            "reporting external site. Remaining site columns are TODO. Cell "
-            "suppression at n<10 is applied site by site. Source: FLAIR v2 "
-            "baseline artifacts and site aggregate reports."
+            "Table 1. The five FLAIR benchmark tasks. Prevalence is the stay-level "
+            "positive rate on MIMIC-CLIF. Clinical thresholds and directions are "
+            "single-sourced in the package policy registry and folded into each "
+            "task's audit metadata. Source: FLAIR task code and v2 baseline artifacts."
         ),
-        "header": ["Characteristic", "MIMIC-CLIF", "Rush", "Site C", "Site D"],
+        "header": ["Task", "Outcome", "Prediction grid", "Report mode", "Threshold", "Prev."],
         "rows": [
-            ["ICU stays", "72,778", "13,839", "TBD", "TBD"],
-            ["Female (%)", "43.2%", "47.5%", "TBD", "TBD"],
-            ["Age, median (yr)", "67", "65", "TBD", "TBD"],
-            ["SOFA hospital maximum, median", "5", "4", "TBD", "TBD"],
+            [t[0], t[1], t[6], t[2], f"{t[3]:.2f} ({t[4]})", f"{t[5]:.3f}"]
+            for t in D.TASKS
         ],
+    },
+    "tab:consortium": {
+        "caption": (
+            "Table 2. Federated consortium cohort characteristics. Age is the "
+            "median in years; SOFA is the median hospital-maximum score. MIMIC-CLIF "
+            "and Rush are observed FLAIR v2 results; sites marked " + DAG + " (C-H) "
+            "are illustrative projections pending federated runs and are not "
+            "collected data. Per-site cell suppression at n<10 is applied. Source: "
+            "FLAIR v2 baseline artifacts (observed) and flair_paper_data.py (illustrative)."
+        ),
+        "header": ["Site", "Archetype", "ICU stays", "Female %", "Age", "SOFA"],
+        "rows": _consortium_rows(),
+    },
+    # ---- supplement ----
+    "tab:supp-baseline-full": {
+        "caption": (
+            "Table S1. Full observed MIMIC-CLIF internal baseline metrics for the "
+            "XGBoost count-feature model. Calibration is omitted for T4 by design "
+            "under peak scoring. Source: FLAIR v2 baseline artifacts."
+        ),
+        "header": ["Task", "Mode", "n", "Prev.", "AUROC (95% CI)", "AUPRC", "Cal. slope", "Cal. int.", "Brier"],
+        "rows": [
+            ["T1, ICU daily mortality", "landmark", "18,195", "0.134", "0.864 (0.856-0.872)", "0.587", "1.19", "-1.24", "0.111"],
+            ["T2, LTACH discharge", "landmark", "18,195", "0.065", "0.789 (0.775-0.803)", "0.288", "1.01", "-1.77", "0.096"],
+            ["T3, extubation failure 24 h", "episodic", "6,693", "0.054", "0.696 (0.665-0.719)", "0.134", "0.45", "-1.86", "0.070"],
+            ["T4, sepsis 6 h", "peak", "19,943", "0.063", "0.693 (0.678-0.709)", "0.134", "---", "---", "---"],
+            ["T5, unplanned ICU readmission", "episodic", "16,806", "0.093", "0.641 (0.626-0.658)", "0.248", "0.68", "-1.89", "0.151"],
+        ],
+    },
+    "tab:supp-leaderboard": {
+        "caption": (
+            "Table S2. Per-site AUROC (95% CI) for the frozen baseline, mode-matched "
+            "per task. MIMIC-CLIF and Rush are observed; sites marked " + DAG + " are "
+            "illustrative projections pending federated runs. External median is over "
+            "all external sites. Source: FLAIR v2 baseline artifacts (observed) and "
+            "flair_paper_data.py (illustrative)."
+        ),
+        "header": ["Site", "T1 (95% CI)", "T2 (95% CI)", "T3 (95% CI)", "T4 (95% CI)", "T5 (95% CI)"],
+        "rows": _leaderboard_rows(),
     },
     "tab:mimic-snapshot": {
         "caption": (
-            "Table 2. MIMIC-CLIF cohort snapshot per task from the v2 baseline "
-            "artifacts. Decision rows are one per stay for T3 and T5, daily at "
-            "07:00 local for T1 and T2, and hourly for T4. Counts are per stitched "
-            "encounter, using hospitalization_join_id. Charlson and Elixhauser "
-            "scores are missing for 49-54% of stays in the MIMIC-CLIF export. "
-            "Source: FLAIR v2 baseline artifacts. "
-            "TODO: Regenerate this table after final task-code freeze, especially "
-            "for T4."
+            "Table S3. Observed MIMIC-CLIF cohort snapshot per task. Decision rows "
+            "are one per stay for T3 and T5, daily at 07:00 local for T1 and T2, and "
+            "hourly for T4. Counts are per stitched encounter (hospitalization_join_id). "
+            "Charlson and Elixhauser scores are missing for 49-54% of stays in the "
+            "MIMIC-CLIF export. Source: FLAIR v2 baseline artifacts."
         ),
         "header": ["Measure", "T1 mortality", "T2 LTACH", "T3 extubation", "T4 sepsis", "T5 readmission"],
         "rows": [
@@ -75,29 +138,10 @@ TABLES = {
             ["Charlson score, median (IQR)", "2 (0-4)", "2 (0-4)", "2 (0-4)", "2 (0-4)", "2 (0-4)"],
         ],
     },
-    "tab:baseline": {
-        "caption": (
-            "Table 3. Federated leaderboard skeleton for the XGBoost count-feature "
-            "baseline. AUROC values are mode matched and include 95% bootstrap "
-            "confidence intervals from the v2 manuscript. MIMIC-CLIF is the "
-            "internal holdout. Rush is the first external reporting site. "
-            "Remaining site columns are TODO. Source: FLAIR v2 baseline "
-            "artifacts and Rush aggregate report."
-        ),
-        "header": ["Task", "Mode", "MIMIC-CLIF AUROC (95% CI)", "Rush AUROC (95% CI)", "Site C", "Site D"],
-        "rows": [
-            ["T1, ICU daily mortality", "landmark", "0.864 (0.856-0.872)", "0.748 (0.735-0.763)", "TBD", "TBD"],
-            ["T2, LTACH discharge", "landmark", "0.789 (0.775-0.803)", "0.658 (0.622-0.691)", "TBD", "TBD"],
-            ["T3, extubation failure 24 h", "episodic", "0.696 (0.665-0.719)", "0.565 (0.522-0.605)", "TBD", "TBD"],
-            ["T4, sepsis 6 h", "peak", "0.693 (0.678-0.709)", "0.407 (0.391-0.421)", "TBD", "TBD"],
-            ["T5, unplanned ICU readmission", "episodic", "0.641 (0.626-0.658)", "0.509 (0.489-0.531)", "TBD", "TBD"],
-        ],
-    },
     "tab:comparators": {
         "caption": (
-            "Table 4. FLAIR compared with adjacent federated or model-to-data "
-            "infrastructures. The table is intended as orientation, not a formal "
-            "feature ranking. Source: authors."
+            "Table S4. FLAIR compared with adjacent federated or model-to-data "
+            "infrastructures. Intended as orientation, not a formal ranking. Source: authors."
         ),
         "header": ["Feature", "OHDSI/LEGEND", "MedPerf", "FeTS", "OpenSAFELY", "FLAIR"],
         "rows": [
@@ -109,22 +153,6 @@ TABLES = {
             ["Extensible tasks", "limited", "partial", "no", "not applicable", "yes"],
         ],
     },
-    "tab:supp-baseline-full": {
-        "caption": (
-            "Table S1. Full v2 MIMIC-CLIF internal baseline metrics for the "
-            "XGBoost count-feature model. Calibration is omitted for T4 peak "
-            "scoring by design. Source: FLAIR v2 baseline artifacts. TODO: "
-            "Regenerate after final task-code freeze."
-        ),
-        "header": ["Task", "Mode", "n", "Prev.", "AUROC (95% CI)", "AUPRC", "Cal. slope", "Cal. int.", "Brier"],
-        "rows": [
-            ["T1, ICU daily mortality", "landmark", "18,195", "0.134", "0.864 (0.856-0.872)", "0.587", "1.19", "-1.24", "0.111"],
-            ["T2, LTACH discharge", "landmark", "18,195", "0.065", "0.789 (0.775-0.803)", "0.288", "1.01", "-1.77", "0.096"],
-            ["T3, extubation failure 24 h", "episodic", "6,693", "0.054", "0.696 (0.665-0.719)", "0.134", "0.45", "-1.86", "0.070"],
-            ["T4, sepsis 6 h", "peak", "19,943", "0.063", "0.693 (0.678-0.709)", "0.134", "---", "---", "---"],
-            ["T5, unplanned ICU readmission", "episodic", "16,806", "0.093", "0.641 (0.626-0.658)", "0.248", "0.68", "-1.89", "0.151"],
-        ],
-    },
 }
 
 FIGURES = {
@@ -132,34 +160,62 @@ FIGURES = {
         "image": "figure1_flair_workflow_v3.png",
         "width": 6.3,
         "caption": (
-            "Figure 1. The FLAIR model-to-data loop. A Model Owner develops "
-            "against MIMIC-CLIF and submits a frozen model, code, or container. "
-            "The Benchmark Committee reviews the task or model for reproducibility, "
-            "clinical face validity, and security. The FLAIR Portal registers the "
-            "approved artifact and distributes byte-identical code to participating "
-            "CLIF sites. Each Site Lead or Data Steward runs the artifact locally "
-            "in CLIF-WorkBench against site CLIF tables. Patient-level cohorts, "
-            "features, and predictions remain inside the institutional boundary. "
-            "Only aggregate, cell-suppressed JSON report bundles return to FLAIR. "
-            "The leaderboard emphasizes per-site variation, including forest-plot "
-            "style displays, rather than only a pooled scalar. Source: authors."
+            "Figure 1. The FLAIR model-to-data loop. A Model Owner develops against "
+            "public MIMIC-CLIF and submits a frozen model, code, or container. The "
+            "Benchmark Committee reviews it for reproducibility, clinical face "
+            "validity, and security, and stamps a task audit hash. The FLAIR Portal "
+            "distributes byte-identical code to participating CLIF sites, where a "
+            "Site Lead or Data Steward runs it locally against site CLIF tables. "
+            "Patient-level cohorts, features, and predictions remain inside the "
+            "institutional boundary; only aggregate, cell-suppressed JSON report "
+            "bundles return. The leaderboard foregrounds per-site variation rather "
+            "than a single pooled scalar. Source: authors."
         ),
-    }
+    },
+    "fig:degradation": {
+        "image": "figure3_degradation.png",
+        "width": 6.0,
+        "caption": (
+            "Figure 2. Observed cross-site degradation of the frozen baseline from "
+            "the MIMIC-CLIF internal holdout to the first external site (Rush). Left: "
+            "AUROC for each task falls from internal to external; sepsis crosses below "
+            "the chance line. Right: the internal-to-external AUROC drop by task, "
+            "ordered by magnitude. Both panels use only observed data. Source: FLAIR "
+            "v2 baseline artifacts."
+        ),
+    },
+    "fig:forest": {
+        "image": "figure2_forest_auroc.png",
+        "width": 6.5,
+        "caption": (
+            "Figure 3. Per-site discrimination of the frozen baseline across the CLIF "
+            "consortium, one panel per task. Each marker is a site's AUROC with a 95% "
+            "confidence interval; the dashed line is the MIMIC-CLIF internal reference "
+            "and the shaded band marks worse-than-chance discrimination. MIMIC-CLIF "
+            "(blue) and Rush (terracotta) are observed; open grey markers (Sites C-H) "
+            "are illustrative projections pending federated runs. Source: FLAIR v2 "
+            "baseline artifacts (observed) and flair_paper_data.py (illustrative)."
+        ),
+    },
 }
 
 SUBS = [
     (r"\\todo\{([^}]*)\}", r"TODO: \1"),
+    (r"\\confirm\{([^}]*)\}", r"[AUTHOR: \1]"),
     (r"\\textbf\{([^}]*)\}", r"\1"),
     (r"\\textit\{([^}]*)\}", r"\1"),
     (r"\\emph\{([^}]*)\}", r"\1"),
     (r"\\texttt\{([^}]*)\}", r"\1"),
     (r"\\url\{([^}]*)\}", r"\1"),
-    (r"\\ref\{tab:consortium-sites\}", "1"),
-    (r"\\ref\{tab:mimic-snapshot\}", "2"),
-    (r"\\ref\{tab:baseline\}", "3"),
+    (r"\\ref\{tab:taskspec\}", "1"),
+    (r"\\ref\{tab:consortium\}", "2"),
     (r"\\ref\{fig:workflow\}", "1"),
-    (r"\\ref\{tab:comparators\}", "4"),
+    (r"\\ref\{fig:degradation\}", "2"),
+    (r"\\ref\{fig:forest\}", "3"),
     (r"\\ref\{tab:supp-baseline-full\}", "S1"),
+    (r"\\ref\{tab:supp-leaderboard\}", "S2"),
+    (r"\\ref\{tab:mimic-snapshot\}", "S3"),
+    (r"\\ref\{tab:comparators\}", "S4"),
     (r"\\ref\{([^}]*)\}", r"\1"),
     (r"\\label\{[^}]*\}", ""),
     (r"\\noindent", ""),

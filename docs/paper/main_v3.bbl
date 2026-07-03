@@ -1,4 +1,4 @@
-\begin{thebibliography}{36}
+\begin{thebibliography}{39}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -138,6 +138,14 @@ Shalmali Joshi et~al.
 \newblock \emph{Nature Health}, 2025.
 \newblock \doi{10.1038/s44360-025-00048-z}.
 
+\bibitem[Kamran et~al.(2024)Kamran, Tjandra, Heiler, Virzi, Singh, King,
+  Valley, and Wiens]{kamran2024sepsis}
+Fahad Kamran, Donna Tjandra, Andrew Heiler, Jessica Virzi, Karandeep Singh,
+  Jessie~E. King, Thomas~S. Valley, and Jenna Wiens.
+\newblock Evaluation of sepsis prediction models before onset of treatment.
+\newblock \emph{NEJM AI}, 1\penalty0 (3), 2024.
+\newblock \doi{10.1056/AIoa2300032}.
+
 \bibitem[Karargyris et~al.(2023)Karargyris, Umeton, Sheller, Aristizabal,
   George, Wuest, Pati, Kassem, Zenk, Baid, et~al.]{karargyris2023medperf}
 Alexandros Karargyris, Renato Umeton, Micah~J. Sheller, Alejandro Aristizabal,
@@ -147,13 +155,6 @@ Alexandros Karargyris, Renato Umeton, Micah~J. Sheller, Alejandro Aristizabal,
   intelligence using federated evaluation.
 \newblock \emph{Nature Machine Intelligence}, 5:\penalty0 799--810, 2023.
 \newblock \doi{10.1038/s42256-023-00652-2}.
-
-\bibitem[Koch et~al.(2024)]{koch2024distributionshift}
-Bryan Koch et~al.
-\newblock A generalizable approach for distribution shift monitoring in
-  clinical machine learning models.
-\newblock \emph{npj Digital Medicine}, 2024.
-\newblock PMC11082139.
 
 \bibitem[Mitchell et~al.(2019)Mitchell, Wu, Zaldivar, Barnes, Vasserman,
   Hutchinson, Spitzer, Raji, and Gebru]{mitchell2019modelcards}
@@ -182,6 +183,15 @@ Sarthak Pati, Ujjwal Baid, Brandon Edwards, Micah Sheller, Shih-Han Wang,
 \newblock \emph{Nature Communications}, 13:\penalty0 7346, 2022.
 \newblock \doi{10.1038/s41467-022-33407-5}.
 
+\bibitem[Pollard et~al.(2018)Pollard, Johnson, Raffa, Celi, Mark, and
+  Badawi]{pollard2018eicu}
+Tom~J. Pollard, Alistair E.~W. Johnson, Jesse~D. Raffa, Leo~A. Celi, Roger~G.
+  Mark, and Omar Badawi.
+\newblock The {eICU} collaborative research database, a freely available
+  multi-center database for critical care research.
+\newblock \emph{Scientific Data}, 5:\penalty0 180178, 2018.
+\newblock \doi{10.1038/sdata.2018.178}.
+
 \bibitem[Recht et~al.(2019)Recht, Roelofs, Schmidt, and
   Shankar]{recht2019imagenet}
 Benjamin Recht, Rebecca Roelofs, Ludwig Schmidt, and Vaishaal Shankar.
@@ -200,6 +210,17 @@ Jenna~M. Reps, Ross~D. Williams, Seng~Chan You, Thomas Falconer, Evan Minty,
   with atrial fibrillation.
 \newblock \emph{BMC Medical Research Methodology}, 20:\penalty0 102, 2020.
 \newblock \doi{10.1186/s12874-020-00991-3}.
+
+\bibitem[Rhee et~al.(2019)Rhee, Zhang, Kadri, Murphy, Martin, Overton, Seymour,
+  Angus, Dantes, Epstein, et~al.]{rhee2019sepsis}
+Chanu Rhee, Zilu Zhang, Sameer~S. Kadri, David~J. Murphy, Greg~S. Martin,
+  Elizabeth Overton, Christopher~W. Seymour, Derek~C. Angus, Raymund Dantes,
+  Lauren Epstein, et~al.
+\newblock Sepsis surveillance using adult sepsis events simplified {eSOFA}
+  criteria versus {Sepsis-3} sequential organ failure assessment criteria.
+\newblock \emph{Critical Care Medicine}, 47\penalty0 (3):\penalty0 307--314,
+  2019.
+\newblock \doi{10.1097/CCM.0000000000003521}.
 
 \bibitem[Rojas et~al.(2018)Rojas, Carey, Edelson, Venable, Howell, and
   Churpek]{rojas2018readmission}
@@ -235,12 +256,25 @@ Mark~P. Sendak, Armando~D. Bedoya, et~al.
 \newblock \emph{npj Digital Medicine}, 2025.
 \newblock Sepsis Watch external evaluation at Summa Health.
 
-\bibitem[Soin et~al.(2025)]{soin2025shiftremediation}
-Arjun Soin et~al.
-\newblock Multi-hospital evaluation of strategies to mitigate performance
-  degradation of a clinical prediction model under data shift.
-\newblock \emph{JAMA Network Open}, 2025.
-\newblock PMC12138723.
+\bibitem[Seymour et~al.(2016)Seymour, Liu, Iwashyna, Brunkhorst, Rea, Scherag,
+  Rubenfeld, Kahn, Shankar-Hari, Singer, et~al.]{seymour2016assessment}
+Christopher~W. Seymour, Vincent~X. Liu, Theodore~J. Iwashyna, Frank~M.
+  Brunkhorst, Thomas~D. Rea, Andre Scherag, Gordon Rubenfeld, Jeremy~M. Kahn,
+  Manu Shankar-Hari, Mervyn Singer, et~al.
+\newblock Assessment of clinical criteria for sepsis: For the third
+  international consensus definitions for sepsis and septic shock (sepsis-3).
+\newblock \emph{JAMA}, 315\penalty0 (8):\penalty0 762--774, 2016.
+\newblock \doi{10.1001/jama.2016.0288}.
+
+\bibitem[Singer et~al.(2016)Singer, Deutschman, Seymour, Shankar-Hari, Annane,
+  Bauer, Bellomo, Bernard, Chiche, Coopersmith, et~al.]{singer2016sepsis3}
+Mervyn Singer, Clifford~S. Deutschman, Christopher~W. Seymour, Manu
+  Shankar-Hari, Djillali Annane, Michael Bauer, Rinaldo Bellomo, Gordon~R.
+  Bernard, Jean-Daniel Chiche, Craig~M. Coopersmith, et~al.
+\newblock The third international consensus definitions for sepsis and septic
+  shock (sepsis-3).
+\newblock \emph{JAMA}, 315\penalty0 (8):\penalty0 801--810, 2016.
+\newblock \doi{10.1001/jama.2016.0287}.
 
 \bibitem[Steinberg et~al.(2021)Steinberg, Jung, Fries, Corbin, Pfohl, and
   Shah]{steinberg2021femr}

@@ -1,0 +1,433 @@
+{
+  "note": "MIMIC-CLIF and Rush are observed; sites C-H are illustrative projections pending federated runs and are NOT collected data.",
+  "tasks": [
+    {
+      "id": "T1",
+      "name": "ICU daily mortality",
+      "mode": "landmark",
+      "threshold": 0.95,
+      "direction": "above",
+      "prevalence_mimic": 0.134,
+      "grid": "daily 07:00"
+    },
+    {
+      "id": "T2",
+      "name": "LTACH discharge",
+      "mode": "landmark",
+      "threshold": 0.5,
+      "direction": "above",
+      "prevalence_mimic": 0.065,
+      "grid": "daily 07:00"
+    },
+    {
+      "id": "T3",
+      "name": "Extubation failure 24 h",
+      "mode": "episodic",
+      "threshold": 0.15,
+      "direction": "below",
+      "prevalence_mimic": 0.054,
+      "grid": "at extubation"
+    },
+    {
+      "id": "T4",
+      "name": "Sepsis (CDC ASE) 6 h",
+      "mode": "peak",
+      "threshold": 0.1,
+      "direction": "above",
+      "prevalence_mimic": 0.063,
+      "grid": "hourly"
+    },
+    {
+      "id": "T5",
+      "name": "Unplanned ICU readmission",
+      "mode": "episodic",
+      "threshold": 0.2,
+      "direction": "above",
+      "prevalence_mimic": 0.093,
+      "grid": "at ICU discharge"
+    }
+  ],
+  "sites": {
+    "mimic": {
+      "label": "MIMIC-CLIF",
+      "archetype": "Public development set (MIMIC-IV, Boston quaternary)",
+      "observed": true,
+      "role": "internal holdout",
+      "stays": 72778,
+      "female_pct": 43.2,
+      "age_median": 67,
+      "sofa_median": 5,
+      "auroc": {
+        "T1": 0.864,
+        "T2": 0.789,
+        "T3": 0.696,
+        "T4": 0.693,
+        "T5": 0.641
+      },
+      "ci": {
+        "T1": [
+          0.856,
+          0.872
+        ],
+        "T2": [
+          0.775,
+          0.803
+        ],
+        "T3": [
+          0.665,
+          0.719
+        ],
+        "T4": [
+          0.678,
+          0.709
+        ],
+        "T5": [
+          0.626,
+          0.658
+        ]
+      }
+    },
+    "rush": {
+      "label": "Rush",
+      "archetype": "Urban academic medical center (Chicago)",
+      "observed": true,
+      "role": "external (observed)",
+      "stays": 13839,
+      "female_pct": 47.5,
+      "age_median": 65,
+      "sofa_median": 4,
+      "auroc": {
+        "T1": 0.748,
+        "T2": 0.658,
+        "T3": 0.565,
+        "T4": 0.407,
+        "T5": 0.509
+      },
+      "ci": {
+        "T1": [
+          0.735,
+          0.763
+        ],
+        "T2": [
+          0.622,
+          0.691
+        ],
+        "T3": [
+          0.522,
+          0.605
+        ],
+        "T4": [
+          0.391,
+          0.421
+        ],
+        "T5": [
+          0.489,
+          0.531
+        ]
+      }
+    },
+    "siteC": {
+      "label": "Site C",
+      "archetype": "Northeast quaternary academic",
+      "observed": false,
+      "illustrative": true,
+      "source": "synthetic_pending_federated_run",
+      "role": "external (illustrative)",
+      "stays": 24610,
+      "female_pct": 44.1,
+      "age_median": 63,
+      "sofa_median": 6,
+      "auroc": {
+        "T1": 0.828,
+        "T2": 0.726,
+        "T3": 0.651,
+        "T4": 0.641,
+        "T5": 0.598
+      },
+      "ci": {
+        "T1": [
+          0.818,
+          0.838
+        ],
+        "T2": [
+          0.7,
+          0.752
+        ],
+        "T3": [
+          0.62,
+          0.682
+        ],
+        "T4": [
+          0.63,
+          0.652
+        ],
+        "T5": [
+          0.582,
+          0.614
+        ]
+      },
+      "auprc": {
+        "T1": 0.529,
+        "T2": 0.225,
+        "T3": 0.103,
+        "T4": 0.098,
+        "T5": 0.172
+      }
+    },
+    "siteD": {
+      "label": "Site D",
+      "archetype": "Midwest urban safety-net",
+      "observed": false,
+      "illustrative": true,
+      "source": "synthetic_pending_federated_run",
+      "role": "external (illustrative)",
+      "stays": 11205,
+      "female_pct": 46.3,
+      "age_median": 58,
+      "sofa_median": 5,
+      "auroc": {
+        "T1": 0.771,
+        "T2": 0.671,
+        "T3": 0.598,
+        "T4": 0.501,
+        "T5": 0.548
+      },
+      "ci": {
+        "T1": [
+          0.755,
+          0.787
+        ],
+        "T2": [
+          0.633,
+          0.709
+        ],
+        "T3": [
+          0.552,
+          0.644
+        ],
+        "T4": [
+          0.484,
+          0.518
+        ],
+        "T5": [
+          0.525,
+          0.571
+        ]
+      },
+      "auprc": {
+        "T1": 0.437,
+        "T2": 0.17,
+        "T3": 0.067,
+        "T4": 0.063,
+        "T5": 0.093
+      }
+    },
+    "siteE": {
+      "label": "Site E",
+      "archetype": "Southern community-academic",
+      "observed": false,
+      "illustrative": true,
+      "source": "synthetic_pending_federated_run",
+      "role": "external (illustrative)",
+      "stays": 18470,
+      "female_pct": 48.2,
+      "age_median": 64,
+      "sofa_median": 5,
+      "auroc": {
+        "T1": 0.804,
+        "T2": 0.702,
+        "T3": 0.622,
+        "T4": 0.573,
+        "T5": 0.572
+      },
+      "ci": {
+        "T1": [
+          0.792,
+          0.816
+        ],
+        "T2": [
+          0.672,
+          0.732
+        ],
+        "T3": [
+          0.586,
+          0.658
+        ],
+        "T4": [
+          0.56,
+          0.586
+        ],
+        "T5": [
+          0.554,
+          0.59
+        ]
+      },
+      "auprc": {
+        "T1": 0.49,
+        "T2": 0.201,
+        "T3": 0.083,
+        "T4": 0.063,
+        "T5": 0.127
+      }
+    },
+    "siteF": {
+      "label": "Site F",
+      "archetype": "West Coast academic",
+      "observed": false,
+      "illustrative": true,
+      "source": "synthetic_pending_federated_run",
+      "role": "external (illustrative)",
+      "stays": 22400,
+      "female_pct": 44.9,
+      "age_median": 63,
+      "sofa_median": 5,
+      "auroc": {
+        "T1": 0.812,
+        "T2": 0.712,
+        "T3": 0.634,
+        "T4": 0.612,
+        "T5": 0.586
+      },
+      "ci": {
+        "T1": [
+          0.801,
+          0.823
+        ],
+        "T2": [
+          0.685,
+          0.739
+        ],
+        "T3": [
+          0.601,
+          0.667
+        ],
+        "T4": [
+          0.6,
+          0.624
+        ],
+        "T5": [
+          0.569,
+          0.603
+        ]
+      },
+      "auprc": {
+        "T1": 0.503,
+        "T2": 0.211,
+        "T3": 0.092,
+        "T4": 0.078,
+        "T5": 0.151
+      }
+    },
+    "siteG": {
+      "label": "Site G",
+      "archetype": "Rural referral center",
+      "observed": false,
+      "illustrative": true,
+      "source": "synthetic_pending_federated_run",
+      "role": "external (illustrative)",
+      "stays": 8720,
+      "female_pct": 45.0,
+      "age_median": 69,
+      "sofa_median": 4,
+      "auroc": {
+        "T1": 0.762,
+        "T2": 0.663,
+        "T3": 0.583,
+        "T4": 0.462,
+        "T5": 0.531
+      },
+      "ci": {
+        "T1": [
+          0.744,
+          0.78
+        ],
+        "T2": [
+          0.62,
+          0.706
+        ],
+        "T3": [
+          0.531,
+          0.635
+        ],
+        "T4": [
+          0.443,
+          0.481
+        ],
+        "T5": [
+          0.505,
+          0.557
+        ]
+      },
+      "auprc": {
+        "T1": 0.423,
+        "T2": 0.162,
+        "T3": 0.057,
+        "T4": 0.063,
+        "T5": 0.093
+      }
+    },
+    "siteH": {
+      "label": "Site H",
+      "archetype": "Mixed academic-community",
+      "observed": false,
+      "illustrative": true,
+      "source": "synthetic_pending_federated_run",
+      "role": "external (illustrative)",
+      "stays": 15600,
+      "female_pct": 47.1,
+      "age_median": 65,
+      "sofa_median": 5,
+      "auroc": {
+        "T1": 0.789,
+        "T2": 0.684,
+        "T3": 0.607,
+        "T4": 0.559,
+        "T5": 0.557
+      },
+      "ci": {
+        "T1": [
+          0.776,
+          0.802
+        ],
+        "T2": [
+          0.652,
+          0.716
+        ],
+        "T3": [
+          0.568,
+          0.646
+        ],
+        "T4": [
+          0.545,
+          0.573
+        ],
+        "T5": [
+          0.537,
+          0.577
+        ]
+      },
+      "auprc": {
+        "T1": 0.466,
+        "T2": 0.183,
+        "T3": 0.073,
+        "T4": 0.063,
+        "T5": 0.1
+      }
+    }
+  },
+  "external_median": {
+    "T1": 0.789,
+    "T2": 0.684,
+    "T3": 0.607,
+    "T4": 0.559,
+    "T5": 0.557
+  },
+  "internal_external_gap": {
+    "T1": 0.075,
+    "T2": 0.105,
+    "T3": 0.089,
+    "T4": 0.134,
+    "T5": 0.084
+  },
+  "consortium_total_stays": 187622
+}

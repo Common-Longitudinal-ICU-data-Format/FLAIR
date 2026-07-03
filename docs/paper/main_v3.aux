@@ -3,71 +3,105 @@
 \providecommand\HyField@AuxAddToFields[1]{}
 \providecommand\HyField@AuxAddToCoFields[2]{}
 \citation{wong2021external,habib2021jamaeditorial}
-\citation{sendak2025sepsiswatchportability}
-\citation{adams2022trews}
+\citation{sendak2025sepsiswatchportability,adams2022trews}
 \citation{carter2025mayoecgai}
 \@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{2}{section.1}\protected@file@percent }
-\citation{vandewater2023yaib,yeche2021hirid}
+\citation{vandewater2023yaib,yeche2021hirid,pollard2018eicu}
 \citation{roosli2022mimicfairness}
 \citation{recht2019imagenet,chekroud2024illusory}
+\citation{wornow2023ehrshot,steinberg2021femr}
+\citation{arnrich2025meds}
 \citation{reps2020ohdsistroke}
 \citation{karargyris2023medperf}
 \citation{pati2022fets}
 \citation{opensafely2021naturemedicine}
 \citation{guinney2018dream,bergquist2024ehrdream}
 \citation{johnson2023mimiciv,johnson2016mimiciii}
-\citation{collins2024tripodai}
-\citation{gebru2021datasheets}
-\citation{mitchell2019modelcards}
-\@writefile{toc}{\contentsline {section}{\numberline {2}Methods}{4}{section.2}\protected@file@percent }
-\newlabel{sec:methods}{{2}{4}{Methods}{section.2}{}}
 \citation{rojas2025clif}
 \citation{mcode2024hl7}
 \citation{arnrich2025meds}
-\@writefile{toc}{\contentsline {paragraph}{Institutional review.}{5}{section*.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Data availability.}{5}{section*.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Code availability.}{5}{section*.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3}Datasets}{5}{section.3}\protected@file@percent }
-\newlabel{sec:datasets}{{3}{5}{Datasets}{section.3}{}}
-\citation{johnson2023mimiciv,johnson2016mimiciii}
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Federated consortium cohort skeleton for the T1 cohort. MIMIC-CLIF is the public development entry point. Rush is the first reporting external site. Remaining site columns are TODO. Cell suppression at $n<10$ is applied site by site. Source: FLAIR v2 baseline artifacts and site aggregate reports.}}{7}{table.1}\protected@file@percent }
-\newlabel{tab:consortium-sites}{{1}{7}{Federated consortium cohort skeleton for the T1 cohort. MIMIC-CLIF is the public development entry point. Rush is the first reporting external site. Remaining site columns are TODO. Cell suppression at $n<10$ is applied site by site. Source: FLAIR v2 baseline artifacts and site aggregate reports}{table.1}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces MIMIC-CLIF cohort snapshot per task from the v2 baseline artifacts. Decision rows are one per stay for T3 and T5, daily at 07:00 local for T1 and T2, and hourly for T4. Counts are per stitched encounter, using \texttt  {hospitalization\_join\_id}. Charlson and Elixhauser scores are missing for 49--54\% of stays in the MIMIC-CLIF export. Source: FLAIR v2 baseline artifacts. \textbf  {TODO:} Regenerate this table after final task-code freeze, especially for T4.}}{7}{table.2}\protected@file@percent }
-\newlabel{tab:mimic-snapshot}{{2}{7}{MIMIC-CLIF cohort snapshot per task from the v2 baseline artifacts. Decision rows are one per stay for T3 and T5, daily at 07:00 local for T1 and T2, and hourly for T4. Counts are per stitched encounter, using \texttt {hospitalization\_join\_id}. Charlson and Elixhauser scores are missing for 49--54\% of stays in the MIMIC-CLIF export. Source: FLAIR v2 baseline artifacts. \todo {Regenerate this table after final task-code freeze, especially for T4.}}{table.2}{}}
-\citation{thille2011extubation}
-\@writefile{toc}{\contentsline {section}{\numberline {4}Benchmarks}{8}{section.4}\protected@file@percent }
-\newlabel{sec:benchmarks}{{4}{8}{Benchmarks}{section.4}{}}
-\citation{rojas2018readmission}
+\citation{johnson2023mimiciv}
+\citation{thille2011extubation,rojas2018readmission}
+\citation{rhee2019sepsis}
+\citation{kamran2024sepsis}
+\citation{singer2016sepsis3,seymour2016assessment}
+\@writefile{toc}{\contentsline {section}{\numberline {2}Methods}{4}{section.2}\protected@file@percent }
+\newlabel{sec:methods}{{2}{4}{Methods}{section.2}{}}
 \citation{wornow2023ehrshot,steinberg2021femr}
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Federated leaderboard skeleton for the XGBoost count-feature baseline. AUROC values are mode matched and include 95\% bootstrap confidence intervals from the v2 manuscript. MIMIC-CLIF is the internal holdout. Rush is the first external reporting site. Remaining site columns are TODO. Source: FLAIR v2 baseline artifacts and Rush aggregate report.}}{10}{table.3}\protected@file@percent }
-\newlabel{tab:baseline}{{3}{10}{Federated leaderboard skeleton for the XGBoost count-feature baseline. AUROC values are mode matched and include 95\% bootstrap confidence intervals from the v2 manuscript. MIMIC-CLIF is the internal holdout. Rush is the first external reporting site. Remaining site columns are TODO. Source: FLAIR v2 baseline artifacts and Rush aggregate report}{table.3}{}}
-\newlabel{sec:eval-modes}{{4}{10}{Evaluation Modes}{section*.11}{}}
-\citation{recht2019imagenet,chekroud2024illusory}
-\@writefile{toc}{\contentsline {section}{\numberline {5}Federated Protocol}{11}{section.5}\protected@file@percent }
-\newlabel{sec:protocols}{{5}{11}{Federated Protocol}{section.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces The five FLAIR benchmark tasks. Prevalence is the stay-level positive rate on MIMIC-CLIF. Clinical thresholds and directions are single-sourced in the package policy registry and folded into each task's audit metadata. Report modes are defined in the text. Source: FLAIR task code and v2 baseline artifacts.}}{5}{table.1}\protected@file@percent }
+\newlabel{tab:taskspec}{{1}{5}{The five FLAIR benchmark tasks. Prevalence is the stay-level positive rate on MIMIC-CLIF. Clinical thresholds and directions are single-sourced in the package policy registry and folded into each task's audit metadata. Report modes are defined in the text. Source: FLAIR task code and v2 baseline artifacts}{table.1}{}}
 \citation{guinney2018dream,bergquist2024ehrdream}
-\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces The FLAIR model-to-data loop. A Model Owner develops against MIMIC-CLIF and submits a frozen model, code, or container. The Benchmark Committee reviews the task or model for reproducibility, clinical face validity, and security. The FLAIR Portal registers the approved artifact and distributes byte-identical code to participating CLIF sites. Each Site Lead or Data Steward runs the artifact locally in CLIF-WorkBench against site CLIF tables. Patient-level cohorts, features, and predictions remain inside the institutional boundary. Only aggregate, cell-suppressed JSON report bundles return to FLAIR. The leaderboard emphasizes per-site variation, including forest-plot style displays, rather than only a pooled scalar. Source: authors.}}{12}{figure.1}\protected@file@percent }
-\newlabel{fig:workflow}{{1}{12}{The FLAIR model-to-data loop. A Model Owner develops against MIMIC-CLIF and submits a frozen model, code, or container. The Benchmark Committee reviews the task or model for reproducibility, clinical face validity, and security. The FLAIR Portal registers the approved artifact and distributes byte-identical code to participating CLIF sites. Each Site Lead or Data Steward runs the artifact locally in CLIF-WorkBench against site CLIF tables. Patient-level cohorts, features, and predictions remain inside the institutional boundary. Only aggregate, cell-suppressed JSON report bundles return to FLAIR. The leaderboard emphasizes per-site variation, including forest-plot style displays, rather than only a pooled scalar. Source: authors}{figure.1}{}}
-\citation{goodman2025preregistration,joshi2025silenttrials,pragmaticplaybook2024}
-\citation{reps2020ohdsistroke}
-\citation{karargyris2023medperf}
-\citation{pati2022fets}
-\citation{opensafely2021naturemedicine}
+\citation{collins2024tripodai}
+\citation{gebru2021datasheets}
+\citation{mitchell2019modelcards}
+\@writefile{toc}{\contentsline {section}{\numberline {3}Results}{7}{section.3}\protected@file@percent }
+\newlabel{sec:results}{{3}{7}{Results}{section.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces The FLAIR model-to-data loop. A Model Owner develops against public MIMIC-CLIF and submits a frozen model, code, or container. The Benchmark Committee reviews it for reproducibility, clinical face validity, and security, and stamps a task audit hash. The FLAIR Portal distributes byte-identical code to participating CLIF sites, where a Site Lead or Data Steward runs it locally against site CLIF tables. Patient-level cohorts, features, and predictions remain inside the institutional boundary; only aggregate, cell-suppressed JSON report bundles return. The leaderboard foregrounds per-site variation rather than a single pooled scalar. Source: authors.}}{8}{figure.1}\protected@file@percent }
+\newlabel{fig:workflow}{{1}{8}{The FLAIR model-to-data loop. A Model Owner develops against public MIMIC-CLIF and submits a frozen model, code, or container. The Benchmark Committee reviews it for reproducibility, clinical face validity, and security, and stamps a task audit hash. The FLAIR Portal distributes byte-identical code to participating CLIF sites, where a Site Lead or Data Steward runs it locally against site CLIF tables. Patient-level cohorts, features, and predictions remain inside the institutional boundary; only aggregate, cell-suppressed JSON report bundles return. The leaderboard foregrounds per-site variation rather than a single pooled scalar. Source: authors}{figure.1}{}}
+\citation{finlayson2021clinicianshift}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Federated consortium cohort characteristics. Age is the median in years; SOFA is the median hospital-maximum score. \textbf  {MIMIC-CLIF and Rush are observed} FLAIR v2 results; \textbf  {sites marked $^\dagger $ (C--H) are illustrative projections pending federated runs and are not collected data.} Per-site cell suppression at $n<10$ is applied. Source: FLAIR v2 baseline artifacts (observed) and \texttt  {flair\_paper\_data.py} (illustrative).}}{9}{table.2}\protected@file@percent }
+\newlabel{tab:consortium}{{2}{9}{Federated consortium cohort characteristics. Age is the median in years; SOFA is the median hospital-maximum score. \textbf {MIMIC-CLIF and Rush are observed} FLAIR v2 results; \textbf {sites marked $^\dagger $ (C--H) are illustrative projections pending federated runs and are not collected data.} Per-site cell suppression at $n<10$ is applied. Source: FLAIR v2 baseline artifacts (observed) and \texttt {flair\_paper\_data.py} (illustrative)}{table.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Discussion}{9}{section.4}\protected@file@percent }
+\citation{recht2019imagenet,chekroud2024illusory}
 \citation{fda2022cds,imdrf2017samd}
-\citation{finlayson2021clinicianshift,koch2024distributionshift,soin2025shiftremediation}
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces FLAIR compared with adjacent federated or model-to-data infrastructures. The table is intended as orientation, not a formal feature ranking. Source: authors.}}{14}{table.4}\protected@file@percent }
-\newlabel{tab:comparators}{{4}{14}{FLAIR compared with adjacent federated or model-to-data infrastructures. The table is intended as orientation, not a formal feature ranking. Source: authors}{table.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Toward the Evidence Expected for EHR-Based CDS}{15}{section.6}\protected@file@percent }
-\newlabel{sec:fda}{{6}{15}{Toward the Evidence Expected for EHR-Based CDS}{section.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Discussion}{15}{section.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Saturation resistance through siloed data.}{15}{section*.18}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Why evaluation, not training, federates first.}{16}{section*.19}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Limitations.}{16}{section*.20}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Roadmap.}{16}{section*.21}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Conclusion.}{17}{section*.22}\protected@file@percent }
+\citation{goodman2025preregistration,joshi2025silenttrials,pragmaticplaybook2024}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Observed cross-site degradation of the frozen baseline from the MIMIC-CLIF internal holdout to the first external site (Rush). Left: AUROC for each task falls from internal to external; sepsis crosses below the chance line. Right: the internal-to-external AUROC drop by task, ordered by magnitude. Both panels use only observed data. Source: FLAIR v2 baseline artifacts.}}{10}{figure.2}\protected@file@percent }
+\newlabel{fig:degradation}{{2}{10}{Observed cross-site degradation of the frozen baseline from the MIMIC-CLIF internal holdout to the first external site (Rush). Left: AUROC for each task falls from internal to external; sepsis crosses below the chance line. Right: the internal-to-external AUROC drop by task, ordered by magnitude. Both panels use only observed data. Source: FLAIR v2 baseline artifacts}{figure.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Saturation resistance and the regulatory posture.}{10}{section*.8}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Per-site discrimination of the frozen baseline across the CLIF consortium, one panel per task. Each marker is a site's AUROC with a 95\% confidence interval; the dashed line is the MIMIC-CLIF internal reference and the shaded band marks worse-than-chance discrimination. \textbf  {MIMIC-CLIF (blue) and Rush (terracotta) are observed}; \textbf  {open grey markers (Sites C--H) are illustrative projections pending federated runs}, as noted by the watermark. Source: FLAIR v2 baseline artifacts (observed) and \texttt  {flair\_paper\_data.py} (illustrative).}}{11}{figure.3}\protected@file@percent }
+\newlabel{fig:forest}{{3}{11}{Per-site discrimination of the frozen baseline across the CLIF consortium, one panel per task. Each marker is a site's AUROC with a 95\% confidence interval; the dashed line is the MIMIC-CLIF internal reference and the shaded band marks worse-than-chance discrimination. \textbf {MIMIC-CLIF (blue) and Rush (terracotta) are observed}; \textbf {open grey markers (Sites C--H) are illustrative projections pending federated runs}, as noted by the watermark. Source: FLAIR v2 baseline artifacts (observed) and \texttt {flair\_paper\_data.py} (illustrative)}{figure.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Limitations.}{11}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Conclusion.}{12}{section*.10}\protected@file@percent }
+\citation{reps2020ohdsistroke,karargyris2023medperf,pati2022fets,opensafely2021naturemedicine}
+\citation{reps2020ohdsistroke,karargyris2023medperf,pati2022fets,opensafely2021naturemedicine}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Supplementary Appendix}{13}{appendix.A}\protected@file@percent }
 \bibstyle{plainnat}
 \bibdata{references}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Supplementary Appendix}{18}{appendix.A}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {S1}{\ignorespaces Full v2 MIMIC-CLIF internal baseline metrics for the XGBoost count-feature model. Calibration is omitted for T4 peak scoring by design. Source: FLAIR v2 baseline artifacts. \textbf  {TODO:} Regenerate after final task-code freeze.}}{18}{table.S1}\protected@file@percent }
-\newlabel{tab:supp-baseline-full}{{S1}{18}{Full v2 MIMIC-CLIF internal baseline metrics for the XGBoost count-feature model. Calibration is omitted for T4 peak scoring by design. Source: FLAIR v2 baseline artifacts. \todo {Regenerate after final task-code freeze.}}{table.S1}{}}
-\gdef \@abspage@last{18}
+\bibcite{adams2022trews}{{1}{2022}{{Adams et~al.}}{{Adams, Henry, Sridharan, Soleimani, Zhan, Rawat, Johnson, Hager, Cosgrove, Markowski, et~al.}}}
+\@writefile{lot}{\contentsline {table}{\numberline {S1}{\ignorespaces Full observed MIMIC-CLIF internal baseline metrics for the XGBoost count-feature model. Calibration is omitted for T4 by design under peak scoring. Source: FLAIR v2 baseline artifacts.}}{14}{table.S1}\protected@file@percent }
+\newlabel{tab:supp-baseline-full}{{S1}{14}{Full observed MIMIC-CLIF internal baseline metrics for the XGBoost count-feature model. Calibration is omitted for T4 by design under peak scoring. Source: FLAIR v2 baseline artifacts}{table.S1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {S2}{\ignorespaces Per-site AUROC (95\% CI) for the frozen baseline, mode-matched per task. \textbf  {MIMIC-CLIF and Rush are observed}; \textbf  {sites marked $^\dagger $ are illustrative projections pending federated runs.} External median is over all external sites. Source: FLAIR v2 baseline artifacts (observed) and \texttt  {flair\_paper\_data.py} (illustrative).}}{14}{table.S2}\protected@file@percent }
+\newlabel{tab:supp-leaderboard}{{S2}{14}{Per-site AUROC (95\% CI) for the frozen baseline, mode-matched per task. \textbf {MIMIC-CLIF and Rush are observed}; \textbf {sites marked $^\dagger $ are illustrative projections pending federated runs.} External median is over all external sites. Source: FLAIR v2 baseline artifacts (observed) and \texttt {flair\_paper\_data.py} (illustrative)}{table.S2}{}}
+\bibcite{arnrich2025meds}{{2}{2025}{{Arnrich et~al.}}{{Arnrich, Hyland, et~al.}}}
+\bibcite{bergquist2024ehrdream}{{3}{2024}{{Bergquist et~al.}}{{Bergquist, Schaffter, Yan, Yu, Prosser, Gao, Chen, Charzewski, Nabian, Husain, et~al.}}}
+\@writefile{lot}{\contentsline {table}{\numberline {S3}{\ignorespaces Observed MIMIC-CLIF cohort snapshot per task. Decision rows are one per stay for T3 and T5, daily at 07:00 local for T1 and T2, and hourly for T4. Counts are per stitched encounter (\texttt  {hospitalization\_join\_id}). Charlson and Elixhauser scores are missing for 49--54\% of stays in the MIMIC-CLIF export. Source: FLAIR v2 baseline artifacts.}}{15}{table.S3}\protected@file@percent }
+\newlabel{tab:mimic-snapshot}{{S3}{15}{Observed MIMIC-CLIF cohort snapshot per task. Decision rows are one per stay for T3 and T5, daily at 07:00 local for T1 and T2, and hourly for T4. Counts are per stitched encounter (\texttt {hospitalization\_join\_id}). Charlson and Elixhauser scores are missing for 49--54\% of stays in the MIMIC-CLIF export. Source: FLAIR v2 baseline artifacts}{table.S3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {S4}{\ignorespaces FLAIR compared with adjacent federated or model-to-data infrastructures \citep  {reps2020ohdsistroke,karargyris2023medperf,pati2022fets,opensafely2021naturemedicine}. Intended as orientation, not a formal ranking. Source: authors.}}{15}{table.S4}\protected@file@percent }
+\newlabel{tab:comparators}{{S4}{15}{FLAIR compared with adjacent federated or model-to-data infrastructures \citep {reps2020ohdsistroke,karargyris2023medperf,pati2022fets,opensafely2021naturemedicine}. Intended as orientation, not a formal ranking. Source: authors}{table.S4}{}}
+\bibcite{carter2025mayoecgai}{{4}{2025}{{Carter et~al.}}{{}}}
+\bibcite{chekroud2024illusory}{{5}{2024}{{Chekroud et~al.}}{{}}}
+\bibcite{opensafely2021naturemedicine}{{6}{2021}{{Collaborative}}{{}}}
+\bibcite{collins2024tripodai}{{7}{2024}{{Collins et~al.}}{{Collins, Moons, Dhiman, Riley, Beam, Van~Calster, Ghassemi, Liu, Reitsma, van Smeden, et~al.}}}
+\bibcite{finlayson2021clinicianshift}{{8}{2021}{{Finlayson et~al.}}{{Finlayson, Subbaswamy, Singh, Bowers, Kupke, Zittrain, Kohane, and Saria}}}
+\bibcite{gebru2021datasheets}{{9}{2021}{{Gebru et~al.}}{{Gebru, Morgenstern, Vecchione, Vaughan, Wallach, Daum{\'e}~III, and Crawford}}}
+\bibcite{goodman2025preregistration}{{10}{2025}{{Goodman et~al.}}{{}}}
+\bibcite{guinney2018dream}{{11}{2018}{{Guinney and Saez-Rodriguez}}{{}}}
+\bibcite{habib2021jamaeditorial}{{12}{2021}{{Habib et~al.}}{{Habib, Lin, and Grant}}}
+\bibcite{mcode2024hl7}{{13}{2024}{{HL7 International}}{{}}}
+\bibcite{imdrf2017samd}{{14}{2017}{{International Medical Device Regulators Forum}}{{}}}
+\bibcite{johnson2016mimiciii}{{15}{2016}{{Johnson et~al.}}{{Johnson, Pollard, Shen, Lehman, Feng, Ghassemi, Moody, Szolovits, Celi, and Mark}}}
+\bibcite{johnson2023mimiciv}{{16}{2023}{{Johnson et~al.}}{{Johnson, Bulgarelli, Shen, Gayles, Shammout, Horng, Pollard, Hao, Moody, Gow, et~al.}}}
+\bibcite{joshi2025silenttrials}{{17}{2025}{{Joshi et~al.}}{{}}}
+\bibcite{kamran2024sepsis}{{18}{2024}{{Kamran et~al.}}{{Kamran, Tjandra, Heiler, Virzi, Singh, King, Valley, and Wiens}}}
+\bibcite{karargyris2023medperf}{{19}{2023}{{Karargyris et~al.}}{{Karargyris, Umeton, Sheller, Aristizabal, George, Wuest, Pati, Kassem, Zenk, Baid, et~al.}}}
+\bibcite{mitchell2019modelcards}{{20}{2019}{{Mitchell et~al.}}{{Mitchell, Wu, Zaldivar, Barnes, Vasserman, Hutchinson, Spitzer, Raji, and Gebru}}}
+\bibcite{pragmaticplaybook2024}{{21}{2024}{{NEJM AI Pragmatic Trial Authors}}{{}}}
+\bibcite{pati2022fets}{{22}{2022}{{Pati et~al.}}{{Pati, Baid, Edwards, Sheller, Wang, Reina, Foley, Gruzdev, Karkada, Davatzikos, et~al.}}}
+\bibcite{pollard2018eicu}{{23}{2018}{{Pollard et~al.}}{{Pollard, Johnson, Raffa, Celi, Mark, and Badawi}}}
+\bibcite{recht2019imagenet}{{24}{2019}{{Recht et~al.}}{{Recht, Roelofs, Schmidt, and Shankar}}}
+\bibcite{reps2020ohdsistroke}{{25}{2020}{{Reps et~al.}}{{Reps, Williams, You, Falconer, Minty, Callahan, Ryan, Park, Lim, and Rijnbeek}}}
+\bibcite{rhee2019sepsis}{{26}{2019}{{Rhee et~al.}}{{Rhee, Zhang, Kadri, Murphy, Martin, Overton, Seymour, Angus, Dantes, Epstein, et~al.}}}
+\bibcite{rojas2018readmission}{{27}{2018}{{Rojas et~al.}}{{Rojas, Carey, Edelson, Venable, Howell, and Churpek}}}
+\bibcite{rojas2025clif}{{28}{2025}{{Rojas et~al.}}{{Rojas, Lyons, et~al.}}}
+\bibcite{roosli2022mimicfairness}{{29}{2022}{{R{\"o}{\"o}sli et~al.}}{{R{\"o}{\"o}sli, Bozkurt, and Hernandez-Boussard}}}
+\bibcite{sendak2025sepsiswatchportability}{{30}{2025}{{Sendak et~al.}}{{Sendak, Bedoya, et~al.}}}
+\bibcite{seymour2016assessment}{{31}{2016}{{Seymour et~al.}}{{Seymour, Liu, Iwashyna, Brunkhorst, Rea, Scherag, Rubenfeld, Kahn, Shankar-Hari, Singer, et~al.}}}
+\bibcite{singer2016sepsis3}{{32}{2016}{{Singer et~al.}}{{Singer, Deutschman, Seymour, Shankar-Hari, Annane, Bauer, Bellomo, Bernard, Chiche, Coopersmith, et~al.}}}
+\bibcite{steinberg2021femr}{{33}{2021}{{Steinberg et~al.}}{{Steinberg, Jung, Fries, Corbin, Pfohl, and Shah}}}
+\bibcite{thille2011extubation}{{34}{2011}{{Thille et~al.}}{{Thille, Harrois, Schortgen, Brun-Buisson, and Brochard}}}
+\bibcite{fda2022cds}{{35}{2022}{{U.S. Food and Drug Administration}}{{}}}
+\bibcite{vandewater2023yaib}{{36}{2023}{{van~de Water et~al.}}{{van~de Water, Schmidt, Elbers, Thoral, Arnrich, and Rockenschaub}}}
+\bibcite{wong2021external}{{37}{2021}{{Wong et~al.}}{{Wong, Otles, Donnelly, Krumm, McCullough, DeTroyer-Cooley, Pestrue, Phillips, Konye, Penoza, et~al.}}}
+\bibcite{wornow2023ehrshot}{{38}{2023}{{Wornow et~al.}}{{Wornow, Thapa, Steinberg, Fries, and Shah}}}
+\bibcite{yeche2021hirid}{{39}{2021}{{Y{\`e}che et~al.}}{{Y{\`e}che, Kuznetsova, Zimmermann, H{\"u}ser, Lyu, Faltys, and R{\"a}tsch}}}
+\gdef \@abspage@last{21}
