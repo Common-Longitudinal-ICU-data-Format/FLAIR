@@ -1,185 +1,354 @@
 #!/usr/bin/env python3
 """Single source of truth for every number in the FLAIR manuscript.
 
-Two kinds of data live here and must never be confused:
+All headline numbers are DERIVED from the committed federated baseline artifacts
+under ``runs_data/{site}_baseline_non_phi_for_upload/<task>/report/`` -- nothing
+is hand-transcribed, so the tables, figures, PDF and DOCX cannot disagree and the
+whole paper re-derives when a new site's artifacts land.
 
-  * REAL  -- observed FLAIR v2 baseline artifacts. MIMIC-CLIF is the internal
-            holdout; Rush is the first external reporting site. These are the
-            ONLY non-fabricated results in the paper.
-  * SYNTH -- six illustrative sites (C-H) that project what a full CLIF
-            consortium would look like. They are NOT collected data. Every
-            record carries ``illustrative=True`` and a ``source`` tag, and every
-            figure/table that renders them is required to label them as such.
+Four sites have reported real federated runs and are the ONLY observed data:
 
-The AUROC values for the synthetic sites are fixed (author-chosen to bracket the
-observed MIMIC-internal / Rush-external anchors while preserving the real
-task-difficulty ordering T1>T2>T3~=T4>T5 and keeping sepsis/readmission the most
-fragile). Confidence intervals are derived deterministically from site size, so
-there is no run-to-run variation and PDF/DOCX/figures cannot disagree.
+  * MIMIC-CLIF                     -- public development set / internal holdout
+  * Rush                           -- external
+  * Northwestern Medicine (nu)     -- external
+  * University of Chicago Medicine -- external (ucmc)
+
+Four additional CLIF-consortium sites are onboarding; they appear as labelled,
+empty ``PENDING`` placeholders (no numbers) so tables/figures leave space for the
+full eight-site consortium without fabricating any result.
+
+Headline discrimination convention
+----------------------------------
+* Landmark tasks (T1 mortality, T2 LTACH) report the **pooled dynamic AUC**
+  (within-landmark concordance pooled across landmarks). Within each landmark the
+  Mann-Whitney identity gives concordant pairs = AUC(t)*cases_t*controls_t, so
+
+      AUC_pooled = sum_t AUC(t)*w_t / sum_t w_t ,   w_t = cases_t*controls_t
+
+  with cases_t = n_t*prev_t, controls_t = n_t-cases_t. This is the global
+  concordance summarising the incident/dynamic time-dependent AUC (Heagerty &
+  Zheng 2005; landmarking per van Houwelingen). The interim 95% CI is the
+  pair-weighted combination of the per-landmark CIs, pending a stay-level pooled
+  bootstrap.
+* Episodic (T3, T5) and peak (T4) tasks have a single risk set: the top-level
+  ``metrics`` block is used directly.
 
 Import this module from every figure script and from build_docx_v3.py. Run it
-directly to dump ``sites_mock.json`` for non-Python consumers.
+directly to dump ``sites_mock.json`` (kept as the JSON hand-off for non-Python
+consumers) and print a summary.
 """
 from __future__ import annotations
 
 import json
-import math
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+RUNS = HERE / "runs_data"
 
 # ---------------------------------------------------------------------------
-# Task metadata (all REAL: from flair_benchmark _constants.TASK_POLICY and the
-# v2 MIMIC-CLIF cohort snapshot).
+# Task metadata (from flair_benchmark _constants.TASK_POLICY).
 # ---------------------------------------------------------------------------
 TASKS = [
-    # id,   short,                       mode,       threshold, direction, prevalence(stay), grid
-    ("T1", "ICU daily mortality",        "landmark", 0.95, "above", 0.134, "daily 07:00"),
-    ("T2", "LTACH discharge",            "landmark", 0.50, "above", 0.065, "daily 07:00"),
-    ("T3", "Extubation failure 24 h",    "episodic", 0.15, "below", 0.054, "at extubation"),
-    ("T4", "Sepsis (CDC ASE) 6 h",       "peak",     0.10, "above", 0.063, "hourly"),
-    ("T5", "Unplanned ICU readmission",  "episodic", 0.20, "above", 0.093, "at ICU discharge"),
+    # id,   short,                       mode,       threshold, direction, grid
+    ("T1", "ICU daily mortality",        "landmark", 0.95, "above", "daily 07:00"),
+    ("T2", "LTACH discharge",            "landmark", 0.50, "above", "daily 07:00"),
+    ("T3", "Extubation failure 24 h",    "episodic", 0.15, "below", "at extubation"),
+    ("T4", "Sepsis (CDC ASE) 6 h",       "peak",     0.10, "above", "hourly"),
+    ("T5", "Unplanned ICU readmission",  "episodic", 0.20, "above", "at ICU discharge"),
 ]
 TASK_IDS = [t[0] for t in TASKS]
+TASK_MODE = {t[0]: t[2] for t in TASKS}
+LANDMARK_TASKS = {tid for tid, *_rest in TASKS if TASK_MODE[tid] == "landmark"}
 
-# ---------------------------------------------------------------------------
-# REAL observed AUROC and 95% CIs (FLAIR v2 baseline artifacts).
-# ---------------------------------------------------------------------------
-REAL = {
-    "mimic": {
-        "label": "MIMIC-CLIF",
-        "archetype": "Public development set (MIMIC-IV, Boston quaternary)",
-        "observed": True,
-        "role": "internal holdout",
-        "stays": 72778,
-        "female_pct": 43.2,
-        "age_median": 67,
-        "sofa_median": 5,
-        "auroc": {"T1": 0.864, "T2": 0.789, "T3": 0.696, "T4": 0.693, "T5": 0.641},
-        "ci": {
-            "T1": (0.856, 0.872), "T2": (0.775, 0.803), "T3": (0.665, 0.719),
-            "T4": (0.678, 0.709), "T5": (0.626, 0.658),
-        },
-    },
-    "rush": {
-        "label": "Rush",
-        "archetype": "Urban academic medical center (Chicago)",
-        "observed": True,
-        "role": "external (observed)",
-        "stays": 13839,
-        "female_pct": 47.5,
-        "age_median": 65,
-        "sofa_median": 4,
-        "auroc": {"T1": 0.748, "T2": 0.658, "T3": 0.565, "T4": 0.407, "T5": 0.509},
-        "ci": {
-            "T1": (0.735, 0.763), "T2": (0.622, 0.691), "T3": (0.522, 0.605),
-            "T4": (0.391, 0.421), "T5": (0.489, 0.531),
-        },
-    },
-}
-
-# Full MIMIC-CLIF internal metrics (REAL, Table S -- supplement).
-MIMIC_FULL_METRICS = {
-    # task: (mode, n, prevalence, auprc, cal_slope, cal_int, brier)
-    "T1": ("landmark", 18195, 0.134, 0.587, 1.19, -1.24, 0.111),
-    "T2": ("landmark", 18195, 0.065, 0.288, 1.01, -1.77, 0.096),
-    "T3": ("episodic", 6693, 0.054, 0.134, 0.45, -1.86, 0.070),
-    "T4": ("peak", 19943, 0.063, 0.134, None, None, None),
-    "T5": ("episodic", 16806, 0.093, 0.248, 0.68, -1.89, 0.151),
+# Map manuscript task ids -> artifact directory names under runs_data/<site>/.
+_TASK_DIR = {
+    "T1": "task1_icu_daily_mortality",
+    "T2": "task2_icu_daily_ltach",
+    "T3": "task3_extubation_failure_24h",
+    "T4": "task4_sepsis_abx_6h",   # dir name legacy; task IS CDC Adult Sepsis Event
+    "T5": "task5_icu_readmission",
 }
 
 # ---------------------------------------------------------------------------
-# SYNTHETIC illustrative sites C-H (NOT observed data).
-# AUROC values are fixed; CIs derived from site size below.
+# Observed sites (the four that have reported real federated runs).
 # ---------------------------------------------------------------------------
-_SYNTH_SPEC = [
-    # key, label, archetype, stays, female_pct, age, sofa, {task: auroc}
-    ("siteC", "Site C", "Northeast quaternary academic", 24610, 44.1, 63, 6,
-     {"T1": 0.828, "T2": 0.726, "T3": 0.651, "T4": 0.641, "T5": 0.598}),
-    ("siteD", "Site D", "Midwest urban safety-net", 11205, 46.3, 58, 5,
-     {"T1": 0.771, "T2": 0.671, "T3": 0.598, "T4": 0.501, "T5": 0.548}),
-    ("siteE", "Site E", "Southern community-academic", 18470, 48.2, 64, 5,
-     {"T1": 0.804, "T2": 0.702, "T3": 0.622, "T4": 0.573, "T5": 0.572}),
-    ("siteF", "Site F", "West Coast academic", 22400, 44.9, 63, 5,
-     {"T1": 0.812, "T2": 0.712, "T3": 0.634, "T4": 0.612, "T5": 0.586}),
-    ("siteG", "Site G", "Rural referral center", 8720, 45.0, 69, 4,
-     {"T1": 0.762, "T2": 0.663, "T3": 0.583, "T4": 0.462, "T5": 0.531}),
-    ("siteH", "Site H", "Mixed academic-community", 15600, 47.1, 65, 5,
-     {"T1": 0.789, "T2": 0.684, "T3": 0.607, "T4": 0.559, "T5": 0.557}),
+_SITE_META = [
+    # key,   dirname,                            label,                          role
+    ("mimic", "mimic_baseline_non_phi_for_upload", "MIMIC-CLIF", "internal holdout"),
+    ("rush", "rush_baseline_non_phi_for_upload", "Rush", "external"),
+    ("nu", "nu_baseline_non_phi_for_upload", "Northwestern Medicine", "external"),
+    ("ucmc", "ucmc_baseline_non_phi_for_upload", "University of Chicago Medicine", "external"),
 ]
 
-# Per-task reference CI half-widths anchored to the observed Rush report
-# (external, realistic widths), scaled by sqrt(n_rush / n_site) for each site.
-_RUSH_HALFWIDTH = {t: (REAL["rush"]["ci"][t][1] - REAL["rush"]["ci"][t][0]) / 2 for t in TASK_IDS}
-_RUSH_STAYS = REAL["rush"]["stays"]
+# Four consortium sites onboarding -- rendered as empty placeholders only.
+PENDING = [
+    {"key": f"site{i}", "label": f"Consortium site {i}",
+     "observed": False, "pending": True}
+    for i in range(5, 9)
+]
+
+# ---------------------------------------------------------------------------
+# Artifact readers.
+# ---------------------------------------------------------------------------
+def _report_dir(dirname: str, task: str) -> Path:
+    return RUNS / dirname / _TASK_DIR[task] / "report"
 
 
-def _synth_ci(stays: int, task: str, auroc: float) -> tuple[float, float]:
-    """Deterministic 95% CI half-width scaled by site size; clamped to [0,1]."""
-    hw = _RUSH_HALFWIDTH[task] * math.sqrt(_RUSH_STAYS / stays)
-    lo = max(0.0, round(auroc - hw, 3))
-    hi = min(1.0, round(auroc + hw, 3))
-    return lo, hi
+def _load(dirname: str, task: str, fname: str) -> dict | None:
+    p = _report_dir(dirname, task) / fname
+    if not p.exists():
+        return None
+    return json.loads(p.read_text())
 
 
-def _synth_auprc(task: str, auroc: float) -> float:
-    """Illustrative AUPRC that degrades with AUROC, floored at prevalence."""
-    prev = dict((t[0], t[5]) for t in TASKS)[task]
-    ref_auprc = MIMIC_FULL_METRICS[task][3]
-    ref_auroc = REAL["mimic"]["auroc"][task]
-    scale = max(0.0, (auroc - 0.5)) / max(1e-6, (ref_auroc - 0.5))
-    return round(max(prev, ref_auprc * scale), 3)
+def _round_ci(lo: float, hi: float) -> tuple[float, float]:
+    return (round(max(0.0, lo), 3), round(min(1.0, hi), 3))
 
 
-def _build_synth() -> dict:
+def _pooled_dynamic_auc(disc: dict) -> tuple[float, tuple[float, float]]:
+    """Within-landmark pooled concordance + pair-weighted CI over landmarks."""
+    num = den = lo_num = hi_num = 0.0
+    for lm in disc["landmarks"]:
+        m = lm["metrics"]
+        auc = m.get("auroc")
+        if auc is None:
+            continue
+        n = m.get("n") or lm.get("n")
+        prev = lm.get("prevalence")
+        if prev is None:
+            prev = m.get("prevalence")
+        cases = n * prev
+        controls = n - cases
+        w = cases * controls
+        if w <= 0:
+            continue
+        ci = m.get("auroc_ci") or [auc, auc]
+        num += auc * w
+        den += w
+        lo_num += ci[0] * w
+        hi_num += ci[1] * w
+    auc = round(num / den, 3)
+    return auc, _round_ci(lo_num / den, hi_num / den)
+
+
+def _episodic_auc(disc: dict) -> tuple[float, tuple[float, float]]:
+    m = disc["metrics"]
+    ci = m.get("auroc_ci") or [m["auroc"], m["auroc"]]
+    return round(m["auroc"], 3), _round_ci(ci[0], ci[1])
+
+
+def _headline(dirname: str, task: str) -> tuple[float, tuple[float, float]] | None:
+    disc = _load(dirname, task, "discrimination.json")
+    if disc is None:
+        return None
+    if task in LANDMARK_TASKS:
+        return _pooled_dynamic_auc(disc)
+    return _episodic_auc(disc)
+
+
+def _headline_auprc(dirname: str, task: str) -> float | None:
+    """AUPRC on the same convention (pair-weighted pool for landmark tasks)."""
+    disc = _load(dirname, task, "discrimination.json")
+    if disc is None:
+        return None
+    if task in LANDMARK_TASKS:
+        num = den = 0.0
+        for lm in disc["landmarks"]:
+            m = lm["metrics"]
+            ap = m.get("auprc")
+            if ap is None:
+                continue
+            n = m.get("n") or lm.get("n")
+            prev = lm.get("prevalence") or m.get("prevalence")
+            w = (n * prev) * (n - n * prev)
+            if w <= 0:
+                continue
+            num += ap * w
+            den += w
+        return round(num / den, 3) if den else None
+    return round(disc["metrics"].get("auprc"), 3) if disc["metrics"].get("auprc") is not None else None
+
+
+def _headline_n_prev(dirname: str, task: str) -> tuple[int | None, float | None]:
+    """n_stays and MIMIC positive rate at an interpretable per-stay grain:
+    first-landmark rate for landmark tasks; stay-collapsed rate (top-level
+    ``prevalence``) for peak; stay-level rate for episodic. Avoids the hourly
+    row-level ``metadata.prevalence`` that is misleadingly tiny for peak tasks."""
+    disc = _load(dirname, task, "discrimination.json")
+    if disc is None:
+        return None, None
+    n = disc["metadata"].get("n_stays")
+    if task in LANDMARK_TASKS:
+        prev = disc["landmarks"][0].get("prevalence")
+    else:
+        prev = disc.get("prevalence", disc["metadata"].get("prevalence"))
+    return n, (round(prev, 4) if prev is not None else None)
+
+
+def _calibration(dirname: str, task: str) -> tuple[float, float, float] | None:
+    """(slope, intercept, Brier); pooled across landmarks for landmark tasks,
+    top-level metrics for episodic. None for peak (calibration omitted) or missing."""
+    cal = _load(dirname, task, "calibration.json")
+    if cal is None:
+        return None
+    keys = ("slope", "intercept", "brier")
+    if task in LANDMARK_TASKS:
+        # pair-weighted pool over landmarks, mirroring the pooled-AUC convention
+        disc = _load(dirname, task, "discrimination.json")
+        acc = {k: 0.0 for k in keys}
+        den = 0.0
+        for lm_cal, lm_disc in zip(cal["landmarks"], disc["landmarks"]):
+            m = lm_cal["metrics"]
+            if any(m.get(k) is None for k in keys):
+                continue
+            dm = lm_disc["metrics"]
+            n = dm.get("n") or lm_disc.get("n")
+            prev = lm_disc.get("prevalence") or dm.get("prevalence")
+            w = (n * prev) * (n - n * prev)
+            if w <= 0:
+                continue
+            for k in keys:
+                acc[k] += m[k] * w
+            den += w
+        if den == 0:
+            return None
+        return tuple(round(acc[k] / den, 3) for k in keys)
+    m = cal.get("metrics", {})
+    if any(m.get(k) is None for k in keys):
+        return None
+    return tuple(round(m[k], 3) for k in keys)
+
+
+def _load_task_file(dirname: str, task: str, fname: str) -> dict | None:
+    """Load a file that lives at the task dir level (e.g. table1.json), not report/."""
+    p = RUNS / dirname / _TASK_DIR[task] / fname
+    if not p.exists():
+        return None
+    return json.loads(p.read_text())
+
+
+def _cohort(dirname: str) -> dict:
+    """Site-level cohort characteristics from task1 table1.json (total split)."""
+    t1 = _load_task_file(dirname, "T1", "table1.json")
+    n_total = t1["n_total"]
+    age = t1["continuous"]["age_at_admission"]["median"]
+    sofa = t1["continuous"]["sofa_max"]["median"]
+    sex = t1["categorical"]["sex_category"]
+    female, male = sex.get("Female", 0), sex.get("Male", 0)
+    fpct = round(100 * female / (female + male), 1) if (female + male) else None
+    dr = t1.get("by_split", {}).get("total", {}).get("date_range", {})
+    return {
+        "stays": n_total,
+        "age_median": age,
+        "sofa_median": sofa,
+        "female_pct": fpct,
+        "date_start": dr.get("start"),
+        "date_end": dr.get("end"),
+    }
+
+
+def _build_real() -> dict:
     out = {}
-    for key, label, arch, stays, fpct, age, sofa, aurocs in _SYNTH_SPEC:
-        ci = {t: _synth_ci(stays, t, aurocs[t]) for t in TASK_IDS}
-        auprc = {t: _synth_auprc(t, aurocs[t]) for t in TASK_IDS}
+    for key, dirname, label, role in _SITE_META:
+        cohort = _cohort(dirname)
+        auroc, ci, auprc = {}, {}, {}
+        for tid in TASK_IDS:
+            h = _headline(dirname, tid)
+            if h is None:
+                continue
+            auroc[tid], ci[tid] = h
+            ap = _headline_auprc(dirname, tid)
+            if ap is not None:
+                auprc[tid] = ap
         out[key] = {
             "label": label,
-            "archetype": arch,
-            "observed": False,
-            "illustrative": True,
-            "source": "synthetic_pending_federated_run",
-            "role": "external (illustrative)",
-            "stays": stays,
-            "female_pct": fpct,
-            "age_median": age,
-            "sofa_median": sofa,
-            "auroc": dict(aurocs),
+            "observed": True,
+            "pending": False,
+            "role": role,
+            "auroc": auroc,
             "ci": ci,
             "auprc": auprc,
+            **cohort,
         }
     return out
 
 
-SYNTH = _build_synth()
+REAL = _build_real()
 
-# Ordered site list used everywhere (observed first, then illustrative C-H).
-SITE_ORDER = ["mimic", "rush", "siteC", "siteD", "siteE", "siteF", "siteG", "siteH"]
-ALL_SITES = {**REAL, **SYNTH}
+# Full per-site metrics for the supplement leaderboard (n, prevalence, AUPRC,
+# calibration slope/intercept/Brier; calibration omitted for peak task T4).
+def _build_full_metrics() -> dict:
+    fm = {}
+    for key, dirname, *_ in _SITE_META:
+        fm[key] = {}
+        for tid in TASK_IDS:
+            n, prev = _headline_n_prev(dirname, tid)
+            fm[key][tid] = {
+                "mode": TASK_MODE[tid],
+                "n": n,
+                "prevalence": prev,
+                "auprc": _headline_auprc(dirname, tid),
+                "calibration": _calibration(dirname, tid),  # None for peak / missing
+            }
+    return fm
+
+
+FULL_METRICS = _build_full_metrics()
+# Back-compat: MIMIC-only view used by older callers.
+MIMIC_FULL_METRICS = {
+    tid: (
+        FULL_METRICS["mimic"][tid]["mode"],
+        FULL_METRICS["mimic"][tid]["n"],
+        FULL_METRICS["mimic"][tid]["prevalence"],
+        FULL_METRICS["mimic"][tid]["auprc"],
+        *(FULL_METRICS["mimic"][tid]["calibration"] or (None, None, None)),
+    )
+    for tid in TASK_IDS
+}
+
+# ---------------------------------------------------------------------------
+# Ordering and helpers.
+# ---------------------------------------------------------------------------
+OBSERVED_ORDER = ["mimic", "rush", "nu", "ucmc"]
+PENDING_ORDER = [p["key"] for p in PENDING]
+SITE_ORDER = OBSERVED_ORDER + PENDING_ORDER
+ALL_SITES = {**REAL, **{p["key"]: p for p in PENDING}}
 
 # Consortium palette (matches build_roc_figures.py / FLAIR website).
 COLOR = {
-    "mimic": "#5b86a6",   # blue  -- observed internal
-    "rush": "#b9744e",    # terra -- observed external
-    "synth": "#8c8c88",   # grey  -- illustrative
+    "mimic": "#5b86a6",   # blue  -- internal / development set
+    "rush": "#b9744e",    # terracotta
+    "nu": "#6f9e78",      # green
+    "ucmc": "#8a6ea6",    # violet
+    "pending": "#c9c9c4", # grey -- onboarding placeholder
     "panel": "#f7f7f6", "grid": "#e7e7e4", "diag": "#c9c9c4",
     "muted": "#6b6b6b", "ink": "#1a1a1a", "band": "#f0e3da",
 }
+# Per-observed-site marker colour, in order.
+SITE_COLOR = {"mimic": COLOR["mimic"], "rush": COLOR["rush"],
+              "nu": COLOR["nu"], "ucmc": COLOR["ucmc"]}
+
+
+def observed_sites() -> list[str]:
+    return [s for s in OBSERVED_ORDER]
 
 
 def external_sites() -> list[str]:
-    """All external sites (observed Rush + illustrative C-H), in order."""
-    return [s for s in SITE_ORDER if s != "mimic"]
+    """Observed external sites (everything except the internal MIMIC holdout)."""
+    return [s for s in OBSERVED_ORDER if s != "mimic"]
 
 
 def external_median(task: str) -> float:
-    vals = sorted(ALL_SITES[s]["auroc"][task] for s in external_sites())
+    vals = sorted(REAL[s]["auroc"][task] for s in external_sites()
+                  if task in REAL[s]["auroc"])
     n = len(vals)
     mid = n // 2
     return round((vals[mid] if n % 2 else (vals[mid - 1] + vals[mid]) / 2), 3)
+
+
+def external_range(task: str) -> tuple[float, float]:
+    vals = [REAL[s]["auroc"][task] for s in external_sites() if task in REAL[s]["auroc"]]
+    return (round(min(vals), 3), round(max(vals), 3))
 
 
 def internal_external_gap(task: str) -> float:
@@ -187,32 +356,38 @@ def internal_external_gap(task: str) -> float:
 
 
 def consortium_total_stays() -> int:
-    return sum(ALL_SITES[s]["stays"] for s in SITE_ORDER)
+    return sum(REAL[s]["stays"] for s in OBSERVED_ORDER)
 
 
 def external_total_stays() -> int:
-    return sum(ALL_SITES[s]["stays"] for s in external_sites())
+    return sum(REAL[s]["stays"] for s in external_sites())
 
 
 def fmt_ci(site: str, task: str) -> str:
-    lo, hi = ALL_SITES[site]["ci"][task]
-    return f"{ALL_SITES[site]['auroc'][task]:.3f} ({lo:.3f}-{hi:.3f})"
+    if site not in REAL or task not in REAL[site]["auroc"]:
+        return "--"
+    lo, hi = REAL[site]["ci"][task]
+    return f"{REAL[site]['auroc'][task]:.3f} ({lo:.3f}-{hi:.3f})"
 
 
 def dump_json(path: Path | None = None) -> Path:
     path = path or (HERE / "sites_mock.json")
     payload = {
-        "note": "MIMIC-CLIF and Rush are observed; sites C-H are illustrative "
-                "projections pending federated runs and are NOT collected data.",
+        "note": "MIMIC-CLIF, Rush, Northwestern Medicine and University of Chicago "
+                "Medicine have reported observed federated runs; four additional CLIF "
+                "consortium sites are onboarding (pending federated runs).",
+        "landmark_auc_convention": "pooled dynamic AUC (within-landmark concordance)",
         "tasks": [
             {"id": t[0], "name": t[1], "mode": t[2], "threshold": t[3],
-             "direction": t[4], "prevalence_mimic": t[5], "grid": t[6]}
+             "direction": t[4], "grid": t[5]}
             for t in TASKS
         ],
-        "sites": {s: ALL_SITES[s] for s in SITE_ORDER},
+        "observed_sites": {s: REAL[s] for s in OBSERVED_ORDER},
+        "pending_sites": PENDING,
         "external_median": {t: external_median(t) for t in TASK_IDS},
         "internal_external_gap": {t: internal_external_gap(t) for t in TASK_IDS},
         "consortium_total_stays": consortium_total_stays(),
+        "full_metrics": FULL_METRICS,
     }
     path.write_text(json.dumps(payload, indent=2))
     return path
@@ -221,9 +396,15 @@ def dump_json(path: Path | None = None) -> Path:
 if __name__ == "__main__":
     p = dump_json()
     print(f"wrote {p}")
-    print("\nExternal AUROC medians and internal->external gaps:")
-    for tid, short, *_ in TASKS:
-        print(f"  {tid} {short:28s} median={external_median(tid):.3f} "
-              f"gap={internal_external_gap(tid):+.3f}")
-    print(f"\nConsortium total stays: {consortium_total_stays():,} "
-          f"(external only: {external_total_stays():,}) across {len(SITE_ORDER)} sites")
+    print(f"\nObserved sites: {', '.join(REAL[s]['label'] for s in OBSERVED_ORDER)}")
+    print(f"Pending (onboarding) slots: {len(PENDING)}")
+    print("\nHeadline AUROC by task (mimic / rush / nu / ucmc):")
+    for tid, short, mode, *_ in TASKS:
+        cells = " | ".join(
+            f"{REAL[s]['auroc'].get(tid, float('nan')):.3f}" for s in OBSERVED_ORDER)
+        lo, hi = external_range(tid)
+        print(f"  {tid} {short:26s} ({mode:8s}) {cells}   "
+              f"ext median={external_median(tid):.3f} gap={internal_external_gap(tid):+.3f} "
+              f"ext range={lo:.3f}-{hi:.3f}")
+    print(f"\nConsortium total stays (4 observed): {consortium_total_stays():,} "
+          f"(external only: {external_total_stays():,})")

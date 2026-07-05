@@ -1,0 +1,272 @@
+{
+  "task_type": "binary",
+  "metadata": {
+    "task": "task1_icu_daily_mortality",
+    "task_script_sha256": "de338de7d22a7277ca4fe52db9dc9a886686cf3c2bb8c1c76d9c76257a9c25c7",
+    "flair_version": "0.0.1",
+    "generated_at": "2026-06-30T18:42:59.599592+00:00",
+    "report_mode": "landmark",
+    "split": "test",
+    "n_stays": 13339,
+    "prevalence": 0.157782,
+    "evaled_at": 0.95,
+    "clinical_threshold": 0.95,
+    "window_unit": "day",
+    "min_cell_count": 10
+  },
+  "prevalence": 0.157782,
+  "curve": [
+    {
+      "windows_before_end": 0,
+      "window_unit": "day",
+      "n": 13339,
+      "sensitivity": 0.0219,
+      "sensitivity_ci": [
+        0.014,
+        0.0297
+      ],
+      "n_positive": 1369
+    },
+    {
+      "windows_before_end": 1,
+      "window_unit": "day",
+      "n": 9699,
+      "sensitivity": 0.0052,
+      "sensitivity_ci": [
+        0.0017,
+        0.0097
+      ],
+      "n_positive": 1151
+    },
+    {
+      "windows_before_end": 2,
+      "window_unit": "day",
+      "n": 6614,
+      "sensitivity": 0.0065,
+      "sensitivity_ci": [
+        0.0011,
+        0.0131
+      ],
+      "n_positive": 930
+    },
+    {
+      "windows_before_end": 3,
+      "window_unit": "day",
+      "n": 4650,
+      "sensitivity": 0.0,
+      "sensitivity_ci": [
+        0.0,
+        0.0
+      ],
+      "n_positive": 766
+    },
+    {
+      "windows_before_end": 4,
+      "window_unit": "day",
+      "n": 3388,
+      "sensitivity": 0.0,
+      "sensitivity_ci": [
+        0.0,
+        0.0
+      ],
+      "n_positive": 620
+    },
+    {
+      "windows_before_end": 5,
+      "window_unit": "day",
+      "n": 2617,
+      "sensitivity": 0.0,
+      "sensitivity_ci": [
+        0.0,
+        0.0
+      ],
+      "n_positive": 525
+    },
+    {
+      "windows_before_end": 6,
+      "window_unit": "day",
+      "n": 2085,
+      "sensitivity": 0.0,
+      "sensitivity_ci": [
+        0.0,
+        0.0
+      ],
+      "n_positive": 437
+    },
+    {
+      "windows_before_end": 7,
+      "window_unit": "day",
+      "n": 1643,
+      "sensitivity": 0.0054,
+      "sensitivity_ci": [
+        0.0,
+        0.0133
+      ],
+      "n_positive": 368
+    },
+    {
+      "windows_before_end": 8,
+      "window_unit": "day",
+      "n": 1330,
+      "sensitivity": 0.0096,
+      "sensitivity_ci": [
+        0.0,
+        0.0216
+      ],
+      "n_positive": 314
+    },
+    {
+      "windows_before_end": 9,
+      "window_unit": "day",
+      "n": 1107,
+      "sensitivity": 0.0,
+      "sensitivity_ci": [
+        0.0,
+        0.0
+      ],
+      "n_positive": 274
+    },
+    {
+      "windows_before_end": 10,
+      "window_unit": "day",
+      "n": 924,
+      "sensitivity": 0.0,
+      "sensitivity_ci": [
+        0.0,
+        0.0
+      ],
+      "n_positive": 231
+    },
+    {
+      "windows_before_end": 11,
+      "window_unit": "day",
+      "n": 793,
+      "sensitivity": 0.0103,
+      "sensitivity_ci": [
+        0.0,
+        0.0275
+      ],
+      "n_positive": 194
+    }
+  ],
+  "metrics": {
+    "n_positive_stays": 1369,
+    "n_caught": 40,
+    "pct_caught": 0.0292,
+    "median_lead_windows": 0.0,
+    "median_lead_ci": [
+      0.0,
+      1.0
+    ]
+  },
+  "trajectory": [
+    {
+      "windows_before_end": 0,
+      "window_unit": "day",
+      "n": 13339,
+      "n_positive": 1369,
+      "n_negative": 11970,
+      "mean_prob_positive": 0.5586,
+      "mean_prob_negative": 0.3343
+    },
+    {
+      "windows_before_end": 1,
+      "window_unit": "day",
+      "n": 9699,
+      "n_positive": 1151,
+      "n_negative": 8548,
+      "mean_prob_positive": 0.5388,
+      "mean_prob_negative": 0.3522
+    },
+    {
+      "windows_before_end": 2,
+      "window_unit": "day",
+      "n": 6614,
+      "n_positive": 930,
+      "n_negative": 5684,
+      "mean_prob_positive": 0.5355,
+      "mean_prob_negative": 0.3641
+    },
+    {
+      "windows_before_end": 3,
+      "window_unit": "day",
+      "n": 4650,
+      "n_positive": 766,
+      "n_negative": 3884,
+      "mean_prob_positive": 0.5311,
+      "mean_prob_negative": 0.3707
+    },
+    {
+      "windows_before_end": 4,
+      "window_unit": "day",
+      "n": 3388,
+      "n_positive": 620,
+      "n_negative": 2768,
+      "mean_prob_positive": 0.5298,
+      "mean_prob_negative": 0.376
+    },
+    {
+      "windows_before_end": 5,
+      "window_unit": "day",
+      "n": 2617,
+      "n_positive": 525,
+      "n_negative": 2092,
+      "mean_prob_positive": 0.5272,
+      "mean_prob_negative": 0.3812
+    },
+    {
+      "windows_before_end": 6,
+      "window_unit": "day",
+      "n": 2085,
+      "n_positive": 437,
+      "n_negative": 1648,
+      "mean_prob_positive": 0.5253,
+      "mean_prob_negative": 0.3799
+    },
+    {
+      "windows_before_end": 7,
+      "window_unit": "day",
+      "n": 1643,
+      "n_positive": 368,
+      "n_negative": 1275,
+      "mean_prob_positive": 0.522,
+      "mean_prob_negative": 0.3808
+    },
+    {
+      "windows_before_end": 8,
+      "window_unit": "day",
+      "n": 1330,
+      "n_positive": 314,
+      "n_negative": 1016,
+      "mean_prob_positive": 0.5136,
+      "mean_prob_negative": 0.3798
+    },
+    {
+      "windows_before_end": 9,
+      "window_unit": "day",
+      "n": 1107,
+      "n_positive": 274,
+      "n_negative": 833,
+      "mean_prob_positive": 0.5145,
+      "mean_prob_negative": 0.3751
+    },
+    {
+      "windows_before_end": 10,
+      "window_unit": "day",
+      "n": 924,
+      "n_positive": 231,
+      "n_negative": 693,
+      "mean_prob_positive": 0.5086,
+      "mean_prob_negative": 0.3647
+    },
+    {
+      "windows_before_end": 11,
+      "window_unit": "day",
+      "n": 793,
+      "n_positive": 194,
+      "n_negative": 599,
+      "mean_prob_positive": 0.5068,
+      "mean_prob_negative": 0.3619
+    }
+  ]
+}

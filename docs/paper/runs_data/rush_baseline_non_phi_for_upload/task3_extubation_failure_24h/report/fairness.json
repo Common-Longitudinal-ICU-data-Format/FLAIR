@@ -1,0 +1,371 @@
+{
+  "overall": {
+    "threshold": 0.15,
+    "direction": "below",
+    "sensitivity": 0.1347,
+    "specificity": 0.9742,
+    "ppv": 0.3377,
+    "npv": 0.9202,
+    "f1": 0.1926,
+    "sensitivity_ci": [
+      0.0884,
+      0.1861
+    ],
+    "specificity_ci": [
+      0.9671,
+      0.9806
+    ],
+    "ppv_ci": [
+      0.238,
+      0.4375
+    ],
+    "npv_ci": [
+      0.9076,
+      0.9309
+    ],
+    "f1_ci": [
+      0.1286,
+      0.2618
+    ],
+    "flag_rate": 0.0355,
+    "tp": 26,
+    "fp": 51,
+    "fn": 167,
+    "tn": 1925,
+    "n_flagged": 77,
+    "action": {
+      "acts_on": "y_prob < threshold",
+      "n_acted": 2092,
+      "act_rate": 0.9645,
+      "event_rate_in_acted": 0.0798,
+      "event_rate_in_not_acted": 0.3377
+    },
+    "n": 2169,
+    "prevalence": 0.088981,
+    "accuracy": 0.8995
+  },
+  "subgroups": {
+    "sex_category": {
+      "Male": {
+        "n": 1261,
+        "positive_rate": 0.0365,
+        "tpr": 0.1635,
+        "fpr": 0.0251,
+        "prevalence": 0.0825,
+        "auroc": 0.6673,
+        "auroc_ci": [
+          0.5991,
+          0.7265
+        ],
+        "auprc": 0.2105,
+        "brier": 0.0752,
+        "calibration_slope": 0.4043,
+        "calibration_intercept": -0.6896
+      },
+      "Female": {
+        "n": 908,
+        "positive_rate": 0.0341,
+        "tpr": 0.1011,
+        "fpr": 0.0269,
+        "prevalence": 0.098,
+        "auroc": 0.6685,
+        "auroc_ci": [
+          0.6134,
+          0.73
+        ],
+        "auprc": 0.2278,
+        "brier": 0.0888,
+        "calibration_slope": 0.4249,
+        "calibration_intercept": -0.5031
+      }
+    },
+    "race_category": {
+      "White": {
+        "n": 911,
+        "positive_rate": 0.0329,
+        "tpr": 0.1067,
+        "fpr": 0.0263,
+        "prevalence": 0.0823,
+        "auroc": 0.6742,
+        "auroc_ci": [
+          0.6095,
+          0.7368
+        ],
+        "auprc": 0.1938,
+        "brier": 0.0754,
+        "calibration_slope": 0.4241,
+        "calibration_intercept": -0.6489
+      },
+      "Asian": {
+        "n": 91,
+        "positive_rate": 0.044,
+        "tpr": 0.0,
+        "fpr": 0.0482,
+        "prevalence": 0.0879,
+        "auroc": 0.7922,
+        "auroc_ci": [
+          0.5213,
+          0.9449
+        ],
+        "auprc": 0.2725,
+        "brier": 0.0793,
+        "calibration_slope": 0.7342,
+        "calibration_intercept": 0.5112
+      },
+      "Other": {
+        "n": 398,
+        "positive_rate": 0.0176,
+        "tpr": 0.0526,
+        "fpr": 0.0139,
+        "prevalence": 0.0955,
+        "auroc": 0.6221,
+        "auroc_ci": [
+          0.5237,
+          0.7231
+        ],
+        "auprc": 0.1771,
+        "brier": 0.0898,
+        "calibration_slope": 0.3303,
+        "calibration_intercept": -0.7875
+      },
+      "Black or African American": {
+        "n": 703,
+        "positive_rate": 0.0398,
+        "tpr": 0.1935,
+        "fpr": 0.025,
+        "prevalence": 0.0882,
+        "auroc": 0.6742,
+        "auroc_ci": [
+          0.604,
+          0.7468
+        ],
+        "auprc": 0.2249,
+        "brier": 0.0795,
+        "calibration_slope": 0.4109,
+        "calibration_intercept": -0.6575
+      },
+      "Unknown": {
+        "n": 57,
+        "positive_rate": 0.1228,
+        "tpr": 0.4,
+        "fpr": 0.0638,
+        "prevalence": 0.1754,
+        "auroc": 0.7064,
+        "auroc_ci": [
+          0.4734,
+          0.9321
+        ],
+        "auprc": 0.5399,
+        "brier": 0.1369,
+        "calibration_slope": 0.4651,
+        "calibration_intercept": 0.2424
+      }
+    },
+    "ethnicity_category": {
+      "Unknown": {
+        "n": 28,
+        "positive_rate": 0.2143,
+        "tpr": 0.5,
+        "fpr": 0.1364,
+        "prevalence": 0.2143,
+        "auroc": 0.6136,
+        "auroc_ci": [
+          0.2317,
+          0.9811
+        ],
+        "auprc": 0.5542,
+        "brier": 0.1595,
+        "calibration_slope": 0.2286,
+        "calibration_intercept": -0.4191
+      },
+      "Hispanic": {
+        "n": 463,
+        "positive_rate": 0.013,
+        "tpr": 0.0233,
+        "fpr": 0.0119,
+        "prevalence": 0.0929,
+        "auroc": 0.623,
+        "auroc_ci": [
+          0.5341,
+          0.7119
+        ],
+        "auprc": 0.1453,
+        "brier": 0.0886,
+        "calibration_slope": 0.3006,
+        "calibration_intercept": -0.9341
+      },
+      "Non-Hispanic": {
+        "n": 1678,
+        "positive_rate": 0.0387,
+        "tpr": 0.1528,
+        "fpr": 0.028,
+        "prevalence": 0.0858,
+        "auroc": 0.6872,
+        "auroc_ci": [
+          0.6367,
+          0.7338
+        ],
+        "auprc": 0.2191,
+        "brier": 0.0774,
+        "calibration_slope": 0.4527,
+        "calibration_intercept": -0.5206
+      }
+    },
+    "age_bin": {
+      "80+": {
+        "n": 213,
+        "positive_rate": 0.0751,
+        "tpr": 0.2333,
+        "fpr": 0.0492,
+        "prevalence": 0.1408,
+        "auroc": 0.7663,
+        "auroc_ci": [
+          0.6666,
+          0.8486
+        ],
+        "auprc": 0.4146,
+        "brier": 0.1168,
+        "calibration_slope": 0.6533,
+        "calibration_intercept": 0.5086
+      },
+      "40-64": {
+        "n": 887,
+        "positive_rate": 0.0248,
+        "tpr": 0.1781,
+        "fpr": 0.0111,
+        "prevalence": 0.0823,
+        "auroc": 0.6649,
+        "auroc_ci": [
+          0.5844,
+          0.7361
+        ],
+        "auprc": 0.2237,
+        "brier": 0.0748,
+        "calibration_slope": 0.4389,
+        "calibration_intercept": -0.5301
+      },
+      "18-39": {
+        "n": 229,
+        "positive_rate": 0.0087,
+        "tpr": 0.0,
+        "fpr": 0.0094,
+        "prevalence": 0.0742,
+        "auroc": 0.5583,
+        "auroc_ci": [
+          0.3937,
+          0.7089
+        ],
+        "auprc": 0.1097,
+        "brier": 0.0727,
+        "calibration_slope": 0.1165,
+        "calibration_intercept": -1.9146
+      },
+      "65-79": {
+        "n": 840,
+        "positive_rate": 0.044,
+        "tpr": 0.0822,
+        "fpr": 0.0404,
+        "prevalence": 0.0869,
+        "auroc": 0.6544,
+        "auroc_ci": [
+          0.5898,
+          0.7196
+        ],
+        "auprc": 0.1685,
+        "brier": 0.0804,
+        "calibration_slope": 0.3778,
+        "calibration_intercept": -0.8413
+      }
+    }
+  },
+  "parity": {
+    "sex_category": {
+      "demographic_parity_gap": 0.0023,
+      "equalized_odds_tpr_gap": 0.0623,
+      "equalized_odds_fpr_gap": 0.0018,
+      "demographic_parity_gap_ci": [
+        0.0003,
+        0.0178
+      ],
+      "equalized_odds_tpr_gap_ci": [
+        0.0033,
+        0.1512
+      ],
+      "equalized_odds_fpr_gap_ci": [
+        0.0003,
+        0.0161
+      ],
+      "reference_group": "Male"
+    },
+    "race_category": {
+      "demographic_parity_gap": 0.1052,
+      "equalized_odds_tpr_gap": 0.4,
+      "equalized_odds_fpr_gap": 0.0499,
+      "demographic_parity_gap_ci": [
+        0.0341,
+        0.2015
+      ],
+      "equalized_odds_tpr_gap_ci": [
+        0.173,
+        0.75
+      ],
+      "equalized_odds_fpr_gap_ci": [
+        0.0198,
+        0.1341
+      ],
+      "reference_group": "White"
+    },
+    "ethnicity_category": {
+      "demographic_parity_gap": 0.2013,
+      "equalized_odds_tpr_gap": 0.4767,
+      "equalized_odds_fpr_gap": 0.1245,
+      "demographic_parity_gap_ci": [
+        0.0562,
+        0.3662
+      ],
+      "equalized_odds_tpr_gap_ci": [
+        0.1222,
+        0.9731
+      ],
+      "equalized_odds_fpr_gap_ci": [
+        0.0261,
+        0.3047
+      ],
+      "reference_group": "Non-Hispanic"
+    },
+    "age_bin": {
+      "demographic_parity_gap": 0.0664,
+      "equalized_odds_tpr_gap": 0.2333,
+      "equalized_odds_fpr_gap": 0.0397,
+      "demographic_parity_gap_ci": [
+        0.0344,
+        0.1067
+      ],
+      "equalized_odds_tpr_gap_ci": [
+        0.1394,
+        0.4
+      ],
+      "equalized_odds_fpr_gap_ci": [
+        0.0245,
+        0.0773
+      ],
+      "reference_group": "40-64"
+    }
+  },
+  "metadata": {
+    "task": "task3_extubation_failure_24h",
+    "task_script_sha256": "512522f6bc67faf1b3c7c0060f101cbbc0d38f3214c1e4ed3ce833a83b9b3a68",
+    "flair_version": "0.0.1",
+    "generated_at": "2026-06-30T18:48:32.414043+00:00",
+    "report_mode": "episodic",
+    "split": "test",
+    "n_stays": 2169,
+    "prevalence": 0.088981,
+    "evaled_at": 0.15,
+    "min_subgroup_n": 10,
+    "operating_threshold": 0.15,
+    "threshold": 0.15,
+    "clinical_direction": "below",
+    "flag_rule": "y_prob >= threshold"
+  }
+}

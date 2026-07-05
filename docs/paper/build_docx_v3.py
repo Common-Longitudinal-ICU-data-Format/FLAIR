@@ -37,20 +37,15 @@ TITLE_PAGE_TODOS = [
 CITE_NUMBERS: dict[str, str] = {}
 REFERENCES: list[str] = []
 
-# Illustrative-site dagger marker (matches the LaTeX $^\dagger$).
-DAG = "†"
-
-
 def _consortium_rows() -> list[list[str]]:
     rows = []
     for s in D.SITE_ORDER:
         i = D.ALL_SITES[s]
-        tag = "" if i["observed"] else DAG
-        arch = ("Public development (MIMIC-IV)" if s == "mimic"
-                else "Urban academic medical center" if s == "rush"
-                else i["archetype"])
-        rows.append([i["label"] + tag, arch, f"{i['stays']:,}",
-                     f"{i['female_pct']:.1f}", str(i["age_median"]), str(i["sofa_median"])])
+        if i.get("observed"):
+            rows.append([i["label"], f"{i['stays']:,}", f"{i['female_pct']:.1f}",
+                         str(i["age_median"]), str(i["sofa_median"])])
+        else:
+            rows.append([i["label"], "---", "---", "---", "---"])
     return rows
 
 
@@ -58,9 +53,33 @@ def _leaderboard_rows() -> list[list[str]]:
     rows = []
     for s in D.SITE_ORDER:
         i = D.ALL_SITES[s]
-        tag = "" if i["observed"] else DAG
-        rows.append([i["label"] + tag] + [D.fmt_ci(s, t) for t in D.TASK_IDS])
+        if i.get("observed"):
+            rows.append([i["label"]] + [D.fmt_ci(s, t) for t in D.TASK_IDS])
+        else:
+            rows.append([i["label"]] + ["---"] * len(D.TASK_IDS))
     rows.append(["External median"] + [f"{D.external_median(t):.3f}" for t in D.TASK_IDS])
+    return rows
+
+
+_TASK_LONG = {
+    "T1": "T1, ICU daily mortality", "T2": "T2, LTACH discharge",
+    "T3": "T3, extubation failure 24 h", "T4": "T4, sepsis 6 h",
+    "T5": "T5, unplanned ICU readmission",
+}
+
+
+def _mimic_full_rows() -> list[list[str]]:
+    rows = []
+    for tid in D.TASK_IDS:
+        fm = D.FULL_METRICS["mimic"][tid]
+        cal = fm["calibration"]
+        slope = f"{cal[0]:.2f}" if cal else "---"
+        intc = f"{cal[1]:.2f}" if cal else "---"
+        brier = f"{cal[2]:.3f}" if cal else "---"
+        rows.append([
+            _TASK_LONG[tid], fm["mode"], f"{fm['n']:,}", f"{fm['prevalence']:.3f}",
+            D.fmt_ci("mimic", tid), f"{fm['auprc']:.3f}", slope, intc, brier,
+        ])
     return rows
 
 
@@ -68,72 +87,67 @@ TABLES = {
     # ---- main text ----
     "tab:taskspec": {
         "caption": (
-            "Table 1. The five FLAIR benchmark tasks. Prevalence is the stay-level "
-            "positive rate on MIMIC-CLIF. Clinical thresholds and directions are "
-            "single-sourced in the package policy registry and folded into each "
-            "task's audit metadata. Source: FLAIR task code and v2 baseline artifacts."
+            "Table 1. The five FLAIR benchmark tasks. Prevalence is the MIMIC-CLIF "
+            "positive rate on the scored test set (first landmark for T1-T2; per stay "
+            "for T3-T5). Clinical thresholds and directions are single-sourced in the "
+            "package policy registry and folded into each task's audit metadata. "
+            "Source: FLAIR task code and baseline report artifacts."
         ),
         "header": ["Task", "Outcome", "Prediction grid", "Report mode", "Threshold", "Prev."],
         "rows": [
-            [t[0], t[1], t[6], t[2], f"{t[3]:.2f} ({t[4]})", f"{t[5]:.3f}"]
+            [t[0], t[1], t[5], t[2], f"{t[3]:.2f} ({t[4]})",
+             f"{D.FULL_METRICS['mimic'][t[0]]['prevalence']:.3f}"]
             for t in D.TASKS
         ],
     },
     "tab:consortium": {
         "caption": (
             "Table 2. Federated consortium cohort characteristics. Age is the "
-            "median in years; SOFA is the median hospital-maximum score. MIMIC-CLIF "
-            "and Rush are observed FLAIR v2 results; sites marked " + DAG + " (C-H) "
-            "are illustrative projections pending federated runs and are not "
-            "collected data. Per-site cell suppression at n<10 is applied. Source: "
-            "FLAIR v2 baseline artifacts (observed) and flair_paper_data.py (illustrative)."
+            "median in years; SOFA is the median hospital-maximum score. Four sites "
+            "have reported observed federated runs; four additional consortium sites "
+            "are onboarding (shown as placeholder rows) and have not yet returned "
+            "results. Per-site cell suppression at n<10 is applied. Source: FLAIR "
+            "baseline report artifacts, single-sourced through flair_paper_data.py."
         ),
-        "header": ["Site", "Archetype", "ICU stays", "Female %", "Age", "SOFA"],
+        "header": ["Site", "ICU stays", "Female %", "Age", "SOFA"],
         "rows": _consortium_rows(),
     },
     # ---- supplement ----
     "tab:supp-baseline-full": {
         "caption": (
             "Table S1. Full observed MIMIC-CLIF internal baseline metrics for the "
-            "XGBoost count-feature model. Calibration is omitted for T4 by design "
-            "under peak scoring. Source: FLAIR v2 baseline artifacts."
+            "XGBoost count-feature model. Landmark tasks (T1, T2) report the pooled "
+            "dynamic AUC and pooled calibration across landmarks. Calibration is "
+            "omitted for T4 by design under peak scoring. Source: FLAIR baseline "
+            "report artifacts."
         ),
         "header": ["Task", "Mode", "n", "Prev.", "AUROC (95% CI)", "AUPRC", "Cal. slope", "Cal. int.", "Brier"],
-        "rows": [
-            ["T1, ICU daily mortality", "landmark", "18,195", "0.134", "0.864 (0.856-0.872)", "0.587", "1.19", "-1.24", "0.111"],
-            ["T2, LTACH discharge", "landmark", "18,195", "0.065", "0.789 (0.775-0.803)", "0.288", "1.01", "-1.77", "0.096"],
-            ["T3, extubation failure 24 h", "episodic", "6,693", "0.054", "0.696 (0.665-0.719)", "0.134", "0.45", "-1.86", "0.070"],
-            ["T4, sepsis 6 h", "peak", "19,943", "0.063", "0.693 (0.678-0.709)", "0.134", "---", "---", "---"],
-            ["T5, unplanned ICU readmission", "episodic", "16,806", "0.093", "0.641 (0.626-0.658)", "0.248", "0.68", "-1.89", "0.151"],
-        ],
+        "rows": _mimic_full_rows(),
     },
     "tab:supp-leaderboard": {
         "caption": (
             "Table S2. Per-site AUROC (95% CI) for the frozen baseline, mode-matched "
-            "per task. MIMIC-CLIF and Rush are observed; sites marked " + DAG + " are "
-            "illustrative projections pending federated runs. External median is over "
-            "all external sites. Source: FLAIR v2 baseline artifacts (observed) and "
-            "flair_paper_data.py (illustrative)."
+            "per task; landmark tasks (T1, T2) report the pooled dynamic AUC. Four "
+            "sites are observed; four consortium sites are onboarding (placeholder "
+            "rows). External median is over the three observed external sites. Source: "
+            "FLAIR baseline report artifacts, single-sourced through flair_paper_data.py."
         ),
         "header": ["Site", "T1 (95% CI)", "T2 (95% CI)", "T3 (95% CI)", "T4 (95% CI)", "T5 (95% CI)"],
         "rows": _leaderboard_rows(),
     },
     "tab:mimic-snapshot": {
         "caption": (
-            "Table S3. Observed MIMIC-CLIF cohort snapshot per task. Decision rows "
-            "are one per stay for T3 and T5, daily at 07:00 local for T1 and T2, and "
-            "hourly for T4. Counts are per stitched encounter (hospitalization_join_id). "
-            "Charlson and Elixhauser scores are missing for 49-54% of stays in the "
-            "MIMIC-CLIF export. Source: FLAIR v2 baseline artifacts."
+            "Table S3. Observed MIMIC-CLIF per-task cohort snapshot. Counts are "
+            "eligible stitched encounters (hospitalization_join_id) per task; T1 and "
+            "T2 share the daily-landmark cohort, while T3-T5 apply task-specific "
+            "eligibility. Charlson scores are missing for roughly half of stays in the "
+            "MIMIC-CLIF export. Source: FLAIR baseline report artifacts (per-task table1.json)."
         ),
         "header": ["Measure", "T1 mortality", "T2 LTACH", "T3 extubation", "T4 sepsis", "T5 readmission"],
         "rows": [
-            ["ICU encounters", "64,408", "64,408", "26,768", "80,600", "67,235"],
-            ["Decision rows", "198,125", "198,125", "26,771", "14,347,321", "67,250"],
-            ["Positive rate, row level", "19.2%", "14.3%", "5.4%", "0.2%", "9.2%"],
-            ["Stays ever positive", "13.0%", "6.3%", "5.4%", "7.2%", "9.2%"],
-            ["Sex, F/M", "27,795/36,613", "27,795/36,613", "10,031/16,737", "35,760/44,840", "29,199/38,036"],
-            ["Age 65 years or older", "55.3%", "55.3%", "54.1%", "54.8%", "54.1%"],
+            ["Eligible hospitalizations", "72,778", "72,778", "26,770", "79,772", "67,221"],
+            ["Sex, F/M", "31,409/41,369", "31,409/41,369", "10,032/16,738", "35,415/44,357", "29,195/38,026"],
+            ["Age, median (IQR)", "67 (55-77)", "67 (55-77)", "66 (56-75)", "67 (55-77)", "66 (55-77)"],
             ["SOFA hospital maximum, median (IQR)", "5 (2-8)", "5 (2-8)", "7 (5-10)", "4 (2-7)", "4 (2-7)"],
             ["Charlson score, median (IQR)", "2 (0-4)", "2 (0-4)", "2 (0-4)", "2 (0-4)", "2 (0-4)"],
         ],
@@ -177,11 +191,13 @@ FIGURES = {
         "width": 6.0,
         "caption": (
             "Figure 2. Observed cross-site degradation of the frozen baseline from "
-            "the MIMIC-CLIF internal holdout to the first external site (Rush). Left: "
-            "AUROC for each task falls from internal to external; sepsis crosses below "
-            "the chance line. Right: the internal-to-external AUROC drop by task, "
-            "ordered by magnitude. Both panels use only observed data. Source: FLAIR "
-            "v2 baseline artifacts."
+            "the MIMIC-CLIF internal holdout to the three external sites (Rush, "
+            "Northwestern Medicine, University of Chicago Medicine). Left: for each "
+            "task a line runs from the internal AUROC to each external site; sepsis "
+            "and readmission cross below the chance band. Right: the median internal-"
+            "to-external AUROC drop by task, ordered by magnitude. All four sites are "
+            "observed. Landmark tasks use the pooled dynamic AUC. Source: FLAIR "
+            "baseline report artifacts."
         ),
     },
     "fig:forest": {
@@ -191,10 +207,12 @@ FIGURES = {
             "Figure 3. Per-site discrimination of the frozen baseline across the CLIF "
             "consortium, one panel per task. Each marker is a site's AUROC with a 95% "
             "confidence interval; the dashed line is the MIMIC-CLIF internal reference "
-            "and the shaded band marks worse-than-chance discrimination. MIMIC-CLIF "
-            "(blue) and Rush (terracotta) are observed; open grey markers (Sites C-H) "
-            "are illustrative projections pending federated runs. Source: FLAIR v2 "
-            "baseline artifacts (observed) and flair_paper_data.py (illustrative)."
+            "and the shaded band marks worse-than-chance discrimination. The four "
+            "observed sites (MIMIC-CLIF, Rush, Northwestern Medicine, University of "
+            "Chicago Medicine) are shown in colour; four onboarding consortium sites "
+            "appear as greyed placeholder rows pending federated runs. Landmark tasks "
+            "(T1, T2) use the pooled dynamic AUC. Source: FLAIR baseline report "
+            "artifacts, single-sourced through flair_paper_data.py."
         ),
     },
 }

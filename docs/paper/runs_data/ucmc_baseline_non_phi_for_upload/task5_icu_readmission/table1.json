@@ -1,0 +1,1252 @@
+{
+  "n_total": 30623,
+  "continuous": {
+    "age_at_admission": {
+      "mean": 57.85,
+      "std": 17.71,
+      "median": 61.0,
+      "q25": 46.0,
+      "q75": 70.0,
+      "min": 18.0,
+      "max": 104.0,
+      "n_missing": 0
+    },
+    "sofa_max": {
+      "mean": 6.0,
+      "std": 4.62,
+      "median": 5.0,
+      "q25": 2.0,
+      "q75": 9.0,
+      "min": 0.0,
+      "max": 24.0,
+      "n_missing": 0
+    },
+    "charlson_score": {
+      "mean": 2.63,
+      "std": 2.35,
+      "median": 2.0,
+      "q25": 1.0,
+      "q75": 4.0,
+      "min": 0.0,
+      "max": 16.0,
+      "n_missing": 4437
+    },
+    "elix_score": {
+      "mean": 14.87,
+      "std": 10.91,
+      "median": 14.0,
+      "q25": 6.0,
+      "q75": 22.0,
+      "min": -14.0,
+      "max": 64.0,
+      "n_missing": 4437
+    }
+  },
+  "categorical": {
+    "sex_category": {
+      "Male": 17180,
+      "Female": 13443
+    },
+    "race_category": {
+      "Unknown": 2119,
+      "Native Hawaiian or Other Pacific Islander": 49,
+      "Other": 658,
+      "American Indian or Alaska Native": 71,
+      "Black or African American": 18407,
+      "White": 8729,
+      "Asian": 590
+    },
+    "ethnicity_category": {
+      "Non-Hispanic": 27431,
+      "Hispanic": 1848,
+      "Unknown": 1344
+    }
+  },
+  "by_split": {
+    "total": {
+      "n": 30623,
+      "date_range": {
+        "start": "Jan 2018",
+        "end": "Feb 2025"
+      },
+      "continuous": {
+        "age_at_admission": {
+          "mean": 57.85,
+          "std": 17.71,
+          "median": 61.0,
+          "q25": 46.0,
+          "q75": 70.0,
+          "min": 18.0,
+          "max": 104.0,
+          "n_missing": 0
+        },
+        "sofa_max": {
+          "mean": 6.0,
+          "std": 4.62,
+          "median": 5.0,
+          "q25": 2.0,
+          "q75": 9.0,
+          "min": 0.0,
+          "max": 24.0,
+          "n_missing": 0
+        },
+        "charlson_score": {
+          "mean": 2.63,
+          "std": 2.35,
+          "median": 2.0,
+          "q25": 1.0,
+          "q75": 4.0,
+          "min": 0.0,
+          "max": 16.0,
+          "n_missing": 4437
+        },
+        "elix_score": {
+          "mean": 14.87,
+          "std": 10.91,
+          "median": 14.0,
+          "q25": 6.0,
+          "q75": 22.0,
+          "min": -14.0,
+          "max": 64.0,
+          "n_missing": 4437
+        }
+      },
+      "categorical": {
+        "sex_category": {
+          "Female": 13443,
+          "Male": 17180
+        },
+        "race_category": {
+          "Unknown": 2119,
+          "White": 8729,
+          "Asian": 590,
+          "Other": 658,
+          "Black or African American": 18407,
+          "Native Hawaiian or Other Pacific Islander": 49,
+          "American Indian or Alaska Native": 71
+        },
+        "ethnicity_category": {
+          "Non-Hispanic": 27431,
+          "Hispanic": 1848,
+          "Unknown": 1344
+        }
+      }
+    },
+    "train": {
+      "n": 22967,
+      "date_range": {
+        "start": "Jan 2018",
+        "end": "May 2023"
+      },
+      "continuous": {
+        "age_at_admission": {
+          "mean": 57.71,
+          "std": 17.72,
+          "median": 60.0,
+          "q25": 46.0,
+          "q75": 70.0,
+          "min": 18.0,
+          "max": 104.0,
+          "n_missing": 0
+        },
+        "sofa_max": {
+          "mean": 5.9,
+          "std": 4.57,
+          "median": 5.0,
+          "q25": 2.0,
+          "q75": 9.0,
+          "min": 0.0,
+          "max": 24.0,
+          "n_missing": 0
+        },
+        "charlson_score": {
+          "mean": 2.64,
+          "std": 2.34,
+          "median": 2.0,
+          "q25": 1.0,
+          "q75": 4.0,
+          "min": 0.0,
+          "max": 15.0,
+          "n_missing": 4435
+        },
+        "elix_score": {
+          "mean": 14.98,
+          "std": 10.89,
+          "median": 14.0,
+          "q25": 7.0,
+          "q75": 22.0,
+          "min": -14.0,
+          "max": 64.0,
+          "n_missing": 4435
+        }
+      },
+      "categorical": {
+        "sex_category": {
+          "Male": 12777,
+          "Female": 10190
+        },
+        "race_category": {
+          "Unknown": 1044,
+          "American Indian or Alaska Native": 52,
+          "Other": 635,
+          "Native Hawaiian or Other Pacific Islander": 39,
+          "Asian": 428,
+          "Black or African American": 14159,
+          "White": 6610
+        },
+        "ethnicity_category": {
+          "Hispanic": 1297,
+          "Non-Hispanic": 21062,
+          "Unknown": 608
+        }
+      }
+    },
+    "test": {
+      "n": 7656,
+      "date_range": {
+        "start": "May 2023",
+        "end": "Feb 2025"
+      },
+      "continuous": {
+        "age_at_admission": {
+          "mean": 58.27,
+          "std": 17.69,
+          "median": 61.0,
+          "q25": 46.0,
+          "q75": 71.0,
+          "min": 18.0,
+          "max": 103.0,
+          "n_missing": 0
+        },
+        "sofa_max": {
+          "mean": 6.29,
+          "std": 4.77,
+          "median": 6.0,
+          "q25": 2.0,
+          "q75": 9.0,
+          "min": 0.0,
+          "max": 24.0,
+          "n_missing": 0
+        },
+        "charlson_score": {
+          "mean": 2.58,
+          "std": 2.38,
+          "median": 2.0,
+          "q25": 0.0,
+          "q75": 4.0,
+          "min": 0.0,
+          "max": 16.0,
+          "n_missing": 2
+        },
+        "elix_score": {
+          "mean": 14.61,
+          "std": 10.96,
+          "median": 14.0,
+          "q25": 6.0,
+          "q75": 22.0,
+          "min": -14.0,
+          "max": 58.0,
+          "n_missing": 2
+        }
+      },
+      "categorical": {
+        "sex_category": {
+          "Female": 3253,
+          "Male": 4403
+        },
+        "race_category": {
+          "Other": 23,
+          "Unknown": 1075,
+          "Black or African American": 4248,
+          "American Indian or Alaska Native": 19,
+          "Asian": 162,
+          "White": 2119,
+          "Native Hawaiian or Other Pacific Islander": 10
+        },
+        "ethnicity_category": {
+          "Non-Hispanic": 6369,
+          "Unknown": 736,
+          "Hispanic": 551
+        }
+      }
+    }
+  },
+  "by_label": {
+    "0": {
+      "n": 27915,
+      "date_range": {
+        "start": "Jan 2018",
+        "end": "Feb 2025"
+      },
+      "continuous": {
+        "age_at_admission": {
+          "mean": 57.77,
+          "std": 17.79,
+          "median": 61.0,
+          "q25": 46.0,
+          "q75": 70.0,
+          "min": 18.0,
+          "max": 104.0,
+          "n_missing": 0
+        },
+        "sofa_max": {
+          "mean": 5.68,
+          "std": 4.46,
+          "median": 5.0,
+          "q25": 2.0,
+          "q75": 8.0,
+          "min": 0.0,
+          "max": 24.0,
+          "n_missing": 0
+        },
+        "charlson_score": {
+          "mean": 2.55,
+          "std": 2.34,
+          "median": 2.0,
+          "q25": 0.0,
+          "q75": 4.0,
+          "min": 0.0,
+          "max": 16.0,
+          "n_missing": 4324
+        },
+        "elix_score": {
+          "mean": 14.2,
+          "std": 10.68,
+          "median": 13.0,
+          "q25": 6.0,
+          "q75": 21.0,
+          "min": -14.0,
+          "max": 62.0,
+          "n_missing": 4324
+        }
+      },
+      "categorical": {
+        "sex_category": {
+          "Male": 15578,
+          "Female": 12337
+        },
+        "race_category": {
+          "White": 7871,
+          "Other": 598,
+          "Black or African American": 16842,
+          "American Indian or Alaska Native": 68,
+          "Unknown": 1959,
+          "Asian": 530,
+          "Native Hawaiian or Other Pacific Islander": 47
+        },
+        "ethnicity_category": {
+          "Hispanic": 1684,
+          "Unknown": 1255,
+          "Non-Hispanic": 24976
+        }
+      }
+    },
+    "1": {
+      "n": 2708,
+      "date_range": {
+        "start": "Jan 2018",
+        "end": "Jan 2025"
+      },
+      "continuous": {
+        "age_at_admission": {
+          "mean": 58.6,
+          "std": 16.91,
+          "median": 61.0,
+          "q25": 48.0,
+          "q75": 71.0,
+          "min": 18.0,
+          "max": 96.0,
+          "n_missing": 0
+        },
+        "sofa_max": {
+          "mean": 9.22,
+          "std": 5.07,
+          "median": 9.0,
+          "q25": 5.0,
+          "q75": 13.0,
+          "min": 0.0,
+          "max": 24.0,
+          "n_missing": 0
+        },
+        "charlson_score": {
+          "mean": 3.29,
+          "std": 2.37,
+          "median": 3.0,
+          "q25": 2.0,
+          "q75": 5.0,
+          "min": 0.0,
+          "max": 12.0,
+          "n_missing": 113
+        },
+        "elix_score": {
+          "mean": 20.96,
+          "std": 11.03,
+          "median": 21.0,
+          "q25": 13.0,
+          "q75": 28.0,
+          "min": -9.0,
+          "max": 64.0,
+          "n_missing": 113
+        }
+      },
+      "categorical": {
+        "sex_category": {
+          "Male": 1602,
+          "Female": 1106
+        },
+        "race_category": {
+          "American Indian or Alaska Native": "<10",
+          "Black or African American": 1565,
+          "Other": 60,
+          "Asian": 60,
+          "Native Hawaiian or Other Pacific Islander": "<10",
+          "White": 858,
+          "Unknown": 160
+        },
+        "ethnicity_category": {
+          "Unknown": 89,
+          "Non-Hispanic": 2455,
+          "Hispanic": 164
+        }
+      }
+    }
+  },
+  "n_rows": 30623,
+  "by_grain": {
+    "encounter": {
+      "n_total": 30623,
+      "continuous": {
+        "age_at_admission": {
+          "mean": 57.85,
+          "std": 17.71,
+          "median": 61.0,
+          "q25": 46.0,
+          "q75": 70.0,
+          "min": 18.0,
+          "max": 104.0,
+          "n_missing": 0
+        },
+        "sofa_max": {
+          "mean": 6.0,
+          "std": 4.62,
+          "median": 5.0,
+          "q25": 2.0,
+          "q75": 9.0,
+          "min": 0.0,
+          "max": 24.0,
+          "n_missing": 0
+        },
+        "charlson_score": {
+          "mean": 2.63,
+          "std": 2.35,
+          "median": 2.0,
+          "q25": 1.0,
+          "q75": 4.0,
+          "min": 0.0,
+          "max": 16.0,
+          "n_missing": 4437
+        },
+        "elix_score": {
+          "mean": 14.87,
+          "std": 10.91,
+          "median": 14.0,
+          "q25": 6.0,
+          "q75": 22.0,
+          "min": -14.0,
+          "max": 64.0,
+          "n_missing": 4437
+        }
+      },
+      "categorical": {
+        "sex_category": {
+          "Female": 13443,
+          "Male": 17180
+        },
+        "race_category": {
+          "Asian": 590,
+          "Other": 658,
+          "White": 8729,
+          "Black or African American": 18407,
+          "Unknown": 2119,
+          "American Indian or Alaska Native": 71,
+          "Native Hawaiian or Other Pacific Islander": 49
+        },
+        "ethnicity_category": {
+          "Hispanic": 1848,
+          "Unknown": 1344,
+          "Non-Hispanic": 27431
+        }
+      },
+      "by_split": {
+        "total": {
+          "n": 30623,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "Feb 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 57.85,
+              "std": 17.71,
+              "median": 61.0,
+              "q25": 46.0,
+              "q75": 70.0,
+              "min": 18.0,
+              "max": 104.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 6.0,
+              "std": 4.62,
+              "median": 5.0,
+              "q25": 2.0,
+              "q75": 9.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.63,
+              "std": 2.35,
+              "median": 2.0,
+              "q25": 1.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 16.0,
+              "n_missing": 4437
+            },
+            "elix_score": {
+              "mean": 14.87,
+              "std": 10.91,
+              "median": 14.0,
+              "q25": 6.0,
+              "q75": 22.0,
+              "min": -14.0,
+              "max": 64.0,
+              "n_missing": 4437
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Male": 17180,
+              "Female": 13443
+            },
+            "race_category": {
+              "Unknown": 2119,
+              "Other": 658,
+              "Native Hawaiian or Other Pacific Islander": 49,
+              "White": 8729,
+              "Black or African American": 18407,
+              "American Indian or Alaska Native": 71,
+              "Asian": 590
+            },
+            "ethnicity_category": {
+              "Hispanic": 1848,
+              "Unknown": 1344,
+              "Non-Hispanic": 27431
+            }
+          }
+        },
+        "train": {
+          "n": 22967,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "May 2023"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 57.71,
+              "std": 17.72,
+              "median": 60.0,
+              "q25": 46.0,
+              "q75": 70.0,
+              "min": 18.0,
+              "max": 104.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 5.9,
+              "std": 4.57,
+              "median": 5.0,
+              "q25": 2.0,
+              "q75": 9.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.64,
+              "std": 2.34,
+              "median": 2.0,
+              "q25": 1.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 15.0,
+              "n_missing": 4435
+            },
+            "elix_score": {
+              "mean": 14.98,
+              "std": 10.89,
+              "median": 14.0,
+              "q25": 7.0,
+              "q75": 22.0,
+              "min": -14.0,
+              "max": 64.0,
+              "n_missing": 4435
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Male": 12777,
+              "Female": 10190
+            },
+            "race_category": {
+              "American Indian or Alaska Native": 52,
+              "Unknown": 1044,
+              "White": 6610,
+              "Black or African American": 14159,
+              "Other": 635,
+              "Asian": 428,
+              "Native Hawaiian or Other Pacific Islander": 39
+            },
+            "ethnicity_category": {
+              "Hispanic": 1297,
+              "Unknown": 608,
+              "Non-Hispanic": 21062
+            }
+          }
+        },
+        "test": {
+          "n": 7656,
+          "date_range": {
+            "start": "May 2023",
+            "end": "Feb 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 58.27,
+              "std": 17.69,
+              "median": 61.0,
+              "q25": 46.0,
+              "q75": 71.0,
+              "min": 18.0,
+              "max": 103.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 6.29,
+              "std": 4.77,
+              "median": 6.0,
+              "q25": 2.0,
+              "q75": 9.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.58,
+              "std": 2.38,
+              "median": 2.0,
+              "q25": 0.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 16.0,
+              "n_missing": 2
+            },
+            "elix_score": {
+              "mean": 14.61,
+              "std": 10.96,
+              "median": 14.0,
+              "q25": 6.0,
+              "q75": 22.0,
+              "min": -14.0,
+              "max": 58.0,
+              "n_missing": 2
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Female": 3253,
+              "Male": 4403
+            },
+            "race_category": {
+              "Black or African American": 4248,
+              "Asian": 162,
+              "American Indian or Alaska Native": 19,
+              "Other": 23,
+              "Unknown": 1075,
+              "White": 2119,
+              "Native Hawaiian or Other Pacific Islander": 10
+            },
+            "ethnicity_category": {
+              "Unknown": 736,
+              "Non-Hispanic": 6369,
+              "Hispanic": 551
+            }
+          }
+        }
+      },
+      "by_label": {
+        "0": {
+          "n": 27915,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "Feb 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 57.77,
+              "std": 17.79,
+              "median": 61.0,
+              "q25": 46.0,
+              "q75": 70.0,
+              "min": 18.0,
+              "max": 104.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 5.68,
+              "std": 4.46,
+              "median": 5.0,
+              "q25": 2.0,
+              "q75": 8.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.55,
+              "std": 2.34,
+              "median": 2.0,
+              "q25": 0.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 16.0,
+              "n_missing": 4324
+            },
+            "elix_score": {
+              "mean": 14.2,
+              "std": 10.68,
+              "median": 13.0,
+              "q25": 6.0,
+              "q75": 21.0,
+              "min": -14.0,
+              "max": 62.0,
+              "n_missing": 4324
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Female": 12337,
+              "Male": 15578
+            },
+            "race_category": {
+              "White": 7871,
+              "Black or African American": 16842,
+              "Unknown": 1959,
+              "Other": 598,
+              "Native Hawaiian or Other Pacific Islander": 47,
+              "American Indian or Alaska Native": 68,
+              "Asian": 530
+            },
+            "ethnicity_category": {
+              "Unknown": 1255,
+              "Hispanic": 1684,
+              "Non-Hispanic": 24976
+            }
+          }
+        },
+        "1": {
+          "n": 2708,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "Jan 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 58.6,
+              "std": 16.91,
+              "median": 61.0,
+              "q25": 48.0,
+              "q75": 71.0,
+              "min": 18.0,
+              "max": 96.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 9.22,
+              "std": 5.07,
+              "median": 9.0,
+              "q25": 5.0,
+              "q75": 13.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 3.29,
+              "std": 2.37,
+              "median": 3.0,
+              "q25": 2.0,
+              "q75": 5.0,
+              "min": 0.0,
+              "max": 12.0,
+              "n_missing": 113
+            },
+            "elix_score": {
+              "mean": 20.96,
+              "std": 11.03,
+              "median": 21.0,
+              "q25": 13.0,
+              "q75": 28.0,
+              "min": -9.0,
+              "max": 64.0,
+              "n_missing": 113
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Female": 1106,
+              "Male": 1602
+            },
+            "race_category": {
+              "Black or African American": 1565,
+              "White": 858,
+              "American Indian or Alaska Native": "<10",
+              "Asian": 60,
+              "Other": 60,
+              "Native Hawaiian or Other Pacific Islander": "<10",
+              "Unknown": 160
+            },
+            "ethnicity_category": {
+              "Non-Hispanic": 2455,
+              "Unknown": 89,
+              "Hispanic": 164
+            }
+          }
+        }
+      }
+    },
+    "row": {
+      "n_total": 30623,
+      "continuous": {
+        "age_at_admission": {
+          "mean": 57.85,
+          "std": 17.71,
+          "median": 61.0,
+          "q25": 46.0,
+          "q75": 70.0,
+          "min": 18.0,
+          "max": 104.0,
+          "n_missing": 0
+        },
+        "sofa_max": {
+          "mean": 6.0,
+          "std": 4.62,
+          "median": 5.0,
+          "q25": 2.0,
+          "q75": 9.0,
+          "min": 0.0,
+          "max": 24.0,
+          "n_missing": 0
+        },
+        "charlson_score": {
+          "mean": 2.63,
+          "std": 2.35,
+          "median": 2.0,
+          "q25": 1.0,
+          "q75": 4.0,
+          "min": 0.0,
+          "max": 16.0,
+          "n_missing": 4437
+        },
+        "elix_score": {
+          "mean": 14.87,
+          "std": 10.91,
+          "median": 14.0,
+          "q25": 6.0,
+          "q75": 22.0,
+          "min": -14.0,
+          "max": 64.0,
+          "n_missing": 4437
+        }
+      },
+      "categorical": {
+        "sex_category": {
+          "Male": 17180,
+          "Female": 13443
+        },
+        "race_category": {
+          "Asian": 590,
+          "White": 8729,
+          "Unknown": 2119,
+          "Other": 658,
+          "Black or African American": 18407,
+          "American Indian or Alaska Native": 71,
+          "Native Hawaiian or Other Pacific Islander": 49
+        },
+        "ethnicity_category": {
+          "Hispanic": 1848,
+          "Non-Hispanic": 27431,
+          "Unknown": 1344
+        }
+      },
+      "by_split": {
+        "total": {
+          "n": 30623,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "Feb 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 57.85,
+              "std": 17.71,
+              "median": 61.0,
+              "q25": 46.0,
+              "q75": 70.0,
+              "min": 18.0,
+              "max": 104.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 6.0,
+              "std": 4.62,
+              "median": 5.0,
+              "q25": 2.0,
+              "q75": 9.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.63,
+              "std": 2.35,
+              "median": 2.0,
+              "q25": 1.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 16.0,
+              "n_missing": 4437
+            },
+            "elix_score": {
+              "mean": 14.87,
+              "std": 10.91,
+              "median": 14.0,
+              "q25": 6.0,
+              "q75": 22.0,
+              "min": -14.0,
+              "max": 64.0,
+              "n_missing": 4437
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Male": 17180,
+              "Female": 13443
+            },
+            "race_category": {
+              "American Indian or Alaska Native": 71,
+              "Unknown": 2119,
+              "White": 8729,
+              "Other": 658,
+              "Black or African American": 18407,
+              "Native Hawaiian or Other Pacific Islander": 49,
+              "Asian": 590
+            },
+            "ethnicity_category": {
+              "Unknown": 1344,
+              "Hispanic": 1848,
+              "Non-Hispanic": 27431
+            }
+          }
+        },
+        "train": {
+          "n": 22967,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "May 2023"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 57.71,
+              "std": 17.72,
+              "median": 60.0,
+              "q25": 46.0,
+              "q75": 70.0,
+              "min": 18.0,
+              "max": 104.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 5.9,
+              "std": 4.57,
+              "median": 5.0,
+              "q25": 2.0,
+              "q75": 9.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.64,
+              "std": 2.34,
+              "median": 2.0,
+              "q25": 1.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 15.0,
+              "n_missing": 4435
+            },
+            "elix_score": {
+              "mean": 14.98,
+              "std": 10.89,
+              "median": 14.0,
+              "q25": 7.0,
+              "q75": 22.0,
+              "min": -14.0,
+              "max": 64.0,
+              "n_missing": 4435
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Male": 12777,
+              "Female": 10190
+            },
+            "race_category": {
+              "White": 6610,
+              "Asian": 428,
+              "American Indian or Alaska Native": 52,
+              "Native Hawaiian or Other Pacific Islander": 39,
+              "Unknown": 1044,
+              "Other": 635,
+              "Black or African American": 14159
+            },
+            "ethnicity_category": {
+              "Non-Hispanic": 21062,
+              "Hispanic": 1297,
+              "Unknown": 608
+            }
+          }
+        },
+        "test": {
+          "n": 7656,
+          "date_range": {
+            "start": "May 2023",
+            "end": "Feb 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 58.27,
+              "std": 17.69,
+              "median": 61.0,
+              "q25": 46.0,
+              "q75": 71.0,
+              "min": 18.0,
+              "max": 103.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 6.29,
+              "std": 4.77,
+              "median": 6.0,
+              "q25": 2.0,
+              "q75": 9.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.58,
+              "std": 2.38,
+              "median": 2.0,
+              "q25": 0.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 16.0,
+              "n_missing": 2
+            },
+            "elix_score": {
+              "mean": 14.61,
+              "std": 10.96,
+              "median": 14.0,
+              "q25": 6.0,
+              "q75": 22.0,
+              "min": -14.0,
+              "max": 58.0,
+              "n_missing": 2
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Male": 4403,
+              "Female": 3253
+            },
+            "race_category": {
+              "Unknown": 1075,
+              "Asian": 162,
+              "White": 2119,
+              "Black or African American": 4248,
+              "American Indian or Alaska Native": 19,
+              "Native Hawaiian or Other Pacific Islander": 10,
+              "Other": 23
+            },
+            "ethnicity_category": {
+              "Unknown": 736,
+              "Non-Hispanic": 6369,
+              "Hispanic": 551
+            }
+          }
+        }
+      },
+      "by_label": {
+        "0": {
+          "n": 27915,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "Feb 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 57.77,
+              "std": 17.79,
+              "median": 61.0,
+              "q25": 46.0,
+              "q75": 70.0,
+              "min": 18.0,
+              "max": 104.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 5.68,
+              "std": 4.46,
+              "median": 5.0,
+              "q25": 2.0,
+              "q75": 8.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 2.55,
+              "std": 2.34,
+              "median": 2.0,
+              "q25": 0.0,
+              "q75": 4.0,
+              "min": 0.0,
+              "max": 16.0,
+              "n_missing": 4324
+            },
+            "elix_score": {
+              "mean": 14.2,
+              "std": 10.68,
+              "median": 13.0,
+              "q25": 6.0,
+              "q75": 21.0,
+              "min": -14.0,
+              "max": 62.0,
+              "n_missing": 4324
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Female": 12337,
+              "Male": 15578
+            },
+            "race_category": {
+              "Black or African American": 16842,
+              "White": 7871,
+              "Asian": 530,
+              "Unknown": 1959,
+              "Native Hawaiian or Other Pacific Islander": 47,
+              "Other": 598,
+              "American Indian or Alaska Native": 68
+            },
+            "ethnicity_category": {
+              "Unknown": 1255,
+              "Non-Hispanic": 24976,
+              "Hispanic": 1684
+            }
+          }
+        },
+        "1": {
+          "n": 2708,
+          "date_range": {
+            "start": "Jan 2018",
+            "end": "Jan 2025"
+          },
+          "continuous": {
+            "age_at_admission": {
+              "mean": 58.6,
+              "std": 16.91,
+              "median": 61.0,
+              "q25": 48.0,
+              "q75": 71.0,
+              "min": 18.0,
+              "max": 96.0,
+              "n_missing": 0
+            },
+            "sofa_max": {
+              "mean": 9.22,
+              "std": 5.07,
+              "median": 9.0,
+              "q25": 5.0,
+              "q75": 13.0,
+              "min": 0.0,
+              "max": 24.0,
+              "n_missing": 0
+            },
+            "charlson_score": {
+              "mean": 3.29,
+              "std": 2.37,
+              "median": 3.0,
+              "q25": 2.0,
+              "q75": 5.0,
+              "min": 0.0,
+              "max": 12.0,
+              "n_missing": 113
+            },
+            "elix_score": {
+              "mean": 20.96,
+              "std": 11.03,
+              "median": 21.0,
+              "q25": 13.0,
+              "q75": 28.0,
+              "min": -9.0,
+              "max": 64.0,
+              "n_missing": 113
+            }
+          },
+          "categorical": {
+            "sex_category": {
+              "Male": 1602,
+              "Female": 1106
+            },
+            "race_category": {
+              "White": 858,
+              "Unknown": 160,
+              "American Indian or Alaska Native": "<10",
+              "Black or African American": 1565,
+              "Asian": 60,
+              "Other": 60,
+              "Native Hawaiian or Other Pacific Islander": "<10"
+            },
+            "ethnicity_category": {
+              "Unknown": 89,
+              "Non-Hispanic": 2455,
+              "Hispanic": 164
+            }
+          }
+        }
+      }
+    }
+  },
+  "metadata": {
+    "task": "task5_icu_readmission",
+    "task_script_sha256": "fd96d39fbaa076d8c2ac5315f59877ecdda54440cff0cdf42af68b33098fe1cc",
+    "flair_version": "0.0.1",
+    "generated_at": "2026-07-01T14:26:01.596806+00:00",
+    "min_cell_count": 10
+  }
+}

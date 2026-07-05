@@ -1,0 +1,4497 @@
+{
+  "metadata": {
+    "task": "task2_icu_daily_ltach",
+    "task_script_sha256": "d07b7211663368e7ee4964bca4e781942987004d0af379043f520c4381b1c11b",
+    "flair_version": "0.0.1",
+    "generated_at": "2026-06-30T18:45:48.767779+00:00",
+    "report_mode": "landmark",
+    "split": "test",
+    "n_stays": 13339,
+    "prevalence": 0.082688,
+    "evaled_at": 0.5
+  },
+  "landmarks": [
+    {
+      "landmark_index": 0,
+      "windows_before_end": 0,
+      "window_unit": "day",
+      "n": 13339,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0769,
+        "specificity": 0.9932,
+        "ppv": 0.2143,
+        "npv": 0.9782,
+        "f1": 0.1132,
+        "sensitivity_ci": [
+          0.0502,
+          0.1053
+        ],
+        "specificity_ci": [
+          0.9917,
+          0.9946
+        ],
+        "ppv_ci": [
+          0.1409,
+          0.2944
+        ],
+        "npv_ci": [
+          0.9758,
+          0.9807
+        ],
+        "f1_ci": [
+          0.0751,
+          0.1547
+        ],
+        "flag_rate": 0.0084,
+        "tp": 24,
+        "fp": 88,
+        "fn": 288,
+        "tn": 12939,
+        "n_flagged": 112,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 112,
+          "act_rate": 0.0084,
+          "event_rate_in_acted": 0.2143,
+          "event_rate_in_not_acted": 0.0218
+        },
+        "n": 13339,
+        "prevalence": 0.02339,
+        "accuracy": 0.9718
+      },
+      "subgroups": {
+        "sex_category": {
+          "Male": {
+            "n": 7031,
+            "positive_rate": 0.0094,
+            "tpr": 0.0739,
+            "fpr": 0.0077,
+            "prevalence": 0.025,
+            "auroc": 0.5708,
+            "auroc_ci": [
+              0.5242,
+              0.6168
+            ],
+            "auprc": 0.0635,
+            "brier": 0.0463,
+            "calibration_slope": 0.3454,
+            "calibration_intercept": -3.0174
+          },
+          "Female": {
+            "n": 6308,
+            "positive_rate": 0.0073,
+            "tpr": 0.0809,
+            "fpr": 0.0057,
+            "prevalence": 0.0216,
+            "auroc": 0.5931,
+            "auroc_ci": [
+              0.5323,
+              0.6497
+            ],
+            "auprc": 0.0806,
+            "brier": 0.042,
+            "calibration_slope": 0.4881,
+            "calibration_intercept": -2.9133
+          }
+        },
+        "race_category": {
+          "Native Hawaiian or Other Pacific Islander": {
+            "n": 17,
+            "positive_rate": 0.0,
+            "tpr": null,
+            "fpr": 0.0,
+            "prevalence": 0.0
+          },
+          "Black or African American": {
+            "n": 4644,
+            "positive_rate": 0.0088,
+            "tpr": 0.1029,
+            "fpr": 0.006,
+            "prevalence": 0.0293,
+            "auroc": 0.6124,
+            "auroc_ci": [
+              0.554,
+              0.6699
+            ],
+            "auprc": 0.0977,
+            "brier": 0.0471,
+            "calibration_slope": 0.6037,
+            "calibration_intercept": -2.4167
+          },
+          "Asian": {
+            "n": 502,
+            "positive_rate": 0.0179,
+            "tpr": 0.1111,
+            "fpr": 0.0162,
+            "prevalence": 0.0179,
+            "auroc": 0.7386,
+            "auroc_ci": [
+              0.5428,
+              0.9115
+            ],
+            "auprc": 0.117,
+            "brier": 0.0433,
+            "calibration_slope": 1.0515,
+            "calibration_intercept": -2.3662
+          },
+          "Unknown": {
+            "n": 292,
+            "positive_rate": 0.0171,
+            "tpr": 0.0,
+            "fpr": 0.0177,
+            "prevalence": 0.0308,
+            "auroc": 0.5913,
+            "auroc_ci": [
+              0.314,
+              0.8167
+            ],
+            "auprc": 0.07,
+            "brier": 0.0546,
+            "calibration_slope": 0.3287,
+            "calibration_intercept": -2.8611
+          },
+          "American Indian or Alaska Native": {
+            "n": 35,
+            "positive_rate": 0.0286,
+            "tpr": null,
+            "fpr": 0.0286,
+            "prevalence": 0.0
+          },
+          "White": {
+            "n": 5363,
+            "positive_rate": 0.0082,
+            "tpr": 0.0678,
+            "fpr": 0.0069,
+            "prevalence": 0.022,
+            "auroc": 0.5325,
+            "auroc_ci": [
+              0.4709,
+              0.5869
+            ],
+            "auprc": 0.0741,
+            "brier": 0.0442,
+            "calibration_slope": 0.1956,
+            "calibration_intercept": -3.419
+          },
+          "Other": {
+            "n": 2486,
+            "positive_rate": 0.0048,
+            "tpr": 0.025,
+            "fpr": 0.0045,
+            "prevalence": 0.0161,
+            "auroc": 0.5698,
+            "auroc_ci": [
+              0.4625,
+              0.6978
+            ],
+            "auprc": 0.0378,
+            "brier": 0.0382,
+            "calibration_slope": 0.1611,
+            "calibration_intercept": -3.7955
+          }
+        },
+        "ethnicity_category": {
+          "Hispanic": {
+            "n": 2794,
+            "positive_rate": 0.0047,
+            "tpr": 0.0238,
+            "fpr": 0.0044,
+            "prevalence": 0.015,
+            "auroc": 0.5314,
+            "auroc_ci": [
+              0.4179,
+              0.6435
+            ],
+            "auprc": 0.0347,
+            "brier": 0.037,
+            "calibration_slope": -0.0292,
+            "calibration_intercept": -4.2422
+          },
+          "Unknown": {
+            "n": 166,
+            "positive_rate": 0.0241,
+            "tpr": 0.0,
+            "fpr": 0.025,
+            "prevalence": 0.0361,
+            "auroc": 0.6073,
+            "auroc_ci": [
+              0.2152,
+              0.922
+            ],
+            "auprc": 0.1035,
+            "brier": 0.0563,
+            "calibration_slope": 0.2522,
+            "calibration_intercept": -2.809
+          },
+          "Non-Hispanic": {
+            "n": 10379,
+            "positive_rate": 0.0092,
+            "tpr": 0.0871,
+            "fpr": 0.0071,
+            "prevalence": 0.0254,
+            "auroc": 0.5858,
+            "auroc_ci": [
+              0.5407,
+              0.6261
+            ],
+            "auprc": 0.0778,
+            "brier": 0.046,
+            "calibration_slope": 0.4711,
+            "calibration_intercept": -2.787
+          }
+        },
+        "age_bin": {
+          "65-79": {
+            "n": 5021,
+            "positive_rate": 0.0116,
+            "tpr": 0.0775,
+            "fpr": 0.0098,
+            "prevalence": 0.0257,
+            "auroc": 0.5701,
+            "auroc_ci": [
+              0.5053,
+              0.6278
+            ],
+            "auprc": 0.0653,
+            "brier": 0.0543,
+            "calibration_slope": 0.356,
+            "calibration_intercept": -3.0539
+          },
+          "18-39": {
+            "n": 1639,
+            "positive_rate": 0.0006,
+            "tpr": 0.0294,
+            "fpr": 0.0,
+            "prevalence": 0.0207,
+            "auroc": 0.5871,
+            "auroc_ci": [
+              0.4689,
+              0.7134
+            ],
+            "auprc": 0.1076,
+            "brier": 0.0245,
+            "calibration_slope": 0.3449,
+            "calibration_intercept": -2.9473
+          },
+          "80+": {
+            "n": 1737,
+            "positive_rate": 0.0081,
+            "tpr": 0.037,
+            "fpr": 0.0076,
+            "prevalence": 0.0155,
+            "auroc": 0.5306,
+            "auroc_ci": [
+              0.4198,
+              0.6347
+            ],
+            "auprc": 0.0246,
+            "brier": 0.0372,
+            "calibration_slope": 0.2498,
+            "calibration_intercept": -3.6512
+          },
+          "40-64": {
+            "n": 4942,
+            "positive_rate": 0.0079,
+            "tpr": 0.0984,
+            "fpr": 0.0056,
+            "prevalence": 0.0247,
+            "auroc": 0.5913,
+            "auroc_ci": [
+              0.5255,
+              0.6572
+            ],
+            "auprc": 0.0961,
+            "brier": 0.043,
+            "calibration_slope": 0.5618,
+            "calibration_intercept": -2.6486
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0021,
+          "equalized_odds_tpr_gap": 0.007,
+          "equalized_odds_fpr_gap": 0.0021,
+          "demographic_parity_gap_ci": [
+            0.0001,
+            0.0054
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0014,
+            0.0721
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0002,
+            0.0052
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0286,
+          "equalized_odds_tpr_gap": 0.1111,
+          "equalized_odds_fpr_gap": 0.0286,
+          "demographic_parity_gap_ci": [
+            0.0133,
+            0.0968
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0744,
+            0.3333
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0123,
+            0.0968
+          ],
+          "reference_group": "White"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0194,
+          "equalized_odds_tpr_gap": 0.0871,
+          "equalized_odds_fpr_gap": 0.0206,
+          "demographic_parity_gap_ci": [
+            0.0041,
+            0.0434
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0573,
+            0.1202
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0027,
+            0.0459
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0109,
+          "equalized_odds_tpr_gap": 0.0689,
+          "equalized_odds_fpr_gap": 0.0098,
+          "demographic_parity_gap_ci": [
+            0.0083,
+            0.0143
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0351,
+            0.15
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0075,
+            0.013
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 0,
+        "windows_before_end": 0,
+        "window_unit": "day",
+        "n": 13339
+      }
+    },
+    {
+      "landmark_index": 1,
+      "windows_before_end": 1,
+      "window_unit": "day",
+      "n": 9699,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0769,
+        "specificity": 0.9912,
+        "ppv": 0.217,
+        "npv": 0.9712,
+        "f1": 0.1136,
+        "sensitivity_ci": [
+          0.0496,
+          0.1105
+        ],
+        "specificity_ci": [
+          0.9894,
+          0.993
+        ],
+        "ppv_ci": [
+          0.1468,
+          0.2991
+        ],
+        "npv_ci": [
+          0.9681,
+          0.9747
+        ],
+        "f1_ci": [
+          0.0747,
+          0.1589
+        ],
+        "flag_rate": 0.0109,
+        "tp": 23,
+        "fp": 83,
+        "fn": 276,
+        "tn": 9317,
+        "n_flagged": 106,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 106,
+          "act_rate": 0.0109,
+          "event_rate_in_acted": 0.217,
+          "event_rate_in_not_acted": 0.0288
+        },
+        "n": 9699,
+        "prevalence": 0.030828,
+        "accuracy": 0.963
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 4545,
+            "positive_rate": 0.0088,
+            "tpr": 0.093,
+            "fpr": 0.0063,
+            "prevalence": 0.0284,
+            "auroc": 0.5881,
+            "auroc_ci": [
+              0.5317,
+              0.6466
+            ],
+            "auprc": 0.1054,
+            "brier": 0.0485,
+            "calibration_slope": 0.4496,
+            "calibration_intercept": -2.723
+          },
+          "Male": {
+            "n": 5154,
+            "positive_rate": 0.0128,
+            "tpr": 0.0647,
+            "fpr": 0.011,
+            "prevalence": 0.033,
+            "auroc": 0.5775,
+            "auroc_ci": [
+              0.5279,
+              0.6274
+            ],
+            "auprc": 0.0693,
+            "brier": 0.0544,
+            "calibration_slope": 0.3257,
+            "calibration_intercept": -2.7856
+          }
+        },
+        "race_category": {
+          "American Indian or Alaska Native": {
+            "n": 30,
+            "positive_rate": 0.0333,
+            "tpr": null,
+            "fpr": 0.0333,
+            "prevalence": 0.0
+          },
+          "Asian": {
+            "n": 380,
+            "positive_rate": 0.0158,
+            "tpr": 0.1111,
+            "fpr": 0.0135,
+            "prevalence": 0.0237,
+            "auroc": 0.7233,
+            "auroc_ci": [
+              0.5244,
+              0.9043
+            ],
+            "auprc": 0.1778,
+            "brier": 0.0492,
+            "calibration_slope": 1.0512,
+            "calibration_intercept": -2.1267
+          },
+          "Black or African American": {
+            "n": 3447,
+            "positive_rate": 0.0113,
+            "tpr": 0.084,
+            "fpr": 0.0084,
+            "prevalence": 0.038,
+            "auroc": 0.6269,
+            "auroc_ci": [
+              0.5698,
+              0.6782
+            ],
+            "auprc": 0.108,
+            "brier": 0.0549,
+            "calibration_slope": 0.604,
+            "calibration_intercept": -2.1791
+          },
+          "Other": {
+            "n": 1769,
+            "positive_rate": 0.0068,
+            "tpr": 0.05,
+            "fpr": 0.0058,
+            "prevalence": 0.0226,
+            "auroc": 0.5454,
+            "auroc_ci": [
+              0.4362,
+              0.6643
+            ],
+            "auprc": 0.049,
+            "brier": 0.0452,
+            "calibration_slope": 0.0893,
+            "calibration_intercept": -3.5909
+          },
+          "Unknown": {
+            "n": 225,
+            "positive_rate": 0.0222,
+            "tpr": 0.0,
+            "fpr": 0.023,
+            "prevalence": 0.0356,
+            "auroc": 0.5461,
+            "auroc_ci": [
+              0.3075,
+              0.7933
+            ],
+            "auprc": 0.0551,
+            "brier": 0.0666,
+            "calibration_slope": 0.0709,
+            "calibration_intercept": -3.1777
+          },
+          "White": {
+            "n": 3835,
+            "positive_rate": 0.0112,
+            "tpr": 0.0811,
+            "fpr": 0.0091,
+            "prevalence": 0.0289,
+            "auroc": 0.5316,
+            "auroc_ci": [
+              0.4675,
+              0.5957
+            ],
+            "auprc": 0.0855,
+            "brier": 0.0512,
+            "calibration_slope": 0.1823,
+            "calibration_intercept": -3.1705
+          },
+          "Native Hawaiian or Other Pacific Islander": {
+            "n": 13,
+            "positive_rate": 0.0,
+            "tpr": null,
+            "fpr": 0.0,
+            "prevalence": 0.0
+          }
+        },
+        "ethnicity_category": {
+          "Non-Hispanic": {
+            "n": 7590,
+            "positive_rate": 0.012,
+            "tpr": 0.0833,
+            "fpr": 0.0095,
+            "prevalence": 0.0332,
+            "auroc": 0.5925,
+            "auroc_ci": [
+              0.5482,
+              0.6346
+            ],
+            "auprc": 0.0909,
+            "brier": 0.0533,
+            "calibration_slope": 0.4611,
+            "calibration_intercept": -2.5502
+          },
+          "Unknown": {
+            "n": 130,
+            "positive_rate": 0.0231,
+            "tpr": 0.0,
+            "fpr": 0.0242,
+            "prevalence": 0.0462,
+            "auroc": 0.5699,
+            "auroc_ci": [
+              0.1882,
+              0.868
+            ],
+            "auprc": 0.091,
+            "brier": 0.0687,
+            "calibration_slope": 0.0546,
+            "calibration_intercept": -2.9257
+          },
+          "Hispanic": {
+            "n": 1979,
+            "positive_rate": 0.0061,
+            "tpr": 0.0488,
+            "fpr": 0.0052,
+            "prevalence": 0.0207,
+            "auroc": 0.5135,
+            "auroc_ci": [
+              0.4001,
+              0.6295
+            ],
+            "auprc": 0.0433,
+            "brier": 0.0444,
+            "calibration_slope": -0.0923,
+            "calibration_intercept": -4.0405
+          }
+        },
+        "age_bin": {
+          "18-39": {
+            "n": 1109,
+            "positive_rate": 0.0009,
+            "tpr": 0.0323,
+            "fpr": 0.0,
+            "prevalence": 0.028,
+            "auroc": 0.5819,
+            "auroc_ci": [
+              0.4516,
+              0.7021
+            ],
+            "auprc": 0.0958,
+            "brier": 0.0325,
+            "calibration_slope": 0.2114,
+            "calibration_intercept": -3.0045
+          },
+          "65-79": {
+            "n": 3701,
+            "positive_rate": 0.0146,
+            "tpr": 0.0635,
+            "fpr": 0.0129,
+            "prevalence": 0.034,
+            "auroc": 0.5668,
+            "auroc_ci": [
+              0.5058,
+              0.6255
+            ],
+            "auprc": 0.0811,
+            "brier": 0.0616,
+            "calibration_slope": 0.3205,
+            "calibration_intercept": -2.8287
+          },
+          "80+": {
+            "n": 1267,
+            "positive_rate": 0.0087,
+            "tpr": 0.037,
+            "fpr": 0.0081,
+            "prevalence": 0.0213,
+            "auroc": 0.5932,
+            "auroc_ci": [
+              0.4847,
+              0.6947
+            ],
+            "auprc": 0.0361,
+            "brier": 0.0423,
+            "calibration_slope": 0.4468,
+            "calibration_intercept": -2.9766
+          },
+          "40-64": {
+            "n": 3622,
+            "positive_rate": 0.011,
+            "tpr": 0.113,
+            "fpr": 0.0077,
+            "prevalence": 0.0318,
+            "auroc": 0.5905,
+            "auroc_ci": [
+              0.5209,
+              0.6572
+            ],
+            "auprc": 0.1067,
+            "brier": 0.0506,
+            "calibration_slope": 0.4922,
+            "calibration_intercept": -2.5381
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.004,
+          "equalized_odds_tpr_gap": 0.0283,
+          "equalized_odds_fpr_gap": 0.0047,
+          "demographic_parity_gap_ci": [
+            0.0003,
+            0.008
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0016,
+            0.0919
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0008,
+            0.0081
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0333,
+          "equalized_odds_tpr_gap": 0.1111,
+          "equalized_odds_fpr_gap": 0.0333,
+          "demographic_parity_gap_ci": [
+            0.0139,
+            0.1206
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.072,
+            0.38
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.013,
+            0.1206
+          ],
+          "reference_group": "White"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.017,
+          "equalized_odds_tpr_gap": 0.0833,
+          "equalized_odds_fpr_gap": 0.019,
+          "demographic_parity_gap_ci": [
+            0.0044,
+            0.0467
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0553,
+            0.1281
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0028,
+            0.0496
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0137,
+          "equalized_odds_tpr_gap": 0.0808,
+          "equalized_odds_fpr_gap": 0.0129,
+          "demographic_parity_gap_ci": [
+            0.0098,
+            0.0176
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0384,
+            0.1625
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0097,
+            0.0169
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 1,
+        "windows_before_end": 1,
+        "window_unit": "day",
+        "n": 9699
+      }
+    },
+    {
+      "landmark_index": 2,
+      "windows_before_end": 2,
+      "window_unit": "day",
+      "n": 6614,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0919,
+        "specificity": 0.9886,
+        "ppv": 0.2577,
+        "npv": 0.9621,
+        "f1": 0.1355,
+        "sensitivity_ci": [
+          0.0569,
+          0.1295
+        ],
+        "specificity_ci": [
+          0.9859,
+          0.9908
+        ],
+        "ppv_ci": [
+          0.1707,
+          0.3485
+        ],
+        "npv_ci": [
+          0.9571,
+          0.9671
+        ],
+        "f1_ci": [
+          0.0848,
+          0.1854
+        ],
+        "flag_rate": 0.0147,
+        "tp": 25,
+        "fp": 72,
+        "fn": 247,
+        "tn": 6270,
+        "n_flagged": 97,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 97,
+          "act_rate": 0.0147,
+          "event_rate_in_acted": 0.2577,
+          "event_rate_in_not_acted": 0.0379
+        },
+        "n": 6614,
+        "prevalence": 0.041125,
+        "accuracy": 0.9518
+      },
+      "subgroups": {
+        "sex_category": {
+          "Male": {
+            "n": 3602,
+            "positive_rate": 0.0155,
+            "tpr": 0.0828,
+            "fpr": 0.0125,
+            "prevalence": 0.0436,
+            "auroc": 0.6011,
+            "auroc_ci": [
+              0.5426,
+              0.6498
+            ],
+            "auprc": 0.1011,
+            "brier": 0.0615,
+            "calibration_slope": 0.4303,
+            "calibration_intercept": -2.3287
+          },
+          "Female": {
+            "n": 3012,
+            "positive_rate": 0.0136,
+            "tpr": 0.1043,
+            "fpr": 0.01,
+            "prevalence": 0.0382,
+            "auroc": 0.5655,
+            "auroc_ci": [
+              0.5032,
+              0.6315
+            ],
+            "auprc": 0.1154,
+            "brier": 0.0576,
+            "calibration_slope": 0.327,
+            "calibration_intercept": -2.6301
+          }
+        },
+        "race_category": {
+          "Unknown": {
+            "n": 162,
+            "positive_rate": 0.0123,
+            "tpr": 0.0,
+            "fpr": 0.013,
+            "prevalence": 0.0494,
+            "auroc": 0.5958,
+            "auroc_ci": [
+              0.3104,
+              0.8855
+            ],
+            "auprc": 0.1161,
+            "brier": 0.0748,
+            "calibration_slope": 0.299,
+            "calibration_intercept": -2.4691
+          },
+          "Other": {
+            "n": 1180,
+            "positive_rate": 0.0127,
+            "tpr": 0.0541,
+            "fpr": 0.0114,
+            "prevalence": 0.0314,
+            "auroc": 0.5127,
+            "auroc_ci": [
+              0.3948,
+              0.6267
+            ],
+            "auprc": 0.0549,
+            "brier": 0.0535,
+            "calibration_slope": -0.027,
+            "calibration_intercept": -3.4821
+          },
+          "American Indian or Alaska Native": {
+            "n": 18,
+            "positive_rate": 0.0556,
+            "tpr": null,
+            "fpr": 0.0556,
+            "prevalence": 0.0
+          },
+          "White": {
+            "n": 2614,
+            "positive_rate": 0.0145,
+            "tpr": 0.102,
+            "fpr": 0.0111,
+            "prevalence": 0.0375,
+            "auroc": 0.5409,
+            "auroc_ci": [
+              0.4736,
+              0.6178
+            ],
+            "auprc": 0.117,
+            "brier": 0.058,
+            "calibration_slope": 0.2456,
+            "calibration_intercept": -2.7949
+          },
+          "Native Hawaiian or Other Pacific Islander": {
+            "n": 10,
+            "positive_rate": 0.0,
+            "tpr": null,
+            "fpr": 0.0,
+            "prevalence": 0.0
+          },
+          "Black or African American": {
+            "n": 2370,
+            "positive_rate": 0.0148,
+            "tpr": 0.1,
+            "fpr": 0.0102,
+            "prevalence": 0.0506,
+            "auroc": 0.6357,
+            "auroc_ci": [
+              0.5811,
+              0.689
+            ],
+            "auprc": 0.133,
+            "brier": 0.0641,
+            "calibration_slope": 0.5901,
+            "calibration_intercept": -1.915
+          },
+          "Asian": {
+            "n": 260,
+            "positive_rate": 0.0231,
+            "tpr": 0.1111,
+            "fpr": 0.0199,
+            "prevalence": 0.0346,
+            "auroc": 0.6932,
+            "auroc_ci": [
+              0.4871,
+              0.874
+            ],
+            "auprc": 0.2052,
+            "brier": 0.056,
+            "calibration_slope": 0.9212,
+            "calibration_intercept": -1.9048
+          }
+        },
+        "ethnicity_category": {
+          "Unknown": {
+            "n": 89,
+            "positive_rate": 0.0225,
+            "tpr": 0.0,
+            "fpr": 0.0241,
+            "prevalence": 0.0674,
+            "auroc": 0.6205,
+            "auroc_ci": [
+              0.1748,
+              0.9363
+            ],
+            "auprc": 0.1833,
+            "brier": 0.0819,
+            "calibration_slope": 0.2884,
+            "calibration_intercept": -2.1174
+          },
+          "Non-Hispanic": {
+            "n": 5214,
+            "positive_rate": 0.0157,
+            "tpr": 0.1,
+            "fpr": 0.0118,
+            "prevalence": 0.0441,
+            "auroc": 0.6002,
+            "auroc_ci": [
+              0.5507,
+              0.6428
+            ],
+            "auprc": 0.1237,
+            "brier": 0.0614,
+            "calibration_slope": 0.4824,
+            "calibration_intercept": -2.2329
+          },
+          "Hispanic": {
+            "n": 1311,
+            "positive_rate": 0.0099,
+            "tpr": 0.0556,
+            "fpr": 0.0086,
+            "prevalence": 0.0275,
+            "auroc": 0.4793,
+            "auroc_ci": [
+              0.3615,
+              0.593
+            ],
+            "auprc": 0.0485,
+            "brier": 0.0515,
+            "calibration_slope": -0.1913,
+            "calibration_intercept": -3.9603
+          }
+        },
+        "age_bin": {
+          "40-64": {
+            "n": 2459,
+            "positive_rate": 0.0155,
+            "tpr": 0.0962,
+            "fpr": 0.0119,
+            "prevalence": 0.0423,
+            "auroc": 0.5919,
+            "auroc_ci": [
+              0.5256,
+              0.659
+            ],
+            "auprc": 0.1176,
+            "brier": 0.0597,
+            "calibration_slope": 0.4536,
+            "calibration_intercept": -2.3191
+          },
+          "80+": {
+            "n": 859,
+            "positive_rate": 0.0093,
+            "tpr": 0.0417,
+            "fpr": 0.0084,
+            "prevalence": 0.0279,
+            "auroc": 0.5698,
+            "auroc_ci": [
+              0.4799,
+              0.6682
+            ],
+            "auprc": 0.0421,
+            "brier": 0.0481,
+            "calibration_slope": 0.3462,
+            "calibration_intercept": -2.8749
+          },
+          "18-39": {
+            "n": 699,
+            "positive_rate": 0.0014,
+            "tpr": 0.037,
+            "fpr": 0.0,
+            "prevalence": 0.0386,
+            "auroc": 0.5647,
+            "auroc_ci": [
+              0.4278,
+              0.6831
+            ],
+            "auprc": 0.1288,
+            "brier": 0.0419,
+            "calibration_slope": 0.1852,
+            "calibration_intercept": -2.7442
+          },
+          "65-79": {
+            "n": 2597,
+            "positive_rate": 0.0193,
+            "tpr": 0.1111,
+            "fpr": 0.0149,
+            "prevalence": 0.0451,
+            "auroc": 0.5861,
+            "auroc_ci": [
+              0.5238,
+              0.6437
+            ],
+            "auprc": 0.1225,
+            "brier": 0.0684,
+            "calibration_slope": 0.4093,
+            "calibration_intercept": -2.4043
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0019,
+          "equalized_odds_tpr_gap": 0.0215,
+          "equalized_odds_fpr_gap": 0.0025,
+          "demographic_parity_gap_ci": [
+            0.0001,
+            0.0075
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0017,
+            0.0911
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0001,
+            0.0079
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0556,
+          "equalized_odds_tpr_gap": 0.1111,
+          "equalized_odds_fpr_gap": 0.0556,
+          "demographic_parity_gap_ci": [
+            0.016,
+            0.2
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0812,
+            0.3333
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0132,
+            0.2
+          ],
+          "reference_group": "White"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0126,
+          "equalized_odds_tpr_gap": 0.1,
+          "equalized_odds_fpr_gap": 0.0155,
+          "demographic_parity_gap_ci": [
+            0.0034,
+            0.0465
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0644,
+            0.1538
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0015,
+            0.0514
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0178,
+          "equalized_odds_tpr_gap": 0.0741,
+          "equalized_odds_fpr_gap": 0.0149,
+          "demographic_parity_gap_ci": [
+            0.0123,
+            0.0239
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0431,
+            0.1739
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0117,
+            0.0204
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 2,
+        "windows_before_end": 2,
+        "window_unit": "day",
+        "n": 6614
+      }
+    },
+    {
+      "landmark_index": 3,
+      "windows_before_end": 3,
+      "window_unit": "day",
+      "n": 4650,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0714,
+        "specificity": 0.9864,
+        "ppv": 0.2308,
+        "npv": 0.9488,
+        "f1": 0.1091,
+        "sensitivity_ci": [
+          0.0427,
+          0.103
+        ],
+        "specificity_ci": [
+          0.9828,
+          0.9896
+        ],
+        "ppv_ci": [
+          0.1407,
+          0.3212
+        ],
+        "npv_ci": [
+          0.9421,
+          0.9546
+        ],
+        "f1_ci": [
+          0.0662,
+          0.1548
+        ],
+        "flag_rate": 0.0168,
+        "tp": 18,
+        "fp": 60,
+        "fn": 234,
+        "tn": 4338,
+        "n_flagged": 78,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 78,
+          "act_rate": 0.0168,
+          "event_rate_in_acted": 0.2308,
+          "event_rate_in_not_acted": 0.0512
+        },
+        "n": 4650,
+        "prevalence": 0.054194,
+        "accuracy": 0.9368
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 2125,
+            "positive_rate": 0.0155,
+            "tpr": 0.0833,
+            "fpr": 0.0119,
+            "prevalence": 0.0508,
+            "auroc": 0.5714,
+            "auroc_ci": [
+              0.5105,
+              0.6294
+            ],
+            "auprc": 0.1196,
+            "brier": 0.066,
+            "calibration_slope": 0.3296,
+            "calibration_intercept": -2.3238
+          },
+          "Male": {
+            "n": 2525,
+            "positive_rate": 0.0178,
+            "tpr": 0.0625,
+            "fpr": 0.0151,
+            "prevalence": 0.057,
+            "auroc": 0.61,
+            "auroc_ci": [
+              0.561,
+              0.6585
+            ],
+            "auprc": 0.1183,
+            "brier": 0.071,
+            "calibration_slope": 0.4176,
+            "calibration_intercept": -2.0716
+          }
+        },
+        "race_category": {
+          "Asian": {
+            "n": 180,
+            "positive_rate": 0.0222,
+            "tpr": 0.1429,
+            "fpr": 0.0173,
+            "prevalence": 0.0389,
+            "auroc": 0.7143,
+            "auroc_ci": [
+              0.451,
+              0.9395
+            ],
+            "auprc": 0.2722,
+            "brier": 0.0564,
+            "calibration_slope": 1.0728,
+            "calibration_intercept": -1.6093
+          },
+          "White": {
+            "n": 1844,
+            "positive_rate": 0.0152,
+            "tpr": 0.0745,
+            "fpr": 0.012,
+            "prevalence": 0.051,
+            "auroc": 0.5626,
+            "auroc_ci": [
+              0.4939,
+              0.6311
+            ],
+            "auprc": 0.1238,
+            "brier": 0.0682,
+            "calibration_slope": 0.2565,
+            "calibration_intercept": -2.4594
+          },
+          "Other": {
+            "n": 834,
+            "positive_rate": 0.0168,
+            "tpr": 0.0286,
+            "fpr": 0.0163,
+            "prevalence": 0.042,
+            "auroc": 0.5072,
+            "auroc_ci": [
+              0.3858,
+              0.612
+            ],
+            "auprc": 0.0588,
+            "brier": 0.0629,
+            "calibration_slope": -0.0617,
+            "calibration_intercept": -3.2509
+          },
+          "Unknown": {
+            "n": 115,
+            "positive_rate": 0.0261,
+            "tpr": 0.0,
+            "fpr": 0.0278,
+            "prevalence": 0.0609,
+            "auroc": 0.5794,
+            "auroc_ci": [
+              0.3161,
+              0.8326
+            ],
+            "auprc": 0.1319,
+            "brier": 0.0838,
+            "calibration_slope": 0.3574,
+            "calibration_intercept": -2.1646
+          },
+          "Black or African American": {
+            "n": 1663,
+            "positive_rate": 0.0168,
+            "tpr": 0.0826,
+            "fpr": 0.0122,
+            "prevalence": 0.0655,
+            "auroc": 0.6422,
+            "auroc_ci": [
+              0.5869,
+              0.7047
+            ],
+            "auprc": 0.165,
+            "brier": 0.0723,
+            "calibration_slope": 0.6015,
+            "calibration_intercept": -1.6124
+          }
+        },
+        "ethnicity_category": {
+          "Unknown": {
+            "n": 61,
+            "positive_rate": 0.0328,
+            "tpr": 0.0,
+            "fpr": 0.0357,
+            "prevalence": 0.082,
+            "auroc": 0.5714,
+            "auroc_ci": [
+              0.205,
+              0.907
+            ],
+            "auprc": 0.1704,
+            "brier": 0.1005,
+            "calibration_slope": 0.1969,
+            "calibration_intercept": -2.071
+          },
+          "Hispanic": {
+            "n": 917,
+            "positive_rate": 0.0153,
+            "tpr": 0.0303,
+            "fpr": 0.0147,
+            "prevalence": 0.036,
+            "auroc": 0.4573,
+            "auroc_ci": [
+              0.3451,
+              0.5688
+            ],
+            "auprc": 0.0442,
+            "brier": 0.06,
+            "calibration_slope": -0.2585,
+            "calibration_intercept": -3.8285
+          },
+          "Non-Hispanic": {
+            "n": 3672,
+            "positive_rate": 0.0169,
+            "tpr": 0.0794,
+            "fpr": 0.013,
+            "prevalence": 0.0583,
+            "auroc": 0.6137,
+            "auroc_ci": [
+              0.5726,
+              0.6513
+            ],
+            "auprc": 0.1399,
+            "brier": 0.0703,
+            "calibration_slope": 0.493,
+            "calibration_intercept": -1.9253
+          }
+        },
+        "age_bin": {
+          "80+": {
+            "n": 608,
+            "positive_rate": 0.0164,
+            "tpr": 0.05,
+            "fpr": 0.0153,
+            "prevalence": 0.0329,
+            "auroc": 0.6334,
+            "auroc_ci": [
+              0.5433,
+              0.7293
+            ],
+            "auprc": 0.0549,
+            "brier": 0.0525,
+            "calibration_slope": 0.532,
+            "calibration_intercept": -2.3896
+          },
+          "40-64": {
+            "n": 1727,
+            "positive_rate": 0.0145,
+            "tpr": 0.0722,
+            "fpr": 0.011,
+            "prevalence": 0.0562,
+            "auroc": 0.5791,
+            "auroc_ci": [
+              0.5082,
+              0.6448
+            ],
+            "auprc": 0.1263,
+            "brier": 0.0697,
+            "calibration_slope": 0.3806,
+            "calibration_intercept": -2.1461
+          },
+          "18-39": {
+            "n": 485,
+            "positive_rate": 0.0062,
+            "tpr": 0.08,
+            "fpr": 0.0022,
+            "prevalence": 0.0515,
+            "auroc": 0.5795,
+            "auroc_ci": [
+              0.4257,
+              0.7175
+            ],
+            "auprc": 0.1937,
+            "brier": 0.0504,
+            "calibration_slope": 0.3217,
+            "calibration_intercept": -2.1163
+          },
+          "65-79": {
+            "n": 1830,
+            "positive_rate": 0.0219,
+            "tpr": 0.0727,
+            "fpr": 0.0186,
+            "prevalence": 0.0601,
+            "auroc": 0.5939,
+            "auroc_ci": [
+              0.5327,
+              0.6592
+            ],
+            "auprc": 0.1219,
+            "brier": 0.078,
+            "calibration_slope": 0.3766,
+            "calibration_intercept": -2.1442
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0023,
+          "equalized_odds_tpr_gap": 0.0208,
+          "equalized_odds_fpr_gap": 0.0032,
+          "demographic_parity_gap_ci": [
+            0.0002,
+            0.0099
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0015,
+            0.0829
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0002,
+            0.0097
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0109,
+          "equalized_odds_tpr_gap": 0.1429,
+          "equalized_odds_fpr_gap": 0.0158,
+          "demographic_parity_gap_ci": [
+            0.0058,
+            0.0449
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0637,
+            0.5
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0068,
+            0.0501
+          ],
+          "reference_group": "White"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0175,
+          "equalized_odds_tpr_gap": 0.0794,
+          "equalized_odds_fpr_gap": 0.0227,
+          "demographic_parity_gap_ci": [
+            0.0019,
+            0.0663
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0469,
+            0.1197
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0027,
+            0.0764
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0157,
+          "equalized_odds_tpr_gap": 0.03,
+          "equalized_odds_fpr_gap": 0.0164,
+          "demographic_parity_gap_ci": [
+            0.007,
+            0.0255
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.025,
+            0.2077
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0092,
+            0.0249
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 3,
+        "windows_before_end": 3,
+        "window_unit": "day",
+        "n": 4650
+      }
+    },
+    {
+      "landmark_index": 4,
+      "windows_before_end": 4,
+      "window_unit": "day",
+      "n": 3388,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0708,
+        "specificity": 0.9867,
+        "ppv": 0.2759,
+        "npv": 0.9369,
+        "f1": 0.1127,
+        "sensitivity_ci": [
+          0.0424,
+          0.1051
+        ],
+        "specificity_ci": [
+          0.9825,
+          0.9903
+        ],
+        "ppv_ci": [
+          0.1698,
+          0.4048
+        ],
+        "npv_ci": [
+          0.9295,
+          0.9453
+        ],
+        "f1_ci": [
+          0.0681,
+          0.1639
+        ],
+        "flag_rate": 0.0171,
+        "tp": 16,
+        "fp": 42,
+        "fn": 210,
+        "tn": 3120,
+        "n_flagged": 58,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 58,
+          "act_rate": 0.0171,
+          "event_rate_in_acted": 0.2759,
+          "event_rate_in_not_acted": 0.0631
+        },
+        "n": 3388,
+        "prevalence": 0.066706,
+        "accuracy": 0.9256
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 1543,
+            "positive_rate": 0.0123,
+            "tpr": 0.07,
+            "fpr": 0.0083,
+            "prevalence": 0.0648,
+            "auroc": 0.5843,
+            "auroc_ci": [
+              0.5141,
+              0.6469
+            ],
+            "auprc": 0.1372,
+            "brier": 0.074,
+            "calibration_slope": 0.3632,
+            "calibration_intercept": -1.9962
+          },
+          "Male": {
+            "n": 1845,
+            "positive_rate": 0.0211,
+            "tpr": 0.0714,
+            "fpr": 0.0175,
+            "prevalence": 0.0683,
+            "auroc": 0.6117,
+            "auroc_ci": [
+              0.5505,
+              0.6647
+            ],
+            "auprc": 0.13,
+            "brier": 0.0784,
+            "calibration_slope": 0.3959,
+            "calibration_intercept": -1.9121
+          }
+        },
+        "race_category": {
+          "Other": {
+            "n": 587,
+            "positive_rate": 0.0119,
+            "tpr": 0.0312,
+            "fpr": 0.0108,
+            "prevalence": 0.0545,
+            "auroc": 0.5278,
+            "auroc_ci": [
+              0.418,
+              0.6512
+            ],
+            "auprc": 0.0879,
+            "brier": 0.0715,
+            "calibration_slope": 0.0446,
+            "calibration_intercept": -2.7674
+          },
+          "Black or African American": {
+            "n": 1239,
+            "positive_rate": 0.0169,
+            "tpr": 0.0619,
+            "fpr": 0.0131,
+            "prevalence": 0.0783,
+            "auroc": 0.6406,
+            "auroc_ci": [
+              0.5814,
+              0.7048
+            ],
+            "auprc": 0.1492,
+            "brier": 0.0819,
+            "calibration_slope": 0.5231,
+            "calibration_intercept": -1.533
+          },
+          "White": {
+            "n": 1332,
+            "positive_rate": 0.0188,
+            "tpr": 0.0941,
+            "fpr": 0.0136,
+            "prevalence": 0.0638,
+            "auroc": 0.5816,
+            "auroc_ci": [
+              0.506,
+              0.6555
+            ],
+            "auprc": 0.1558,
+            "brier": 0.0744,
+            "calibration_slope": 0.3377,
+            "calibration_intercept": -2.0723
+          },
+          "Unknown": {
+            "n": 91,
+            "positive_rate": 0.022,
+            "tpr": 0.0,
+            "fpr": 0.0235,
+            "prevalence": 0.0659,
+            "auroc": 0.551,
+            "auroc_ci": [
+              0.2276,
+              0.8619
+            ],
+            "auprc": 0.1903,
+            "brier": 0.0846,
+            "calibration_slope": 0.3004,
+            "calibration_intercept": -2.1616
+          },
+          "Asian": {
+            "n": 128,
+            "positive_rate": 0.0234,
+            "tpr": 0.1667,
+            "fpr": 0.0164,
+            "prevalence": 0.0469,
+            "auroc": 0.6489,
+            "auroc_ci": [
+              0.3467,
+              0.9335
+            ],
+            "auprc": 0.2585,
+            "brier": 0.0625,
+            "calibration_slope": 0.7132,
+            "calibration_intercept": -1.8146
+          }
+        },
+        "ethnicity_category": {
+          "Unknown": {
+            "n": 47,
+            "positive_rate": 0.0426,
+            "tpr": 0.0,
+            "fpr": 0.0465,
+            "prevalence": 0.0851,
+            "auroc": 0.5116,
+            "auroc_ci": [
+              0.0448,
+              0.9348
+            ],
+            "auprc": 0.1726,
+            "brier": 0.1017,
+            "calibration_slope": -0.0009,
+            "calibration_intercept": -2.3767
+          },
+          "Hispanic": {
+            "n": 639,
+            "positive_rate": 0.0094,
+            "tpr": 0.0323,
+            "fpr": 0.0082,
+            "prevalence": 0.0485,
+            "auroc": 0.4633,
+            "auroc_ci": [
+              0.3305,
+              0.5732
+            ],
+            "auprc": 0.0683,
+            "brier": 0.0683,
+            "calibration_slope": -0.1908,
+            "calibration_intercept": -3.3722
+          },
+          "Non-Hispanic": {
+            "n": 2702,
+            "positive_rate": 0.0185,
+            "tpr": 0.0785,
+            "fpr": 0.0139,
+            "prevalence": 0.0707,
+            "auroc": 0.623,
+            "auroc_ci": [
+              0.5759,
+              0.6637
+            ],
+            "auprc": 0.1466,
+            "brier": 0.0779,
+            "calibration_slope": 0.4918,
+            "calibration_intercept": -1.7103
+          }
+        },
+        "age_bin": {
+          "40-64": {
+            "n": 1255,
+            "positive_rate": 0.0135,
+            "tpr": 0.0581,
+            "fpr": 0.0103,
+            "prevalence": 0.0685,
+            "auroc": 0.5938,
+            "auroc_ci": [
+              0.5255,
+              0.6581
+            ],
+            "auprc": 0.1336,
+            "brier": 0.0779,
+            "calibration_slope": 0.374,
+            "calibration_intercept": -1.9394
+          },
+          "80+": {
+            "n": 436,
+            "positive_rate": 0.0138,
+            "tpr": 0.0,
+            "fpr": 0.0143,
+            "prevalence": 0.0367,
+            "auroc": 0.6629,
+            "auroc_ci": [
+              0.541,
+              0.7703
+            ],
+            "auprc": 0.0645,
+            "brier": 0.0549,
+            "calibration_slope": 0.6121,
+            "calibration_intercept": -2.1417
+          },
+          "65-79": {
+            "n": 1341,
+            "positive_rate": 0.0246,
+            "tpr": 0.09,
+            "fpr": 0.0193,
+            "prevalence": 0.0746,
+            "auroc": 0.595,
+            "auroc_ci": [
+              0.5283,
+              0.6543
+            ],
+            "auprc": 0.1448,
+            "brier": 0.0857,
+            "calibration_slope": 0.391,
+            "calibration_intercept": -1.8814
+          },
+          "18-39": {
+            "n": 356,
+            "positive_rate": 0.0056,
+            "tpr": 0.0833,
+            "fpr": 0.0,
+            "prevalence": 0.0674,
+            "auroc": 0.5683,
+            "auroc_ci": [
+              0.4129,
+              0.7188
+            ],
+            "auprc": 0.198,
+            "brier": 0.0626,
+            "calibration_slope": 0.2909,
+            "calibration_intercept": -1.8979
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0088,
+          "equalized_odds_tpr_gap": 0.0014,
+          "equalized_odds_fpr_gap": 0.0091,
+          "demographic_parity_gap_ci": [
+            0.0014,
+            0.0172
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.001,
+            0.0758
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0021,
+            0.0172
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0115,
+          "equalized_odds_tpr_gap": 0.1667,
+          "equalized_odds_fpr_gap": 0.0127,
+          "demographic_parity_gap_ci": [
+            0.0084,
+            0.051
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0647,
+            0.5
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0064,
+            0.0521
+          ],
+          "reference_group": "White"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0332,
+          "equalized_odds_tpr_gap": 0.0785,
+          "equalized_odds_fpr_gap": 0.0383,
+          "demographic_parity_gap_ci": [
+            0.0074,
+            0.0969
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0433,
+            0.1213
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0098,
+            0.1043
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.019,
+          "equalized_odds_tpr_gap": 0.09,
+          "equalized_odds_fpr_gap": 0.0193,
+          "demographic_parity_gap_ci": [
+            0.0081,
+            0.0298
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0597,
+            0.2308
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0132,
+            0.0286
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 4,
+        "windows_before_end": 4,
+        "window_unit": "day",
+        "n": 3388
+      }
+    },
+    {
+      "landmark_index": 5,
+      "windows_before_end": 5,
+      "window_unit": "day",
+      "n": 2617,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0794,
+        "specificity": 0.9834,
+        "ppv": 0.2982,
+        "npv": 0.923,
+        "f1": 0.1255,
+        "sensitivity_ci": [
+          0.0472,
+          0.1187
+        ],
+        "specificity_ci": [
+          0.978,
+          0.9881
+        ],
+        "ppv_ci": [
+          0.1842,
+          0.4167
+        ],
+        "npv_ci": [
+          0.9137,
+          0.9334
+        ],
+        "f1_ci": [
+          0.076,
+          0.1815
+        ],
+        "flag_rate": 0.0218,
+        "tp": 17,
+        "fp": 40,
+        "fn": 197,
+        "tn": 2363,
+        "n_flagged": 57,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 57,
+          "act_rate": 0.0218,
+          "event_rate_in_acted": 0.2982,
+          "event_rate_in_not_acted": 0.077
+        },
+        "n": 2617,
+        "prevalence": 0.081773,
+        "accuracy": 0.9094
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 1195,
+            "positive_rate": 0.0184,
+            "tpr": 0.0842,
+            "fpr": 0.0127,
+            "prevalence": 0.0795,
+            "auroc": 0.579,
+            "auroc_ci": [
+              0.5136,
+              0.6491
+            ],
+            "auprc": 0.1373,
+            "brier": 0.0866,
+            "calibration_slope": 0.2895,
+            "calibration_intercept": -1.9174
+          },
+          "Male": {
+            "n": 1422,
+            "positive_rate": 0.0246,
+            "tpr": 0.0756,
+            "fpr": 0.02,
+            "prevalence": 0.0837,
+            "auroc": 0.6165,
+            "auroc_ci": [
+              0.5636,
+              0.671
+            ],
+            "auprc": 0.1478,
+            "brier": 0.0884,
+            "calibration_slope": 0.3921,
+            "calibration_intercept": -1.6995
+          }
+        },
+        "race_category": {
+          "Unknown": {
+            "n": 75,
+            "positive_rate": 0.0533,
+            "tpr": 0.1667,
+            "fpr": 0.0435,
+            "prevalence": 0.08,
+            "auroc": 0.6039,
+            "auroc_ci": [
+              0.2826,
+              0.9054
+            ],
+            "auprc": 0.2073,
+            "brier": 0.0968,
+            "calibration_slope": 0.3227,
+            "calibration_intercept": -1.9623
+          },
+          "White": {
+            "n": 1020,
+            "positive_rate": 0.0167,
+            "tpr": 0.0759,
+            "fpr": 0.0117,
+            "prevalence": 0.0775,
+            "auroc": 0.5744,
+            "auroc_ci": [
+              0.4983,
+              0.6424
+            ],
+            "auprc": 0.1332,
+            "brier": 0.0856,
+            "calibration_slope": 0.2621,
+            "calibration_intercept": -1.9989
+          },
+          "Black or African American": {
+            "n": 963,
+            "positive_rate": 0.0197,
+            "tpr": 0.0652,
+            "fpr": 0.0149,
+            "prevalence": 0.0955,
+            "auroc": 0.6379,
+            "auroc_ci": [
+              0.5707,
+              0.6956
+            ],
+            "auprc": 0.1708,
+            "brier": 0.0934,
+            "calibration_slope": 0.49,
+            "calibration_intercept": -1.3695
+          },
+          "Asian": {
+            "n": 106,
+            "positive_rate": 0.0377,
+            "tpr": 0.1667,
+            "fpr": 0.03,
+            "prevalence": 0.0566,
+            "auroc": 0.6117,
+            "auroc_ci": [
+              0.3107,
+              0.897
+            ],
+            "auprc": 0.2483,
+            "brier": 0.0722,
+            "calibration_slope": 0.5199,
+            "calibration_intercept": -1.9349
+          },
+          "Other": {
+            "n": 444,
+            "positive_rate": 0.027,
+            "tpr": 0.0968,
+            "fpr": 0.0218,
+            "prevalence": 0.0698,
+            "auroc": 0.5603,
+            "auroc_ci": [
+              0.4375,
+              0.6733
+            ],
+            "auprc": 0.1166,
+            "brier": 0.0821,
+            "calibration_slope": 0.1405,
+            "calibration_intercept": -2.3282
+          }
+        },
+        "ethnicity_category": {
+          "Hispanic": {
+            "n": 493,
+            "positive_rate": 0.0223,
+            "tpr": 0.0645,
+            "fpr": 0.0195,
+            "prevalence": 0.0629,
+            "auroc": 0.4897,
+            "auroc_ci": [
+              0.3645,
+              0.6177
+            ],
+            "auprc": 0.0894,
+            "brier": 0.08,
+            "calibration_slope": -0.095,
+            "calibration_intercept": -2.8932
+          },
+          "Unknown": {
+            "n": 39,
+            "positive_rate": 0.0769,
+            "tpr": 0.25,
+            "fpr": 0.0571,
+            "prevalence": 0.1026,
+            "auroc": 0.4857,
+            "auroc_ci": [
+              0.0789,
+              0.9106
+            ],
+            "auprc": 0.1801,
+            "brier": 0.1196,
+            "calibration_slope": -0.0825,
+            "calibration_intercept": -2.3177
+          },
+          "Non-Hispanic": {
+            "n": 2085,
+            "positive_rate": 0.0206,
+            "tpr": 0.0782,
+            "fpr": 0.0152,
+            "prevalence": 0.0859,
+            "auroc": 0.6211,
+            "auroc_ci": [
+              0.5697,
+              0.6738
+            ],
+            "auprc": 0.1548,
+            "brier": 0.0887,
+            "calibration_slope": 0.445,
+            "calibration_intercept": -1.5823
+          }
+        },
+        "age_bin": {
+          "18-39": {
+            "n": 279,
+            "positive_rate": 0.0036,
+            "tpr": 0.0435,
+            "fpr": 0.0,
+            "prevalence": 0.0824,
+            "auroc": 0.5243,
+            "auroc_ci": [
+              0.3793,
+              0.6827
+            ],
+            "auprc": 0.1762,
+            "brier": 0.0769,
+            "calibration_slope": 0.1066,
+            "calibration_intercept": -2.14
+          },
+          "65-79": {
+            "n": 1055,
+            "positive_rate": 0.0256,
+            "tpr": 0.0816,
+            "fpr": 0.0199,
+            "prevalence": 0.0929,
+            "auroc": 0.5993,
+            "auroc_ci": [
+              0.5298,
+              0.6643
+            ],
+            "auprc": 0.1602,
+            "brier": 0.0986,
+            "calibration_slope": 0.3634,
+            "calibration_intercept": -1.698
+          },
+          "80+": {
+            "n": 326,
+            "positive_rate": 0.0123,
+            "tpr": 0.0,
+            "fpr": 0.0128,
+            "prevalence": 0.0429,
+            "auroc": 0.6062,
+            "auroc_ci": [
+              0.4542,
+              0.7507
+            ],
+            "auprc": 0.0683,
+            "brier": 0.0623,
+            "calibration_slope": 0.3578,
+            "calibration_intercept": -2.4243
+          },
+          "40-64": {
+            "n": 957,
+            "positive_rate": 0.0261,
+            "tpr": 0.1013,
+            "fpr": 0.0194,
+            "prevalence": 0.0825,
+            "auroc": 0.6081,
+            "auroc_ci": [
+              0.5418,
+              0.6887
+            ],
+            "auprc": 0.161,
+            "brier": 0.087,
+            "calibration_slope": 0.4061,
+            "calibration_intercept": -1.68
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0062,
+          "equalized_odds_tpr_gap": 0.0086,
+          "equalized_odds_fpr_gap": 0.0072,
+          "demographic_parity_gap_ci": [
+            0.0005,
+            0.0182
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0016,
+            0.0856
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0005,
+            0.0173
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0367,
+          "equalized_odds_tpr_gap": 0.1014,
+          "equalized_odds_fpr_gap": 0.0318,
+          "demographic_parity_gap_ci": [
+            0.0138,
+            0.0923
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0804,
+            0.6523
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0119,
+            0.0876
+          ],
+          "reference_group": "White"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0563,
+          "equalized_odds_tpr_gap": 0.1855,
+          "equalized_odds_fpr_gap": 0.0419,
+          "demographic_parity_gap_ci": [
+            0.0049,
+            0.1462
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.052,
+            0.6415
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0104,
+            0.143
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0225,
+          "equalized_odds_tpr_gap": 0.1013,
+          "equalized_odds_fpr_gap": 0.0199,
+          "demographic_parity_gap_ci": [
+            0.0151,
+            0.0362
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0674,
+            0.1853
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0156,
+            0.0316
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 5,
+        "windows_before_end": 5,
+        "window_unit": "day",
+        "n": 2617
+      }
+    },
+    {
+      "landmark_index": 6,
+      "windows_before_end": 6,
+      "window_unit": "day",
+      "n": 2085,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.085,
+        "specificity": 0.9793,
+        "ppv": 0.3036,
+        "npv": 0.9098,
+        "f1": 0.1328,
+        "sensitivity_ci": [
+          0.052,
+          0.124
+        ],
+        "specificity_ci": [
+          0.9727,
+          0.9857
+        ],
+        "ppv_ci": [
+          0.191,
+          0.4361
+        ],
+        "npv_ci": [
+          0.8987,
+          0.9216
+        ],
+        "f1_ci": [
+          0.0833,
+          0.1894
+        ],
+        "flag_rate": 0.0269,
+        "tp": 17,
+        "fp": 39,
+        "fn": 183,
+        "tn": 1846,
+        "n_flagged": 56,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 56,
+          "act_rate": 0.0269,
+          "event_rate_in_acted": 0.3036,
+          "event_rate_in_not_acted": 0.0902
+        },
+        "n": 2085,
+        "prevalence": 0.095923,
+        "accuracy": 0.8935
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 927,
+            "positive_rate": 0.0194,
+            "tpr": 0.0698,
+            "fpr": 0.0143,
+            "prevalence": 0.0928,
+            "auroc": 0.5672,
+            "auroc_ci": [
+              0.5042,
+              0.637
+            ],
+            "auprc": 0.1411,
+            "brier": 0.0962,
+            "calibration_slope": 0.2312,
+            "calibration_intercept": -1.8454
+          },
+          "Male": {
+            "n": 1158,
+            "positive_rate": 0.0328,
+            "tpr": 0.0965,
+            "fpr": 0.0259,
+            "prevalence": 0.0984,
+            "auroc": 0.61,
+            "auroc_ci": [
+              0.5474,
+              0.6664
+            ],
+            "auprc": 0.1744,
+            "brier": 0.0974,
+            "calibration_slope": 0.3815,
+            "calibration_intercept": -1.5441
+          }
+        },
+        "race_category": {
+          "Unknown": {
+            "n": 67,
+            "positive_rate": 0.0448,
+            "tpr": 0.1667,
+            "fpr": 0.0328,
+            "prevalence": 0.0896,
+            "auroc": 0.5137,
+            "auroc_ci": [
+              0.1913,
+              0.877
+            ],
+            "auprc": 0.1721,
+            "brier": 0.1091,
+            "calibration_slope": 0.0883,
+            "calibration_intercept": -2.1803
+          },
+          "Asian": {
+            "n": 89,
+            "positive_rate": 0.0337,
+            "tpr": 0.0,
+            "fpr": 0.0361,
+            "prevalence": 0.0674,
+            "auroc": 0.5622,
+            "auroc_ci": [
+              0.2523,
+              0.8866
+            ],
+            "auprc": 0.1369,
+            "brier": 0.0829,
+            "calibration_slope": 0.3219,
+            "calibration_intercept": -2.0542
+          },
+          "Black or African American": {
+            "n": 780,
+            "positive_rate": 0.0218,
+            "tpr": 0.0814,
+            "fpr": 0.0144,
+            "prevalence": 0.1103,
+            "auroc": 0.6257,
+            "auroc_ci": [
+              0.5546,
+              0.6861
+            ],
+            "auprc": 0.1924,
+            "brier": 0.1022,
+            "calibration_slope": 0.4537,
+            "calibration_intercept": -1.2645
+          },
+          "Other": {
+            "n": 339,
+            "positive_rate": 0.0295,
+            "tpr": 0.0667,
+            "fpr": 0.0259,
+            "prevalence": 0.0885,
+            "auroc": 0.5619,
+            "auroc_ci": [
+              0.4345,
+              0.6772
+            ],
+            "auprc": 0.1578,
+            "brier": 0.0922,
+            "calibration_slope": 0.1529,
+            "calibration_intercept": -2.0427
+          },
+          "White": {
+            "n": 803,
+            "positive_rate": 0.0274,
+            "tpr": 0.0972,
+            "fpr": 0.0205,
+            "prevalence": 0.0897,
+            "auroc": 0.5748,
+            "auroc_ci": [
+              0.5015,
+              0.6519
+            ],
+            "auprc": 0.1512,
+            "brier": 0.0943,
+            "calibration_slope": 0.2686,
+            "calibration_intercept": -1.832
+          }
+        },
+        "ethnicity_category": {
+          "Non-Hispanic": {
+            "n": 1670,
+            "positive_rate": 0.0269,
+            "tpr": 0.0904,
+            "fpr": 0.0199,
+            "prevalence": 0.0994,
+            "auroc": 0.6111,
+            "auroc_ci": [
+              0.5542,
+              0.66
+            ],
+            "auprc": 0.1731,
+            "brier": 0.0977,
+            "calibration_slope": 0.4146,
+            "calibration_intercept": -1.4736
+          },
+          "Hispanic": {
+            "n": 381,
+            "positive_rate": 0.0236,
+            "tpr": 0.0667,
+            "fpr": 0.0199,
+            "prevalence": 0.0787,
+            "auroc": 0.5023,
+            "auroc_ci": [
+              0.3747,
+              0.6257
+            ],
+            "auprc": 0.109,
+            "brier": 0.0894,
+            "calibration_slope": -0.0723,
+            "calibration_intercept": -2.6086
+          },
+          "Unknown": {
+            "n": 34,
+            "positive_rate": 0.0588,
+            "tpr": 0.0,
+            "fpr": 0.0667,
+            "prevalence": 0.1176,
+            "auroc": 0.4083,
+            "auroc_ci": [
+              0.036,
+              0.8965
+            ],
+            "auprc": 0.1707,
+            "brier": 0.139,
+            "calibration_slope": -0.3688,
+            "calibration_intercept": -2.7283
+          }
+        },
+        "age_bin": {
+          "40-64": {
+            "n": 763,
+            "positive_rate": 0.0236,
+            "tpr": 0.0533,
+            "fpr": 0.0203,
+            "prevalence": 0.0983,
+            "auroc": 0.6059,
+            "auroc_ci": [
+              0.5308,
+              0.6759
+            ],
+            "auprc": 0.1605,
+            "brier": 0.0972,
+            "calibration_slope": 0.3735,
+            "calibration_intercept": -1.5394
+          },
+          "80+": {
+            "n": 254,
+            "positive_rate": 0.0157,
+            "tpr": 0.0833,
+            "fpr": 0.0124,
+            "prevalence": 0.0472,
+            "auroc": 0.605,
+            "auroc_ci": [
+              0.4258,
+              0.7534
+            ],
+            "auprc": 0.1126,
+            "brier": 0.0641,
+            "calibration_slope": 0.4634,
+            "calibration_intercept": -2.1506
+          },
+          "18-39": {
+            "n": 228,
+            "positive_rate": 0.0044,
+            "tpr": 0.0435,
+            "fpr": 0.0,
+            "prevalence": 0.1009,
+            "auroc": 0.5743,
+            "auroc_ci": [
+              0.4213,
+              0.7147
+            ],
+            "auprc": 0.2195,
+            "brier": 0.0894,
+            "calibration_slope": 0.171,
+            "calibration_intercept": -1.7606
+          },
+          "65-79": {
+            "n": 840,
+            "positive_rate": 0.0393,
+            "tpr": 0.1222,
+            "fpr": 0.0293,
+            "prevalence": 0.1071,
+            "auroc": 0.581,
+            "auroc_ci": [
+              0.5071,
+              0.65
+            ],
+            "auprc": 0.1777,
+            "brier": 0.1084,
+            "calibration_slope": 0.2964,
+            "calibration_intercept": -1.641
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0134,
+          "equalized_odds_tpr_gap": 0.0267,
+          "equalized_odds_fpr_gap": 0.0116,
+          "demographic_parity_gap_ci": [
+            0.0014,
+            0.0273
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0025,
+            0.1025
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0006,
+            0.0242
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.023,
+          "equalized_odds_tpr_gap": 0.1667,
+          "equalized_odds_fpr_gap": 0.0217,
+          "demographic_parity_gap_ci": [
+            0.012,
+            0.0895
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0811,
+            0.5
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.014,
+            0.0882
+          ],
+          "reference_group": "White"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0352,
+          "equalized_odds_tpr_gap": 0.0904,
+          "equalized_odds_fpr_gap": 0.0467,
+          "demographic_parity_gap_ci": [
+            0.0043,
+            0.1311
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0538,
+            0.1769
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0109,
+            0.1577
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0349,
+          "equalized_odds_tpr_gap": 0.0787,
+          "equalized_odds_fpr_gap": 0.0293,
+          "demographic_parity_gap_ci": [
+            0.0221,
+            0.0496
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0412,
+            0.2649
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0198,
+            0.0411
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 6,
+        "windows_before_end": 6,
+        "window_unit": "day",
+        "n": 2085
+      }
+    },
+    {
+      "landmark_index": 7,
+      "windows_before_end": 7,
+      "window_unit": "day",
+      "n": 1643,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0608,
+        "specificity": 0.9774,
+        "ppv": 0.25,
+        "npv": 0.8937,
+        "f1": 0.0978,
+        "sensitivity_ci": [
+          0.0307,
+          0.1028
+        ],
+        "specificity_ci": [
+          0.9701,
+          0.9849
+        ],
+        "ppv_ci": [
+          0.1289,
+          0.3913
+        ],
+        "npv_ci": [
+          0.8804,
+          0.9075
+        ],
+        "f1_ci": [
+          0.0494,
+          0.1616
+        ],
+        "flag_rate": 0.0268,
+        "tp": 11,
+        "fp": 33,
+        "fn": 170,
+        "tn": 1429,
+        "n_flagged": 44,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 44,
+          "act_rate": 0.0268,
+          "event_rate_in_acted": 0.25,
+          "event_rate_in_not_acted": 0.1063
+        },
+        "n": 1643,
+        "prevalence": 0.110164,
+        "accuracy": 0.8764
+      },
+      "subgroups": {
+        "sex_category": {
+          "Male": {
+            "n": 919,
+            "positive_rate": 0.0316,
+            "tpr": 0.0792,
+            "fpr": 0.0257,
+            "prevalence": 0.1099,
+            "auroc": 0.6099,
+            "auroc_ci": [
+              0.5534,
+              0.6706
+            ],
+            "auprc": 0.1838,
+            "brier": 0.1057,
+            "calibration_slope": 0.3346,
+            "calibration_intercept": -1.5007
+          },
+          "Female": {
+            "n": 724,
+            "positive_rate": 0.0207,
+            "tpr": 0.0375,
+            "fpr": 0.0186,
+            "prevalence": 0.1105,
+            "auroc": 0.57,
+            "auroc_ci": [
+              0.5001,
+              0.6497
+            ],
+            "auprc": 0.1518,
+            "brier": 0.1096,
+            "calibration_slope": 0.2098,
+            "calibration_intercept": -1.6922
+          }
+        },
+        "race_category": {
+          "White": {
+            "n": 615,
+            "positive_rate": 0.0228,
+            "tpr": 0.0484,
+            "fpr": 0.0199,
+            "prevalence": 0.1008,
+            "auroc": 0.5678,
+            "auroc_ci": [
+              0.4859,
+              0.649
+            ],
+            "auprc": 0.147,
+            "brier": 0.1031,
+            "calibration_slope": 0.1861,
+            "calibration_intercept": -1.8466
+          },
+          "Unknown": {
+            "n": 52,
+            "positive_rate": 0.0385,
+            "tpr": 0.1667,
+            "fpr": 0.0217,
+            "prevalence": 0.1154,
+            "auroc": 0.4891,
+            "auroc_ci": [
+              0.1288,
+              0.8713
+            ],
+            "auprc": 0.2159,
+            "brier": 0.125,
+            "calibration_slope": -0.1365,
+            "calibration_intercept": -2.2558
+          },
+          "Asian": {
+            "n": 65,
+            "positive_rate": 0.0462,
+            "tpr": 0.1667,
+            "fpr": 0.0339,
+            "prevalence": 0.0923,
+            "auroc": 0.5537,
+            "auroc_ci": [
+              0.2603,
+              0.8188
+            ],
+            "auprc": 0.1932,
+            "brier": 0.1023,
+            "calibration_slope": 0.3043,
+            "calibration_intercept": -1.7761
+          },
+          "Black or African American": {
+            "n": 638,
+            "positive_rate": 0.0266,
+            "tpr": 0.0513,
+            "fpr": 0.0232,
+            "prevalence": 0.1223,
+            "auroc": 0.6268,
+            "auroc_ci": [
+              0.552,
+              0.7021
+            ],
+            "auprc": 0.2,
+            "brier": 0.112,
+            "calibration_slope": 0.4133,
+            "calibration_intercept": -1.2286
+          },
+          "Other": {
+            "n": 267,
+            "positive_rate": 0.03,
+            "tpr": 0.069,
+            "fpr": 0.0252,
+            "prevalence": 0.1086,
+            "auroc": 0.5801,
+            "auroc_ci": [
+              0.4543,
+              0.6958
+            ],
+            "auprc": 0.1955,
+            "brier": 0.1052,
+            "calibration_slope": 0.2002,
+            "calibration_intercept": -1.7236
+          }
+        },
+        "ethnicity_category": {
+          "Hispanic": {
+            "n": 306,
+            "positive_rate": 0.0261,
+            "tpr": 0.0345,
+            "fpr": 0.0253,
+            "prevalence": 0.0948,
+            "auroc": 0.5105,
+            "auroc_ci": [
+              0.3732,
+              0.6329
+            ],
+            "auprc": 0.1307,
+            "brier": 0.1017,
+            "calibration_slope": -0.054,
+            "calibration_intercept": -2.3674
+          },
+          "Non-Hispanic": {
+            "n": 1307,
+            "positive_rate": 0.0268,
+            "tpr": 0.0676,
+            "fpr": 0.0216,
+            "prevalence": 0.1132,
+            "auroc": 0.6104,
+            "auroc_ci": [
+              0.5568,
+              0.6677
+            ],
+            "auprc": 0.1791,
+            "brier": 0.108,
+            "calibration_slope": 0.374,
+            "calibration_intercept": -1.3995
+          },
+          "Unknown": {
+            "n": 30,
+            "positive_rate": 0.0333,
+            "tpr": 0.0,
+            "fpr": 0.0385,
+            "prevalence": 0.1333,
+            "auroc": 0.4327,
+            "auroc_ci": [
+              0.0,
+              0.9278
+            ],
+            "auprc": 0.205,
+            "brier": 0.139,
+            "calibration_slope": -0.4649,
+            "calibration_intercept": -2.8295
+          }
+        },
+        "age_bin": {
+          "65-79": {
+            "n": 676,
+            "positive_rate": 0.0399,
+            "tpr": 0.0723,
+            "fpr": 0.0354,
+            "prevalence": 0.1228,
+            "auroc": 0.5947,
+            "auroc_ci": [
+              0.5292,
+              0.6603
+            ],
+            "auprc": 0.1808,
+            "brier": 0.1202,
+            "calibration_slope": 0.2884,
+            "calibration_intercept": -1.5012
+          },
+          "80+": {
+            "n": 181,
+            "positive_rate": 0.0221,
+            "tpr": 0.0,
+            "fpr": 0.0233,
+            "prevalence": 0.0497,
+            "auroc": 0.6124,
+            "auroc_ci": [
+              0.4071,
+              0.778
+            ],
+            "auprc": 0.0821,
+            "brier": 0.0686,
+            "calibration_slope": 0.3439,
+            "calibration_intercept": -2.2889
+          },
+          "18-39": {
+            "n": 186,
+            "positive_rate": 0.0054,
+            "tpr": 0.0476,
+            "fpr": 0.0,
+            "prevalence": 0.1129,
+            "auroc": 0.5382,
+            "auroc_ci": [
+              0.3975,
+              0.7044
+            ],
+            "auprc": 0.226,
+            "brier": 0.0999,
+            "calibration_slope": 0.0834,
+            "calibration_intercept": -1.8526
+          },
+          "40-64": {
+            "n": 600,
+            "positive_rate": 0.02,
+            "tpr": 0.0588,
+            "fpr": 0.015,
+            "prevalence": 0.1133,
+            "auroc": 0.5923,
+            "auroc_ci": [
+              0.5145,
+              0.6744
+            ],
+            "auprc": 0.1875,
+            "brier": 0.107,
+            "calibration_slope": 0.3108,
+            "calibration_intercept": -1.4949
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0108,
+          "equalized_odds_tpr_gap": 0.0417,
+          "equalized_odds_fpr_gap": 0.007,
+          "demographic_parity_gap_ci": [
+            0.0007,
+            0.0265
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0018,
+            0.1086
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0005,
+            0.0242
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0234,
+          "equalized_odds_tpr_gap": 0.1183,
+          "equalized_odds_fpr_gap": 0.014,
+          "demographic_parity_gap_ci": [
+            0.0127,
+            0.0988
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0655,
+            0.6
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0107,
+            0.0771
+          ],
+          "reference_group": "Black or African American"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0072,
+          "equalized_odds_tpr_gap": 0.0676,
+          "equalized_odds_fpr_gap": 0.0169,
+          "demographic_parity_gap_ci": [
+            0.0036,
+            0.0885
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0337,
+            0.1298
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0092,
+            0.1075
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0346,
+          "equalized_odds_tpr_gap": 0.0723,
+          "equalized_odds_fpr_gap": 0.0354,
+          "demographic_parity_gap_ci": [
+            0.0179,
+            0.0509
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.046,
+            0.1694
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0239,
+            0.0499
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 7,
+        "windows_before_end": 7,
+        "window_unit": "day",
+        "n": 1643
+      }
+    },
+    {
+      "landmark_index": 8,
+      "windows_before_end": 8,
+      "window_unit": "day",
+      "n": 1330,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0529,
+        "specificity": 0.9828,
+        "ppv": 0.3103,
+        "npv": 0.8762,
+        "f1": 0.0905,
+        "sensitivity_ci": [
+          0.024,
+          0.0906
+        ],
+        "specificity_ci": [
+          0.976,
+          0.9896
+        ],
+        "ppv_ci": [
+          0.1518,
+          0.4827
+        ],
+        "npv_ci": [
+          0.8584,
+          0.8938
+        ],
+        "f1_ci": [
+          0.0417,
+          0.1496
+        ],
+        "flag_rate": 0.0218,
+        "tp": "<10",
+        "fp": 20,
+        "fn": 161,
+        "tn": 1140,
+        "n_flagged": 29,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 29,
+          "act_rate": 0.0218,
+          "event_rate_in_acted": 0.3103,
+          "event_rate_in_not_acted": 0.1238
+        },
+        "n": 1330,
+        "prevalence": 0.12782,
+        "accuracy": 0.8639
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 591,
+            "positive_rate": 0.0152,
+            "tpr": 0.0263,
+            "fpr": 0.0136,
+            "prevalence": 0.1286,
+            "auroc": 0.5629,
+            "auroc_ci": [
+              0.4934,
+              0.6424
+            ],
+            "auprc": 0.1817,
+            "brier": 0.1202,
+            "calibration_slope": 0.1871,
+            "calibration_intercept": -1.558
+          },
+          "Male": {
+            "n": 739,
+            "positive_rate": 0.0271,
+            "tpr": 0.0745,
+            "fpr": 0.0202,
+            "prevalence": 0.1272,
+            "auroc": 0.6179,
+            "auroc_ci": [
+              0.5459,
+              0.6732
+            ],
+            "auprc": 0.2035,
+            "brier": 0.1163,
+            "calibration_slope": 0.3534,
+            "calibration_intercept": -1.3057
+          }
+        },
+        "race_category": {
+          "Black or African American": {
+            "n": 528,
+            "positive_rate": 0.017,
+            "tpr": 0.0541,
+            "fpr": 0.011,
+            "prevalence": 0.1402,
+            "auroc": 0.6335,
+            "auroc_ci": [
+              0.5594,
+              0.7036
+            ],
+            "auprc": 0.2469,
+            "brier": 0.1198,
+            "calibration_slope": 0.475,
+            "calibration_intercept": -0.961
+          },
+          "White": {
+            "n": 483,
+            "positive_rate": 0.0207,
+            "tpr": 0.0345,
+            "fpr": 0.0188,
+            "prevalence": 0.1201,
+            "auroc": 0.5585,
+            "auroc_ci": [
+              0.4706,
+              0.6396
+            ],
+            "auprc": 0.1605,
+            "brier": 0.1171,
+            "calibration_slope": 0.1255,
+            "calibration_intercept": -1.7597
+          },
+          "Other": {
+            "n": 217,
+            "positive_rate": 0.023,
+            "tpr": 0.0385,
+            "fpr": 0.0209,
+            "prevalence": 0.1198,
+            "auroc": 0.5771,
+            "auroc_ci": [
+              0.4306,
+              0.7114
+            ],
+            "auprc": 0.186,
+            "brier": 0.113,
+            "calibration_slope": 0.1842,
+            "calibration_intercept": -1.6378
+          },
+          "Unknown": {
+            "n": 44,
+            "positive_rate": 0.0455,
+            "tpr": 0.1667,
+            "fpr": 0.0263,
+            "prevalence": 0.1364,
+            "auroc": 0.4298,
+            "auroc_ci": [
+              0.1578,
+              0.7802
+            ],
+            "auprc": 0.1945,
+            "brier": 0.1486,
+            "calibration_slope": -0.3036,
+            "calibration_intercept": -2.348
+          },
+          "Asian": {
+            "n": 55,
+            "positive_rate": 0.0545,
+            "tpr": 0.1667,
+            "fpr": 0.0408,
+            "prevalence": 0.1091,
+            "auroc": 0.6429,
+            "auroc_ci": [
+              0.358,
+              0.9063
+            ],
+            "auprc": 0.3267,
+            "brier": 0.1061,
+            "calibration_slope": 0.5194,
+            "calibration_intercept": -1.2704
+          }
+        },
+        "ethnicity_category": {
+          "Unknown": {
+            "n": 26,
+            "positive_rate": 0.0385,
+            "tpr": 0.0,
+            "fpr": 0.0455,
+            "prevalence": 0.1538,
+            "auroc": 0.3182,
+            "auroc_ci": [
+              0.0,
+              0.7013
+            ],
+            "auprc": 0.1458,
+            "brier": 0.1632,
+            "calibration_slope": -0.643,
+            "calibration_intercept": -3.1304
+          },
+          "Hispanic": {
+            "n": 244,
+            "positive_rate": 0.0205,
+            "tpr": 0.0,
+            "fpr": 0.0229,
+            "prevalence": 0.1066,
+            "auroc": 0.5078,
+            "auroc_ci": [
+              0.3851,
+              0.6485
+            ],
+            "auprc": 0.1253,
+            "brier": 0.1107,
+            "calibration_slope": -0.1106,
+            "calibration_intercept": -2.355
+          },
+          "Non-Hispanic": {
+            "n": 1060,
+            "positive_rate": 0.0217,
+            "tpr": 0.0643,
+            "fpr": 0.0152,
+            "prevalence": 0.1321,
+            "auroc": 0.6127,
+            "auroc_ci": [
+              0.5594,
+              0.6633
+            ],
+            "auprc": 0.2125,
+            "brier": 0.1186,
+            "calibration_slope": 0.3861,
+            "calibration_intercept": -1.203
+          }
+        },
+        "age_bin": {
+          "80+": {
+            "n": 139,
+            "positive_rate": 0.0216,
+            "tpr": 0.1111,
+            "fpr": 0.0154,
+            "prevalence": 0.0647,
+            "auroc": 0.6385,
+            "auroc_ci": [
+              0.4372,
+              0.8099
+            ],
+            "auprc": 0.2068,
+            "brier": 0.0775,
+            "calibration_slope": 0.4723,
+            "calibration_intercept": -1.7994
+          },
+          "65-79": {
+            "n": 546,
+            "positive_rate": 0.0256,
+            "tpr": 0.0519,
+            "fpr": 0.0213,
+            "prevalence": 0.141,
+            "auroc": 0.5939,
+            "auroc_ci": [
+              0.5167,
+              0.6627
+            ],
+            "auprc": 0.2031,
+            "brier": 0.1292,
+            "calibration_slope": 0.2753,
+            "calibration_intercept": -1.3526
+          },
+          "18-39": {
+            "n": 149,
+            "positive_rate": 0.0067,
+            "tpr": 0.05,
+            "fpr": 0.0,
+            "prevalence": 0.1342,
+            "auroc": 0.588,
+            "auroc_ci": [
+              0.4108,
+              0.7334
+            ],
+            "auprc": 0.3082,
+            "brier": 0.1128,
+            "calibration_slope": 0.2323,
+            "calibration_intercept": -1.2882
+          },
+          "40-64": {
+            "n": 496,
+            "positive_rate": 0.0222,
+            "tpr": 0.0469,
+            "fpr": 0.0185,
+            "prevalence": 0.129,
+            "auroc": 0.5778,
+            "auroc_ci": [
+              0.4983,
+              0.6604
+            ],
+            "auprc": 0.2001,
+            "brier": 0.1186,
+            "calibration_slope": 0.2723,
+            "calibration_intercept": -1.4197
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0118,
+          "equalized_odds_tpr_gap": 0.0482,
+          "equalized_odds_fpr_gap": 0.0066,
+          "demographic_parity_gap_ci": [
+            0.0005,
+            0.0274
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0036,
+            0.1127
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0004,
+            0.0201
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0375,
+          "equalized_odds_tpr_gap": 0.1322,
+          "equalized_odds_fpr_gap": 0.0298,
+          "demographic_parity_gap_ci": [
+            0.0161,
+            0.1236
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0452,
+            0.5583
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0155,
+            0.1042
+          ],
+          "reference_group": "Black or African American"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.018,
+          "equalized_odds_tpr_gap": 0.0643,
+          "equalized_odds_fpr_gap": 0.0302,
+          "demographic_parity_gap_ci": [
+            0.0109,
+            0.1067
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0294,
+            0.108
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0143,
+            0.1308
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0189,
+          "equalized_odds_tpr_gap": 0.0642,
+          "equalized_odds_fpr_gap": 0.0213,
+          "demographic_parity_gap_ci": [
+            0.0098,
+            0.0433
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0377,
+            0.3638
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0151,
+            0.041
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 8,
+        "windows_before_end": 8,
+        "window_unit": "day",
+        "n": 1330
+      }
+    },
+    {
+      "landmark_index": 9,
+      "windows_before_end": 9,
+      "window_unit": "day",
+      "n": 1107,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0563,
+        "specificity": 0.9768,
+        "ppv": 0.2903,
+        "npv": 0.8597,
+        "f1": 0.0942,
+        "sensitivity_ci": [
+          0.0242,
+          0.0914
+        ],
+        "specificity_ci": [
+          0.9666,
+          0.9862
+        ],
+        "ppv_ci": [
+          0.1429,
+          0.4571
+        ],
+        "npv_ci": [
+          0.8398,
+          0.8805
+        ],
+        "f1_ci": [
+          0.041,
+          0.1486
+        ],
+        "flag_rate": 0.028,
+        "tp": "<10",
+        "fp": 22,
+        "fn": 151,
+        "tn": 925,
+        "n_flagged": 31,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 31,
+          "act_rate": 0.028,
+          "event_rate_in_acted": 0.2903,
+          "event_rate_in_not_acted": 0.1403
+        },
+        "n": 1107,
+        "prevalence": 0.144535,
+        "accuracy": 0.8437
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 492,
+            "positive_rate": 0.0264,
+            "tpr": 0.0571,
+            "fpr": 0.0213,
+            "prevalence": 0.1423,
+            "auroc": 0.5501,
+            "auroc_ci": [
+              0.4684,
+              0.6316
+            ],
+            "auprc": 0.1905,
+            "brier": 0.1307,
+            "calibration_slope": 0.1437,
+            "calibration_intercept": -1.5216
+          },
+          "Male": {
+            "n": 615,
+            "positive_rate": 0.0293,
+            "tpr": 0.0556,
+            "fpr": 0.0248,
+            "prevalence": 0.1463,
+            "auroc": 0.5942,
+            "auroc_ci": [
+              0.5288,
+              0.6588
+            ],
+            "auprc": 0.2139,
+            "brier": 0.1308,
+            "calibration_slope": 0.2688,
+            "calibration_intercept": -1.289
+          }
+        },
+        "race_category": {
+          "Black or African American": {
+            "n": 449,
+            "positive_rate": 0.0156,
+            "tpr": 0.0435,
+            "fpr": 0.0105,
+            "prevalence": 0.1537,
+            "auroc": 0.6053,
+            "auroc_ci": [
+              0.5419,
+              0.6815
+            ],
+            "auprc": 0.2341,
+            "brier": 0.1321,
+            "calibration_slope": 0.3843,
+            "calibration_intercept": -1.0096
+          },
+          "White": {
+            "n": 399,
+            "positive_rate": 0.0326,
+            "tpr": 0.0364,
+            "fpr": 0.032,
+            "prevalence": 0.1378,
+            "auroc": 0.5678,
+            "auroc_ci": [
+              0.4856,
+              0.6573
+            ],
+            "auprc": 0.1806,
+            "brier": 0.1292,
+            "calibration_slope": 0.1074,
+            "calibration_intercept": -1.6359
+          },
+          "Asian": {
+            "n": 42,
+            "positive_rate": 0.0476,
+            "tpr": 0.2,
+            "fpr": 0.027,
+            "prevalence": 0.119,
+            "auroc": 0.5514,
+            "auroc_ci": [
+              0.1643,
+              0.9512
+            ],
+            "auprc": 0.2599,
+            "brier": 0.1134,
+            "calibration_slope": 0.3976,
+            "calibration_intercept": -1.3645
+          },
+          "Other": {
+            "n": 175,
+            "positive_rate": 0.0343,
+            "tpr": 0.08,
+            "fpr": 0.0267,
+            "prevalence": 0.1429,
+            "auroc": 0.5536,
+            "auroc_ci": [
+              0.424,
+              0.6891
+            ],
+            "auprc": 0.2239,
+            "brier": 0.1289,
+            "calibration_slope": 0.115,
+            "calibration_intercept": -1.5597
+          },
+          "Unknown": {
+            "n": 40,
+            "positive_rate": 0.075,
+            "tpr": 0.1667,
+            "fpr": 0.0588,
+            "prevalence": 0.15,
+            "auroc": 0.4069,
+            "auroc_ci": [
+              0.1336,
+              0.6974
+            ],
+            "auprc": 0.174,
+            "brier": 0.1572,
+            "calibration_slope": -0.3039,
+            "calibration_intercept": -2.1886
+          }
+        },
+        "ethnicity_category": {
+          "Non-Hispanic": {
+            "n": 887,
+            "positive_rate": 0.0271,
+            "tpr": 0.0682,
+            "fpr": 0.0199,
+            "prevalence": 0.1488,
+            "auroc": 0.5988,
+            "auroc_ci": [
+              0.5388,
+              0.6531
+            ],
+            "auprc": 0.2236,
+            "brier": 0.1307,
+            "calibration_slope": 0.3362,
+            "calibration_intercept": -1.151
+          },
+          "Unknown": {
+            "n": 25,
+            "positive_rate": 0.04,
+            "tpr": 0.0,
+            "fpr": 0.0476,
+            "prevalence": 0.16,
+            "auroc": 0.2381,
+            "auroc_ci": [
+              0.0,
+              0.5756
+            ],
+            "auprc": 0.1287,
+            "brier": 0.1824,
+            "calibration_slope": -1.0216,
+            "calibration_intercept": -3.7607
+          },
+          "Hispanic": {
+            "n": 195,
+            "positive_rate": 0.0308,
+            "tpr": 0.0,
+            "fpr": 0.0351,
+            "prevalence": 0.1231,
+            "auroc": 0.4922,
+            "auroc_ci": [
+              0.3356,
+              0.6346
+            ],
+            "auprc": 0.1425,
+            "brier": 0.1246,
+            "calibration_slope": -0.1986,
+            "calibration_intercept": -2.3885
+          }
+        },
+        "age_bin": {
+          "80+": {
+            "n": 106,
+            "positive_rate": 0.0189,
+            "tpr": 0.0,
+            "fpr": 0.0202,
+            "prevalence": 0.066,
+            "auroc": 0.6089,
+            "auroc_ci": [
+              0.4057,
+              0.7874
+            ],
+            "auprc": 0.1256,
+            "brier": 0.0782,
+            "calibration_slope": 0.3773,
+            "calibration_intercept": -1.9202
+          },
+          "40-64": {
+            "n": 423,
+            "positive_rate": 0.0331,
+            "tpr": 0.0984,
+            "fpr": 0.0221,
+            "prevalence": 0.1442,
+            "auroc": 0.5509,
+            "auroc_ci": [
+              0.4661,
+              0.6367
+            ],
+            "auprc": 0.2153,
+            "brier": 0.1325,
+            "calibration_slope": 0.1703,
+            "calibration_intercept": -1.4752
+          },
+          "18-39": {
+            "n": 124,
+            "positive_rate": 0.0,
+            "tpr": 0.0,
+            "fpr": 0.0,
+            "prevalence": 0.1452,
+            "auroc": 0.5246,
+            "auroc_ci": [
+              0.3513,
+              0.7116
+            ],
+            "auprc": 0.292,
+            "brier": 0.1238,
+            "calibration_slope": 0.0894,
+            "calibration_intercept": -1.5411
+          },
+          "65-79": {
+            "n": 454,
+            "positive_rate": 0.033,
+            "tpr": 0.0405,
+            "fpr": 0.0316,
+            "prevalence": 0.163,
+            "auroc": 0.5885,
+            "auroc_ci": [
+              0.5121,
+              0.6562
+            ],
+            "auprc": 0.2217,
+            "brier": 0.1433,
+            "calibration_slope": 0.2505,
+            "calibration_intercept": -1.2243
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0028,
+          "equalized_odds_tpr_gap": 0.0016,
+          "equalized_odds_fpr_gap": 0.0034,
+          "demographic_parity_gap_ci": [
+            0.0005,
+            0.0243
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0014,
+            0.0948
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0003,
+            0.0229
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0594,
+          "equalized_odds_tpr_gap": 0.1636,
+          "equalized_odds_fpr_gap": 0.0483,
+          "demographic_parity_gap_ci": [
+            0.0247,
+            0.153
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0574,
+            0.75
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0211,
+            0.1526
+          ],
+          "reference_group": "Black or African American"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0129,
+          "equalized_odds_tpr_gap": 0.0682,
+          "equalized_odds_fpr_gap": 0.0278,
+          "demographic_parity_gap_ci": [
+            0.007,
+            0.1153
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0292,
+            0.1111
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0147,
+            0.14
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0331,
+          "equalized_odds_tpr_gap": 0.0984,
+          "equalized_odds_fpr_gap": 0.0316,
+          "demographic_parity_gap_ci": [
+            0.0245,
+            0.0552
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0396,
+            0.1887
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0207,
+            0.0556
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 9,
+        "windows_before_end": 9,
+        "window_unit": "day",
+        "n": 1107
+      }
+    },
+    {
+      "landmark_index": 10,
+      "windows_before_end": 10,
+      "window_unit": "day",
+      "n": 924,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0608,
+        "specificity": 0.9691,
+        "ppv": 0.2727,
+        "npv": 0.844,
+        "f1": 0.0994,
+        "sensitivity_ci": [
+          0.0271,
+          0.0984
+        ],
+        "specificity_ci": [
+          0.956,
+          0.9805
+        ],
+        "ppv_ci": [
+          0.1234,
+          0.4237
+        ],
+        "npv_ci": [
+          0.8193,
+          0.8678
+        ],
+        "f1_ci": [
+          0.0452,
+          0.1542
+        ],
+        "flag_rate": 0.0357,
+        "tp": "<10",
+        "fp": 24,
+        "fn": 139,
+        "tn": 752,
+        "n_flagged": 33,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 33,
+          "act_rate": 0.0357,
+          "event_rate_in_acted": 0.2727,
+          "event_rate_in_not_acted": 0.156
+        },
+        "n": 924,
+        "prevalence": 0.160173,
+        "accuracy": 0.8236
+      },
+      "subgroups": {
+        "sex_category": {
+          "Male": {
+            "n": 509,
+            "positive_rate": 0.0432,
+            "tpr": 0.0723,
+            "fpr": 0.0376,
+            "prevalence": 0.1631,
+            "auroc": 0.5744,
+            "auroc_ci": [
+              0.5014,
+              0.6466
+            ],
+            "auprc": 0.2209,
+            "brier": 0.1438,
+            "calibration_slope": 0.1899,
+            "calibration_intercept": -1.2927
+          },
+          "Female": {
+            "n": 415,
+            "positive_rate": 0.0265,
+            "tpr": 0.0462,
+            "fpr": 0.0229,
+            "prevalence": 0.1566,
+            "auroc": 0.536,
+            "auroc_ci": [
+              0.4557,
+              0.6112
+            ],
+            "auprc": 0.1942,
+            "brier": 0.1444,
+            "calibration_slope": 0.0944,
+            "calibration_intercept": -1.4996
+          }
+        },
+        "race_category": {
+          "Black or African American": {
+            "n": 388,
+            "positive_rate": 0.0232,
+            "tpr": 0.0159,
+            "fpr": 0.0246,
+            "prevalence": 0.1624,
+            "auroc": 0.6002,
+            "auroc_ci": [
+              0.5171,
+              0.6835
+            ],
+            "auprc": 0.2287,
+            "brier": 0.1398,
+            "calibration_slope": 0.3182,
+            "calibration_intercept": -1.0555
+          },
+          "Other": {
+            "n": 145,
+            "positive_rate": 0.0414,
+            "tpr": 0.1304,
+            "fpr": 0.0246,
+            "prevalence": 0.1586,
+            "auroc": 0.5453,
+            "auroc_ci": [
+              0.4063,
+              0.6945
+            ],
+            "auprc": 0.2545,
+            "brier": 0.1378,
+            "calibration_slope": 0.142,
+            "calibration_intercept": -1.381
+          },
+          "Asian": {
+            "n": 34,
+            "positive_rate": 0.0882,
+            "tpr": 0.3333,
+            "fpr": 0.0645,
+            "prevalence": 0.0882,
+            "auroc": 0.5269,
+            "auroc_ci": [
+              0.1824,
+              1.0
+            ],
+            "auprc": 0.2354,
+            "brier": 0.1055,
+            "calibration_slope": 0.3911,
+            "calibration_intercept": -1.7443
+          },
+          "Unknown": {
+            "n": 31,
+            "positive_rate": 0.0968,
+            "tpr": 0.1667,
+            "fpr": 0.08,
+            "prevalence": 0.1935,
+            "auroc": 0.34,
+            "auroc_ci": [
+              0.0745,
+              0.6901
+            ],
+            "auprc": 0.194,
+            "brier": 0.1982,
+            "calibration_slope": -0.4681,
+            "calibration_intercept": -2.1625
+          },
+          "White": {
+            "n": 325,
+            "positive_rate": 0.0369,
+            "tpr": 0.0566,
+            "fpr": 0.0331,
+            "prevalence": 0.1631,
+            "auroc": 0.5247,
+            "auroc_ci": [
+              0.4424,
+              0.6111
+            ],
+            "auprc": 0.1912,
+            "brier": 0.151,
+            "calibration_slope": 0.0229,
+            "calibration_intercept": -1.5918
+          }
+        },
+        "ethnicity_category": {
+          "Non-Hispanic": {
+            "n": 744,
+            "positive_rate": 0.039,
+            "tpr": 0.0738,
+            "fpr": 0.0322,
+            "prevalence": 0.164,
+            "auroc": 0.5727,
+            "auroc_ci": [
+              0.5127,
+              0.6274
+            ],
+            "auprc": 0.2178,
+            "brier": 0.1445,
+            "calibration_slope": 0.2314,
+            "calibration_intercept": -1.2131
+          },
+          "Unknown": {
+            "n": 19,
+            "positive_rate": 0.0526,
+            "tpr": 0.0,
+            "fpr": 0.0667,
+            "prevalence": 0.2105,
+            "auroc": 0.2,
+            "auroc_ci": [
+              0.0,
+              0.4764
+            ],
+            "auprc": 0.163,
+            "brier": 0.2351,
+            "calibration_slope": -0.9596,
+            "calibration_intercept": -3.3214
+          },
+          "Hispanic": {
+            "n": 161,
+            "positive_rate": 0.0186,
+            "tpr": 0.0,
+            "fpr": 0.0216,
+            "prevalence": 0.1366,
+            "auroc": 0.5033,
+            "auroc_ci": [
+              0.3512,
+              0.6381
+            ],
+            "auprc": 0.1639,
+            "brier": 0.1311,
+            "calibration_slope": -0.1147,
+            "calibration_intercept": -2.0961
+          }
+        },
+        "age_bin": {
+          "40-64": {
+            "n": 356,
+            "positive_rate": 0.0421,
+            "tpr": 0.0678,
+            "fpr": 0.037,
+            "prevalence": 0.1657,
+            "auroc": 0.5322,
+            "auroc_ci": [
+              0.44,
+              0.6198
+            ],
+            "auprc": 0.1978,
+            "brier": 0.1501,
+            "calibration_slope": 0.0986,
+            "calibration_intercept": -1.4322
+          },
+          "18-39": {
+            "n": 111,
+            "positive_rate": 0.0,
+            "tpr": 0.0,
+            "fpr": 0.0,
+            "prevalence": 0.1532,
+            "auroc": 0.4956,
+            "auroc_ci": [
+              0.3239,
+              0.6791
+            ],
+            "auprc": 0.2333,
+            "brier": 0.1349,
+            "calibration_slope": -0.0649,
+            "calibration_intercept": -1.8788
+          },
+          "65-79": {
+            "n": 375,
+            "positive_rate": 0.0427,
+            "tpr": 0.0758,
+            "fpr": 0.0356,
+            "prevalence": 0.176,
+            "auroc": 0.5693,
+            "auroc_ci": [
+              0.4889,
+              0.6482
+            ],
+            "auprc": 0.2346,
+            "brier": 0.1534,
+            "calibration_slope": 0.2034,
+            "calibration_intercept": -1.2076
+          },
+          "80+": {
+            "n": 82,
+            "positive_rate": 0.0244,
+            "tpr": 0.0,
+            "fpr": 0.0263,
+            "prevalence": 0.0732,
+            "auroc": 0.6338,
+            "auroc_ci": [
+              0.4256,
+              0.8212
+            ],
+            "auprc": 0.1189,
+            "brier": 0.0875,
+            "calibration_slope": 0.3244,
+            "calibration_intercept": -1.9091
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.0167,
+          "equalized_odds_tpr_gap": 0.0261,
+          "equalized_odds_fpr_gap": 0.0147,
+          "demographic_parity_gap_ci": [
+            0.0008,
+            0.0391
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0008,
+            0.0981
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0008,
+            0.0377
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0736,
+          "equalized_odds_tpr_gap": 0.3175,
+          "equalized_odds_fpr_gap": 0.0554,
+          "demographic_parity_gap_ci": [
+            0.0299,
+            0.2128
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0847,
+            1.0
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0241,
+            0.2083
+          ],
+          "reference_group": "Black or African American"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.034,
+          "equalized_odds_tpr_gap": 0.0738,
+          "equalized_odds_fpr_gap": 0.0451,
+          "demographic_parity_gap_ci": [
+            0.0138,
+            0.1677
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0321,
+            0.1186
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0197,
+            0.2262
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.0427,
+          "equalized_odds_tpr_gap": 0.0758,
+          "equalized_odds_fpr_gap": 0.037,
+          "demographic_parity_gap_ci": [
+            0.0324,
+            0.069
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0422,
+            0.1478
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0275,
+            0.0667
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 10,
+        "windows_before_end": 10,
+        "window_unit": "day",
+        "n": 924
+      }
+    },
+    {
+      "landmark_index": 11,
+      "windows_before_end": 11,
+      "window_unit": "day",
+      "n": 793,
+      "overall": {
+        "threshold": 0.5,
+        "direction": "above",
+        "sensitivity": 0.0621,
+        "specificity": 0.9722,
+        "ppv": 0.3333,
+        "npv": 0.8225,
+        "f1": 0.1047,
+        "sensitivity_ci": [
+          0.0287,
+          0.1041
+        ],
+        "specificity_ci": [
+          0.9593,
+          0.9837
+        ],
+        "ppv_ci": [
+          0.1786,
+          0.5401
+        ],
+        "npv_ci": [
+          0.797,
+          0.8471
+        ],
+        "f1_ci": [
+          0.0498,
+          0.1724
+        ],
+        "flag_rate": 0.034,
+        "tp": "<10",
+        "fp": 18,
+        "fn": 136,
+        "tn": 630,
+        "n_flagged": 27,
+        "action": {
+          "acts_on": "y_prob >= threshold",
+          "n_acted": 27,
+          "act_rate": 0.034,
+          "event_rate_in_acted": 0.3333,
+          "event_rate_in_not_acted": 0.1775
+        },
+        "n": 793,
+        "prevalence": 0.18285,
+        "accuracy": 0.8058
+      },
+      "subgroups": {
+        "sex_category": {
+          "Female": {
+            "n": 356,
+            "positive_rate": 0.0225,
+            "tpr": 0.0615,
+            "fpr": 0.0137,
+            "prevalence": 0.1826,
+            "auroc": 0.5393,
+            "auroc_ci": [
+              0.4545,
+              0.621
+            ],
+            "auprc": 0.2489,
+            "brier": 0.1573,
+            "calibration_slope": 0.1244,
+            "calibration_intercept": -1.2612
+          },
+          "Male": {
+            "n": 437,
+            "positive_rate": 0.0435,
+            "tpr": 0.0625,
+            "fpr": 0.0392,
+            "prevalence": 0.1831,
+            "auroc": 0.5868,
+            "auroc_ci": [
+              0.5135,
+              0.6638
+            ],
+            "auprc": 0.2556,
+            "brier": 0.1542,
+            "calibration_slope": 0.2289,
+            "calibration_intercept": -1.0901
+          }
+        },
+        "race_category": {
+          "Other": {
+            "n": 129,
+            "positive_rate": 0.0465,
+            "tpr": 0.1304,
+            "fpr": 0.0283,
+            "prevalence": 0.1783,
+            "auroc": 0.573,
+            "auroc_ci": [
+              0.4135,
+              0.7204
+            ],
+            "auprc": 0.2958,
+            "brier": 0.1481,
+            "calibration_slope": 0.2135,
+            "calibration_intercept": -1.1136
+          },
+          "White": {
+            "n": 274,
+            "positive_rate": 0.0328,
+            "tpr": 0.0377,
+            "fpr": 0.0317,
+            "prevalence": 0.1934,
+            "auroc": 0.5244,
+            "auroc_ci": [
+              0.4287,
+              0.6152
+            ],
+            "auprc": 0.2194,
+            "brier": 0.1711,
+            "calibration_slope": 0.0248,
+            "calibration_intercept": -1.3804
+          },
+          "Asian": {
+            "n": 26,
+            "positive_rate": 0.1154,
+            "tpr": 0.3333,
+            "fpr": 0.087,
+            "prevalence": 0.1154,
+            "auroc": 0.5652,
+            "auroc_ci": [
+              0.1602,
+              1.0
+            ],
+            "auprc": 0.2656,
+            "brier": 0.1173,
+            "calibration_slope": 0.4438,
+            "calibration_intercept": -1.3539
+          },
+          "Unknown": {
+            "n": 27,
+            "positive_rate": 0.037,
+            "tpr": 0.0,
+            "fpr": 0.0476,
+            "prevalence": 0.2222,
+            "auroc": 0.4603,
+            "auroc_ci": [
+              0.1329,
+              0.7822
+            ],
+            "auprc": 0.2638,
+            "brier": 0.1925,
+            "calibration_slope": -0.2758,
+            "calibration_intercept": -1.6639
+          },
+          "Black or African American": {
+            "n": 336,
+            "positive_rate": 0.0238,
+            "tpr": 0.05,
+            "fpr": 0.0181,
+            "prevalence": 0.1786,
+            "auroc": 0.6028,
+            "auroc_ci": [
+              0.5253,
+              0.6903
+            ],
+            "auprc": 0.2958,
+            "brier": 0.1461,
+            "calibration_slope": 0.3594,
+            "calibration_intercept": -0.8893
+          }
+        },
+        "ethnicity_category": {
+          "Non-Hispanic": {
+            "n": 637,
+            "positive_rate": 0.0361,
+            "tpr": 0.0672,
+            "fpr": 0.029,
+            "prevalence": 0.1868,
+            "auroc": 0.5765,
+            "auroc_ci": [
+              0.5147,
+              0.636
+            ],
+            "auprc": 0.2612,
+            "brier": 0.1561,
+            "calibration_slope": 0.2518,
+            "calibration_intercept": -1.0244
+          },
+          "Unknown": {
+            "n": 16,
+            "positive_rate": 0.0625,
+            "tpr": 0.0,
+            "fpr": 0.0833,
+            "prevalence": 0.25,
+            "auroc": 0.2708,
+            "auroc_ci": [
+              0.0,
+              0.587
+            ],
+            "auprc": 0.2133,
+            "brier": 0.2506,
+            "calibration_slope": -0.725,
+            "calibration_intercept": -2.5043
+          },
+          "Hispanic": {
+            "n": 140,
+            "positive_rate": 0.0214,
+            "tpr": 0.0455,
+            "fpr": 0.0169,
+            "prevalence": 0.1571,
+            "auroc": 0.5258,
+            "auroc_ci": [
+              0.3859,
+              0.6812
+            ],
+            "auprc": 0.2206,
+            "brier": 0.1424,
+            "calibration_slope": -0.0108,
+            "calibration_intercept": -1.7025
+          }
+        },
+        "age_bin": {
+          "40-64": {
+            "n": 311,
+            "positive_rate": 0.045,
+            "tpr": 0.0877,
+            "fpr": 0.0354,
+            "prevalence": 0.1833,
+            "auroc": 0.5204,
+            "auroc_ci": [
+              0.4261,
+              0.6148
+            ],
+            "auprc": 0.2376,
+            "brier": 0.1604,
+            "calibration_slope": 0.0937,
+            "calibration_intercept": -1.3268
+          },
+          "65-79": {
+            "n": 323,
+            "positive_rate": 0.0402,
+            "tpr": 0.0615,
+            "fpr": 0.0349,
+            "prevalence": 0.2012,
+            "auroc": 0.5973,
+            "auroc_ci": [
+              0.5142,
+              0.6727
+            ],
+            "auprc": 0.2908,
+            "brier": 0.1635,
+            "calibration_slope": 0.285,
+            "calibration_intercept": -0.9138
+          },
+          "80+": {
+            "n": 66,
+            "positive_rate": 0.0,
+            "tpr": 0.0,
+            "fpr": 0.0,
+            "prevalence": 0.0909,
+            "auroc": 0.575,
+            "auroc_ci": [
+              0.3653,
+              0.7882
+            ],
+            "auprc": 0.1211,
+            "brier": 0.096,
+            "calibration_slope": 0.2796,
+            "calibration_intercept": -1.7547
+          },
+          "18-39": {
+            "n": 93,
+            "positive_rate": 0.0,
+            "tpr": 0.0,
+            "fpr": 0.0,
+            "prevalence": 0.1828,
+            "auroc": 0.524,
+            "auroc_ci": [
+              0.3317,
+              0.7235
+            ],
+            "auprc": 0.3319,
+            "brier": 0.1541,
+            "calibration_slope": 0.025,
+            "calibration_intercept": -1.4312
+          }
+        }
+      },
+      "parity": {
+        "sex_category": {
+          "demographic_parity_gap": 0.021,
+          "equalized_odds_tpr_gap": 0.001,
+          "equalized_odds_fpr_gap": 0.0255,
+          "demographic_parity_gap_ci": [
+            0.001,
+            0.0461
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.002,
+            0.091
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0031,
+            0.0502
+          ],
+          "reference_group": "Male"
+        },
+        "race_category": {
+          "demographic_parity_gap": 0.0916,
+          "equalized_odds_tpr_gap": 0.3333,
+          "equalized_odds_fpr_gap": 0.0688,
+          "demographic_parity_gap_ci": [
+            0.0201,
+            0.2349
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0577,
+            1.0
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.026,
+            0.2075
+          ],
+          "reference_group": "Black or African American"
+        },
+        "ethnicity_category": {
+          "demographic_parity_gap": 0.0411,
+          "equalized_odds_tpr_gap": 0.0672,
+          "equalized_odds_fpr_gap": 0.0664,
+          "demographic_parity_gap_ci": [
+            0.0214,
+            0.2049
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0349,
+            0.1667
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0198,
+            0.2749
+          ],
+          "reference_group": "Non-Hispanic"
+        },
+        "age_bin": {
+          "demographic_parity_gap": 0.045,
+          "equalized_odds_tpr_gap": 0.0877,
+          "equalized_odds_fpr_gap": 0.0354,
+          "demographic_parity_gap_ci": [
+            0.0324,
+            0.0681
+          ],
+          "equalized_odds_tpr_gap_ci": [
+            0.0451,
+            0.1667
+          ],
+          "equalized_odds_fpr_gap_ci": [
+            0.0246,
+            0.0618
+          ],
+          "reference_group": "65-79"
+        }
+      },
+      "metadata": {
+        "min_subgroup_n": 10,
+        "operating_threshold": 0.5,
+        "threshold": 0.5,
+        "clinical_direction": "above",
+        "flag_rule": "y_prob >= threshold",
+        "landmark_index": 11,
+        "windows_before_end": 11,
+        "window_unit": "day",
+        "n": 793
+      }
+    }
+  ]
+}
