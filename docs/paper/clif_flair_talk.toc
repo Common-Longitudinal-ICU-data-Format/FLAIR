@@ -1,0 +1,4 @@
+\beamer@sectionintoc {1}{The gap}{3}{0}{1}
+\beamer@sectionintoc {2}{Methods}{10}{0}{2}
+\beamer@sectionintoc {3}{Results}{22}{0}{3}
+\beamer@sectionintoc {4}{Discussion}{28}{0}{4}

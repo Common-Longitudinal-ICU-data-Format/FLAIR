@@ -171,19 +171,22 @@ TABLES = {
 
 FIGURES = {
     "fig:workflow": {
-        "image": "figure1_flair_workflow_v3.png",
-        "width": 6.3,
+        "image": "figure1_flair_overview.png",
+        "width": 6.5,
         "caption": (
-            "Figure 1. The FLAIR model-to-data loop. A Model Owner develops against "
-            "public MIMIC-CLIF and submits a frozen model, code, or container. The "
-            "Benchmark Committee reviews it for reproducibility, clinical face "
-            "validity, and security, and stamps a task audit hash. The FLAIR Portal "
-            "distributes byte-identical code to participating CLIF sites, where a "
-            "Site Lead or Data Steward runs it locally against site CLIF tables. "
-            "Patient-level cohorts, features, and predictions remain inside the "
-            "institutional boundary; only aggregate, cell-suppressed JSON report "
-            "bundles return. The leaderboard foregrounds per-site variation rather "
-            "than a single pooled scalar. Source: authors."
+            "Figure 1. The FLAIR federated-evaluation workflow. Centralized governance "
+            "(top): a Model Owner builds and freezes an artifact against public MIMIC-"
+            "CLIF; the Benchmark Committee reviews it and stamps an audit hash; the "
+            "FLAIR Portal registers and distributes byte-identical code and the frozen "
+            "model. At each participating site (bottom): the local EHR in CLIF feeds "
+            "task build (cohort and labeling logic), prediction rows (one row per "
+            "opportunity with point-in-time features), the frozen baseline (inference "
+            "only), per-stay risk scores, evaluation (episodic, landmark, or peak "
+            "metrics), and cell suppression (cohort counts below 10 suppressed), "
+            "producing an aggregate report of metrics, code registry, and audit "
+            "metadata. Only aggregate, cell-suppressed reports return to the FLAIR "
+            "Report and Leaderboard (per-site AUROC panels); no patient-level rows "
+            "leave any site, and sites approve what runs locally. Source: authors."
         ),
     },
     "fig:degradation": {

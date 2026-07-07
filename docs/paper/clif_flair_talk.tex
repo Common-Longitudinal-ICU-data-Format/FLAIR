@@ -14,28 +14,32 @@
 
 \graphicspath{{figures/}}
 
-% ---- FLAIR palette --------------------------------------------------
+% ---- FLAIR palette (RUSH ESM2 cohort scheme: charcoal / blue / red) --
 \definecolor{flairink}{HTML}{1A1A1A}
 \definecolor{flairmuted}{HTML}{6B6B6B}
 \definecolor{flairpanel}{HTML}{F7F7F6}
 \definecolor{flairgrid}{HTML}{E7E7E4}
-\definecolor{mimicblue}{HTML}{5B86A6}
-\definecolor{rushterra}{HTML}{B9744E}
+\definecolor{flairblue}{HTML}{1A6FB2}      % clean blue  (48h series)
+\definecolor{flairred}{HTML}{E0221C}       % strong red  (no-cap series)
+\definecolor{flaircharcoal}{HTML}{3F3F3F}  % charcoal    (24h series)
 \definecolor{nugreen}{HTML}{6F9E78}
 \definecolor{ucmcviolet}{HTML}{8A6EA6}
 \definecolor{flairband}{HTML}{F0E3DA}
+
+% per-section accent cycles through the three cohort colors (blue / red / charcoal)
+\newcommand{\secaccent}{\ifcase\value{section}flairblue\or flairblue\or flairred\or flaircharcoal\or flairblue\else flairblue\fi}
 
 % ---- Minimalist theme ----------------------------------------------
 \usetheme{default}
 \usecolortheme{default}
 \setbeamertemplate{navigation symbols}{}
 \setbeamercolor{normal text}{fg=flairink}
-\setbeamercolor{structure}{fg=mimicblue}
+\setbeamercolor{structure}{fg=flairblue}
 \setbeamercolor{frametitle}{fg=flairink}
 \setbeamercolor{title}{fg=flairink}
-\setbeamercolor{itemize item}{fg=mimicblue}
+\setbeamercolor{itemize item}{fg=flairblue}
 \setbeamercolor{itemize subitem}{fg=flairmuted}
-\setbeamercolor{block title}{fg=white,bg=mimicblue}
+\setbeamercolor{block title}{fg=white,bg=flairblue}
 \setbeamercolor{block body}{bg=flairpanel}
 \setbeamerfont{frametitle}{series=\bfseries,size=\Large}
 \setbeamerfont{title}{series=\bfseries}
@@ -49,7 +53,7 @@
   \begin{beamercolorbox}[wd=\paperwidth,leftskip=0.9em,rightskip=0.9em]{frametitle}%
   \usebeamerfont{frametitle}\insertframetitle%
   \ifx\insertframesubtitle\empty\else{\\[0.1em]\small\color{flairmuted}\insertframesubtitle}\fi%
-  \vskip0.25em{\color{mimicblue}\rule{0.10\paperwidth}{2.2pt}}%
+  \vskip0.25em{\expandafter\color\expandafter{\secaccent}\rule{0.10\paperwidth}{2.2pt}}%
   \end{beamercolorbox}%
 }
 
@@ -60,8 +64,8 @@
   \end{beamercolorbox}}%
 }
 
-\newcommand{\emphc}[1]{{\color{mimicblue}\textbf{#1}}}
-\newcommand{\rushc}[1]{{\color{rushterra}\textbf{#1}}}
+\newcommand{\emphc}[1]{{\color{flairblue}\textbf{#1}}}
+\newcommand{\rushc}[1]{{\color{flairred}\textbf{#1}}}
 \newcommand{\source}[1]{{\par\vskip0.3em\scriptsize\color{flairmuted}#1}}
 
 % section divider frames
@@ -69,7 +73,7 @@
   \begin{frame}[plain]
   \vfill
   \centering
-  {\color{mimicblue}\rule{0.14\paperwidth}{3pt}}\\[0.8em]
+  {\expandafter\color\expandafter{\secaccent}\rule{0.14\paperwidth}{3pt}}\\[0.8em]
   {\usebeamerfont{title}\Large\color{flairink}\insertsectionhead}\\[0.4em]
   \vfill
   \end{frame}%
@@ -86,9 +90,9 @@
 % ===================== TITLE =========================================
 \begin{frame}[plain]
   \vfill
-  {\color{mimicblue}\rule{0.16\paperwidth}{4pt}}\\[1.1em]
+  {\color{flairblue}\rule{0.16\paperwidth}{4pt}}\\[1.1em]
   {\usebeamerfont{title}\Huge\color{flairink} FLAIR}\\[0.35em]
-  {\large\color{mimicblue}\textbf{F}ederated \textbf{L}earning \textbf{A}ssessment for \textbf{I}CU \textbf{R}esearch}\\[0.8em]
+  {\large\color{flairblue}\textbf{F}ederated \textbf{L}earning \textbf{A}ssessment for \textbf{I}CU \textbf{R}esearch}\\[0.8em]
   {\Large\color{flairink} A Federated ICU Benchmark for External Validation}\\[0.2em]
   {\Large\color{flairmuted} on the Common Longitudinal ICU Format (CLIF)}\\[1.4em]
   {\color{flairmuted} CLIF Consortium \textperiodcentered\ FLAIR Working Group}\\[0.3em]
@@ -150,7 +154,7 @@
     \item None offers a standing, ICU-scoped, \emphc{federated validation} layer over data that never leaves the hospital
   \end{itemize}
   \vfill
-  \begin{center}\color{mimicblue}\textbf{Develop on public MIMIC-CLIF \quad$\rightarrow$\quad validate federated.}\end{center}
+  \begin{center}\color{flairblue}\textbf{Develop on public MIMIC-CLIF \quad$\rightarrow$\quad validate federated.}\end{center}
   \source{van de Water et al. 2023 (YAIB); Wornow et al. 2023 (EHRSHOT); Arnrich et al. 2025 (MEDS)}
 \end{frame}
 
@@ -164,7 +168,7 @@
     \item Row-level metrics, not \emph{operational} (one alarm per stay)
   \end{itemize}
   \vfill
-  \begin{center}\color{mimicblue}\textbf{They measure discrimination on public data --- not whether a model \emph{survives deployment} at a new hospital.}\end{center}
+  \begin{center}\color{flairblue}\textbf{They measure discrimination on public data --- not whether a model \emph{survives deployment} at a new hospital.}\end{center}
   \source{van de Water et al.\ 2023; Wornow et al.\ 2023; Harutyunyan et al.\ 2019}
 \end{frame}
 
@@ -181,7 +185,7 @@
   \begin{center}\color{flairmuted}
   Missing for ICU EHR: a \emphc{standing, ICU-scoped federated benchmark} on a critical-care standard.
   \end{center}
-  \begin{center}\color{mimicblue}\textbf{FLAIR combines a critical-care standard (CLIF) $+$ a reusable task catalog $+$ a standing federated protocol.}\end{center}
+  \begin{center}\color{flairblue}\textbf{FLAIR combines a critical-care standard (CLIF) $+$ a reusable task catalog $+$ a standing federated protocol.}\end{center}
   \source{Guinney et al. 2018 (DREAM); Bergquist et al. 2024 (EHR DREAM); OpenSAFELY 2021; Karargyris et al. 2023 (MedPerf); Pati et al. 2022 (FeTS); Reps et al. 2020 (OHDSI/LEGEND)}
 \end{frame}
 
@@ -246,7 +250,7 @@
     \item \emphc{MIMIC-CLIF} expresses MIMIC-IV in CLIF v2.1 ($\sim$72{,}800 ICU stays) --- the public development set
   \end{itemize}
   \vfill
-  \begin{center}\color{mimicblue}\textbf{Develop on public MIMIC-CLIF \quad$\rightarrow$\quad validate on private CLIF data.}\end{center}
+  \begin{center}\color{flairblue}\textbf{Develop on public MIMIC-CLIF \quad$\rightarrow$\quad validate on private CLIF data.}\end{center}
   \source{Rojas et al. 2025 (CLIF); Johnson et al. 2023 (MIMIC-IV)}
 \end{frame}
 
@@ -330,7 +334,7 @@
     \item \emphc{Audit hash.} A SHA-256 over task source + policy metadata is stamped into every report
   \end{enumerate}
   \vfill
-  \begin{center}\color{mimicblue}\textbf{Sites can prove they ran byte-identical task code.}\end{center}
+  \begin{center}\color{flairblue}\textbf{Sites can prove they ran byte-identical task code.}\end{center}
 \end{frame}
 
 % ===================== DATA SPLITS ===================================
@@ -421,9 +425,9 @@
 % ===================== PROTOCOL / WORKFLOW ===========================
 \begin{frame}{Protocol layer: the model-to-data loop}
   \begin{center}
-    \includegraphics[height=0.70\textheight]{figure1_flair_workflow_v3.png}
+    \includegraphics[width=\linewidth]{figure1_flair_overview.png}
   \end{center}
-  {\centering\scriptsize\color{flairmuted} Model Owner $\rightarrow$ Committee (audit hash) $\rightarrow$ Portal $\rightarrow$ Site runs locally $\rightarrow$ aggregate cell-suppressed JSON returns.\par}
+  {\centering\scriptsize\color{flairmuted} Centralized governance (top): MIMIC-CLIF $\rightarrow$ Model Owner $\rightarrow$ Committee (audit hash) $\rightarrow$ Portal. At each site (bottom): frozen baseline runs locally; only aggregate, cell-suppressed reports return.\par}
 \end{frame}
 
 % ===================== GOVERNANCE ====================================
@@ -458,7 +462,7 @@
   \end{tabular}
   \end{center}
   \vfill
-  \begin{center}\large\color{mimicblue}\textbf{278{,}065 ICU stays across four independent health systems.}\end{center}
+  \begin{center}\large\color{flairblue}\textbf{278{,}065 ICU stays across four independent health systems.}\end{center}
   {\color{flairmuted}\small Placeholder rows leave space for the full eight-site consortium --- no fabricated numbers.}
 \end{frame}
 
@@ -547,7 +551,7 @@
     \item \emphc{Re-inspectable.} Byte-identical code + audit hashes make cohort definitions, exclusions, and labels auditable across sites
   \end{itemize}
   \vfill
-  \begin{center}\color{mimicblue}\textbf{An evidence layer between local development and any clinician-facing claim.}\end{center}
+  \begin{center}\color{flairblue}\textbf{An evidence layer between local development and any clinician-facing claim.}\end{center}
 \end{frame}
 
 % ===================== LIMITATIONS ===================================
@@ -570,14 +574,14 @@
     \item The contribution is not a model --- it is a \emphc{reproducible way to ask} whether ICU models behave alike across institutions
   \end{enumerate}
   \vfill
-  \begin{center}\Large\color{mimicblue}\textbf{Develop on public MIMIC-CLIF. Validate federated.}\end{center}
+  \begin{center}\Large\color{flairblue}\textbf{Develop on public MIMIC-CLIF. Validate federated.}\end{center}
 \end{frame}
 
 % ===================== THANK YOU =====================================
 \begin{frame}[plain]
   \vfill
   \centering
-  {\color{mimicblue}\rule{0.14\paperwidth}{3pt}}\\[0.9em]
+  {\color{flairblue}\rule{0.14\paperwidth}{3pt}}\\[0.9em]
   {\Huge\color{flairink}\textbf{Thank you}}\\[0.8em]
   {\large\color{flairmuted} FLAIR --- Federated Learning Assessment for ICU Research}\\[0.4em]
   {\small\color{flairmuted} github.com/clif-consortium/FLAIR}\\[1.2em]
