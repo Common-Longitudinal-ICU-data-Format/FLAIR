@@ -189,10 +189,6 @@ These are additions to landmark reporting. They do not replace `peak`, because Z
 
 **Clinical-utility EWS paper: why it matters here**
 
-Local PDF: `docs/paper/lit/CCMED-D-26-00584.pdf`.
-
-Paper draft: Mayampurath A, Wu P, Carey K, Strutz S, Afshar M, Edelson DP, Churpek MM, Parker WF. "Evaluating the Clinical Utility of Early Warning Scores." Critical Care Medicine manuscript draft.
-
 This paper is directly relevant to build reports because it asks a practical hospital question: "If this early warning score is deployed, is it useful under real staffing and census conditions?"
 
 Standard DCA asks whether a threshold has positive net benefit. That is useful, but it assumes a clean patient-level table and a threshold-based decision.
@@ -243,6 +239,109 @@ Recommended build-report path:
 
 This keeps the report honest. DCA remains the standard probability-based decision metric. Census-based utility becomes the operations metric for early warning systems.
 
+## 3. Where Do We Draw the Line? Clinical vs Data-Driven Thresholds
+
+Every mode above eventually has to answer one more question: **at what risk score do we act?**
+
+Sensitivity, specificity, PPV, NPV, F1, net benefit, alert burden, number needed to evaluate — none of these exist until a threshold is chosen. AUROC and AUPRC do not need one, which is why they are the leaderboard metrics. Everything a clinician actually acts on does need one.
+
+**What FLAIR does today**
+
+FLAIR ships one fixed threshold per task, written down as clinical policy in `flair_benchmark/_constants.py`:
+
+| Task | Threshold | Direction | Plain meaning |
+|----------------|------------------|------------------|------------------|
+| ICU daily mortality | 0.95 | above | act when the model is very sure |
+| ICU daily LTACH | 0.5 | above | act on more-likely-than-not |
+| Extubation failure 24h | 0.15 | below | extubate when failure risk is low |
+| Sepsis antibiotics 6h | 0.1 | above | alert early, tolerate false alarms |
+| ICU readmission | 0.2 | above | flag the top slice of risk |
+
+This is a good default. It is fixed, it is the same at every site, and it is folded into the audit hash, so two sites reporting sensitivity at 0.2 are reporting the same number. Cross-site comparability comes from the threshold not moving.
+
+But nothing in the report ever asks the data whether 0.95 is a *good* place to stand. A reader sees sensitivity at 0.95 and cannot tell whether the model was given a fair operating point or a badly placed one.
+
+**What a data-driven threshold is**
+
+Instead of fixing the threshold in advance, pick the one that optimises a statistical measure on the ROC curve. There are several rules, and they disagree with each other, which is exactly why we report all of them.
+
+| Rule | What it maximises | Assumes | Plain meaning |
+|------------------|------------------|------------------|------------------|
+| Youden index J | sensitivity + specificity − 1 | a false alarm costs the same as a missed event | the point furthest above the diagonal |
+| Closest to top-left | shortest distance to the perfect corner (0, 1) | same as Youden, near enough | the point nearest "catch everything, alarm on nobody" |
+| F1-max | harmonic mean of PPV and sensitivity | precision matters as much as recall | the point that survives a rare event |
+| Sensitivity target | specificity, subject to sensitivity at or above 0.90 | missing an event is much worse than a false alarm | "catch 90 percent, then alarm as little as possible" |
+| Clinical threshold | nothing — it is chosen by people | clinicians already priced the trade-off | the policy FLAIR ships |
+
+**Why we do not just use Youden**
+
+Youden is the standard answer, and it is the one most reviewers will ask for. It is also the one that quietly assumes a false alarm and a missed death are equally bad. In an ICU they are not.
+
+Youden is also prevalence-blind. It reads only sensitivity and specificity, so it never sees how rare the event is. For sepsis at roughly 2 percent prevalence, the Youden threshold can produce a PPV low enough that clinicians would ignore the alert. F1-max sees prevalence through PPV and lands somewhere else. That gap is not a bug — it is the finding. Showing Youden alone would hide it.
+
+So the report shows the threshold each rule picks, the performance each threshold buys, and the clinical threshold sitting alongside them as one more row. The clinical threshold is not being graded. It is being *located*.
+
+**The honesty problem, and how we handle it**
+
+Choosing a threshold on the same data you then report performance on is a form of cheating. The Youden threshold is chosen *because* it makes sensitivity plus specificity look best on those exact rows. Report that number as-is and it is an in-sample maximum, not the performance a new patient would see.
+
+The textbook fix is to pick the threshold on training data and report it on test data. FLAIR cannot always do that. Sites running a model in inference-only mode never produce train-split predictions — they receive a model and score the test cohort. A train-selected threshold is not available to them.
+
+So FLAIR selects on the test set and then measures how much that cost:
+
+| Idea | Plain version |
+|------------------------------------|------------------------------------|
+| Apparent performance | sensitivity at the threshold, on the rows used to pick it — optimistic |
+| Optimism-corrected performance | resample the cohort, re-pick the threshold on each resample, see how much worse it does on rows it did not pick from, subtract that gap |
+| Threshold stability range | across those resamples, where did the chosen threshold land? |
+| Clinical threshold | needs no correction — it was never fitted to the data |
+
+Two rules the report follows, and states in its own output:
+
+1.  **The optimism-corrected number is the headline.** The apparent number is shown next to it so the size of the gap is visible. A large gap means the threshold is being read off noise.
+2.  **The threshold stability range is not a confidence interval.** A threshold is the highest point of a jagged step function, and the bootstrap does not give honest confidence intervals for that kind of quantity. Calling it a 95 percent CI would be wrong. It is reported as a range showing where the cutpoint wanders under resampling, and labelled as such. The sensitivity and specificity *at* each threshold do carry proper bootstrap CIs.
+
+**What "direction" does to all this**
+
+Two of FLAIR's tasks act on *low* risk. Extubation failure fires when risk is below 0.15 — extubate the patient. This does not change threshold selection at all. Sensitivity and specificity are always computed in the usual risk-classifier sense (predicted positive means the score is at or above the threshold, label means the event happened), so Youden, F1-max and top-left separate events from non-events regardless of which side the clinician acts on.
+
+Direction only changes who gets acted on. Each threshold therefore also reports an action view: how many patients were extubated, and what fraction of them failed.
+
+**How this works in each mode**
+
+The threshold analysis lands inside the discrimination pillar, which every mode already builds, so all three get it without special-casing:
+
+| Mode | What you get | Why it is interesting |
+|------------------------|------------------------|------------------------|
+| `episodic` | one threshold analysis for the task | is the shipped policy where the data says? |
+| `peak` | analysis on stay-peak risk | alert-threshold placement, and number needed to evaluate at each candidate threshold |
+| `landmark` | one analysis per landmark, so a curve of threshold vs lead time | the optimal cutpoint moves as the outcome approaches, because prevalence in the risk set moves |
+
+The landmark view is the one that did not exist anywhere before. Because every landmark carries its own prevalence, every landmark has its own optimal threshold. A model deployed with a single fixed cutpoint is using the right number at one lead time and the wrong number at the other eleven. FLAIR can now show that, per site.
+
+Peak mode gets the analysis but not calibration or DCA, for the reason given in section 2: peak scores rank, but they are not probabilities. A threshold on a peak score is an alarm setting, not a risk statement. The report says so.
+
+**Why this does not change the leaderboard**
+
+It is tempting to rank models by sensitivity at their own optimal threshold. Do not.
+
+A threshold fitted to the data is a fitted parameter. Ranking on a metric that includes a fitted parameter rewards whichever model overfits the cutpoint hardest, and the noisier the site's test cohort, the more it is rewarded. The leaderboard stays on pooled AUROC, which needs no threshold and cannot be gamed this way.
+
+The threshold analysis lives in the per-model report, where it belongs: it describes a model's operating behaviour, it does not score the model.
+
+**What this is for**
+
+Two things.
+
+| Purpose | Plain version |
+|------------------------------------|------------------------------------|
+| Read the model | at the threshold we ship, what does this model actually do to patients — and what would it do somewhere else? |
+| Read the policy | across sites, where does the data keep putting the cutpoint, and is the shipped threshold near it? |
+
+The second is the long game. `_constants.py` currently holds five thresholds chosen by clinical reasoning. Once every site's report carries where the data would have put each one, that table stops being an assumption and starts being a claim with evidence for or against it. If four sites independently put the mortality cutpoint at 0.78 and FLAIR ships 0.95, that is worth a conversation.
+
+Data-driven thresholds do not replace the clinical threshold. They give it a second opinion.
+
 **Bottom line**
 
 For episodic tasks, basic TRIPOD+AI reporting is enough because one row already equals one stay.
@@ -257,3 +356,5 @@ For continuous tasks, FLAIR needs two modes:
 Use `peak` when the report is about alarms. Use `landmark` when the report is about calibrated risk, DCA, sepsis risk sets, or time-dependent performance.
 
 The Zhang/Parker paper supports stronger time-dependent landmark reporting. The clinical-utility EWS paper supports a future optional build-report output for census-based utility, especially for real-time warning systems.
+
+Threshold choice is a third axis, orthogonal to the first two. Every mode reports what the clinical threshold buys, what four data-driven rules would have picked instead, and what that difference costs in sensitivity, false alarms, and PPV — with the optimism of picking a threshold on test data measured and subtracted, not ignored. Ranking stays on pooled AUROC, which needs no threshold at all.
