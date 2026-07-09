@@ -1,9 +1,7 @@
 % =====================================================================
-% FLAIR --- Seminar talk (~30-45 min, widescreen 16:9)
-% Self-contained Beamer deck. Custom minimalist "FLAIR" theme so it needs
-% only standard packages (beamer, xcolor, graphicx, booktabs).
-% Figures embedded from figures/. Numbers match main_v3 (4 observed sites).
-% Build: pdflatex clif_flair_talk.tex  (x2 for the frame counter)
+% FLAIR --- Scientific consortium talk (~25-35 min, widescreen 16:9)
+% Strong-message Beamer deck grounded in main_v3.tex and observed runs.
+% Build: pdflatex clif_flair_talk.tex  (x2 for frame counter / refs)
 % =====================================================================
 \documentclass[aspectratio=169,11pt,xcolor={table}]{beamer}
 
@@ -11,25 +9,26 @@
 \usepackage{lmodern}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
 
 \graphicspath{{figures/}}
 
-% ---- FLAIR palette (RUSH ESM2 cohort scheme: charcoal / blue / red) --
+% ---- FLAIR palette ---------------------------------------------------
 \definecolor{flairink}{HTML}{1A1A1A}
 \definecolor{flairmuted}{HTML}{6B6B6B}
 \definecolor{flairpanel}{HTML}{F7F7F6}
 \definecolor{flairgrid}{HTML}{E7E7E4}
-\definecolor{flairblue}{HTML}{1A6FB2}      % clean blue  (48h series)
-\definecolor{flairred}{HTML}{E0221C}       % strong red  (no-cap series)
-\definecolor{flaircharcoal}{HTML}{3F3F3F}  % charcoal    (24h series)
+\definecolor{flairblue}{HTML}{1A6FB2}
+\definecolor{flairred}{HTML}{E0221C}
+\definecolor{flaircharcoal}{HTML}{3F3F3F}
+\definecolor{flairband}{HTML}{F0E3DA}
 \definecolor{nugreen}{HTML}{6F9E78}
 \definecolor{ucmcviolet}{HTML}{8A6EA6}
-\definecolor{flairband}{HTML}{F0E3DA}
 
-% per-section accent cycles through the three cohort colors (blue / red / charcoal)
-\newcommand{\secaccent}{\ifcase\value{section}flairblue\or flairblue\or flairred\or flaircharcoal\or flairblue\else flairblue\fi}
+\newcommand{\secaccent}{\ifcase\value{section}flairblue\or flairblue\or flairred\or flaircharcoal\or flairblue\or flairred\else flairblue\fi}
 
-% ---- Minimalist theme ----------------------------------------------
+% ---- Minimalist theme -----------------------------------------------
 \usetheme{default}
 \usecolortheme{default}
 \setbeamertemplate{navigation symbols}{}
@@ -47,7 +46,6 @@
 \setbeamertemplate{itemize subitem}{\scriptsize\raisebox{0.15ex}{--}}
 \setbeamertemplate{blocks}[rounded][shadow=false]
 
-% frame title rule
 \setbeamertemplate{frametitle}{%
   \vskip0.6em%
   \begin{beamercolorbox}[wd=\paperwidth,leftskip=0.9em,rightskip=0.9em]{frametitle}%
@@ -57,7 +55,6 @@
   \end{beamercolorbox}%
 }
 
-% footline: short title | frame number
 \setbeamertemplate{footline}{%
   \hbox{\begin{beamercolorbox}[wd=\paperwidth,ht=2.2ex,dp=1.0ex,leftskip=0.9em,rightskip=0.9em]{}%
   \color{flairmuted}\scriptsize FLAIR: Federated ICU Benchmark on CLIF \hfill \insertframenumber%
@@ -67,8 +64,8 @@
 \newcommand{\emphc}[1]{{\color{flairblue}\textbf{#1}}}
 \newcommand{\rushc}[1]{{\color{flairred}\textbf{#1}}}
 \newcommand{\source}[1]{{\par\vskip0.3em\scriptsize\color{flairmuted}#1}}
+\newcommand{\bigclaim}[1]{\begin{center}{\Large\color{flairink}\textbf{#1}}\end{center}}
 
-% section divider frames
 \AtBeginSection[]{%
   \begin{frame}[plain]
   \vfill
@@ -79,11 +76,11 @@
   \end{frame}%
 }
 
-% ---- Title metadata -------------------------------------------------
+% ---- Title metadata --------------------------------------------------
 \title{\textbf{FLAIR}}
-\subtitle{A Federated ICU Benchmark for External Validation\\ on the Common Longitudinal ICU Format}
+\subtitle{The Federated External-Validation Network for ICU AI}
 \author{CLIF Consortium \textperiodcentered\ FLAIR Working Group}
-\date{\today}
+\date{July 6, 2026}
 
 \begin{document}
 
@@ -93,195 +90,232 @@
   {\color{flairblue}\rule{0.16\paperwidth}{4pt}}\\[1.1em]
   {\usebeamerfont{title}\Huge\color{flairink} FLAIR}\\[0.35em]
   {\large\color{flairblue}\textbf{F}ederated \textbf{L}earning \textbf{A}ssessment for \textbf{I}CU \textbf{R}esearch}\\[0.8em]
-  {\Large\color{flairink} A Federated ICU Benchmark for External Validation}\\[0.2em]
+  {\Large\color{flairink} The Federated External-Validation Network for ICU AI}\\[0.2em]
   {\Large\color{flairmuted} on the Common Longitudinal ICU Format (CLIF)}\\[1.4em]
   {\color{flairmuted} CLIF Consortium \textperiodcentered\ FLAIR Working Group}\\[0.3em]
-  {\small\color{flairmuted} \today}
+  {\small\color{flairmuted} July 6, 2026}
   \vfill
   \begin{flushright}\scriptsize\color{flairmuted}
-    MIMIC-CLIF \textperiodcentered\ Rush \textperiodcentered\ Northwestern \textperiodcentered\ UChicago Medicine
+    MIMIC-CLIF \textperiodcentered\ Rush \textperiodcentered\ Northwestern Medicine \textperiodcentered\ UChicago Medicine
     \quad\textbullet\quad 278{,}065 ICU stays
   \end{flushright}
 \end{frame}
 
-% ===================== ONE-LINE FRAMING ==============================
-\begin{frame}{The question in one line}
-  \vfill
-  \begin{center}
-  {\Large A model that looks strong on public ICU data ---}\\[0.5em]
-  {\Large does it still work at a hospital that \emphc{did not build it}?}
-  \end{center}
-  \vfill
-  \begin{center}\color{flairmuted}
-  FLAIR is the federated infrastructure that answers this, reproducibly,\\
-  without moving a single patient record.
-  \end{center}
-  \vfill
-\end{frame}
-
-\section{The gap}
-
-% ===================== HOOK ==========================================
-\begin{frame}{Evidence for ICU AI does not keep pace with models}
+% ===================== OPENING =======================================
+\begin{frame}{ICU AI has a trust bottleneck}
   \begin{columns}[T]
-  \begin{column}{0.54\textwidth}
+  \begin{column}{0.52\textwidth}
     \begin{itemize}
-      \item Models for sepsis, extubation, mortality appear \emphc{continually}
-      \item Whether one works \emph{outside} its development hospital is often \emphc{unknown}
-      \item The evidence gap is an \emphc{access gap}: representative multi-site ICU data rarely reach the team that must test the model
+      \item Models for sepsis, extubation, mortality, and operations now appear \emphc{faster than evidence can validate them}
+      \item A strong internal AUC does not answer the question a hospital actually has
+      \item The hard part is not training another model; it is proving whether a model works \emphc{somewhere it was not built}
     \end{itemize}
   \end{column}
-  \begin{column}{0.44\textwidth}
-    \begin{block}{A cautionary anchor}
-      The Epic Sepsis Model --- deployed across many US hospitals --- fell to \rushc{AUC 0.63} on independent external evaluation, against vendor-claimed 0.76--0.83.
-    \end{block}
-    \source{Wong et al., JAMA Intern Med 2021; Habib et al. 2021}
-  \end{column}
-  \end{columns}
-  \vfill
-  {\color{flairmuted}\small Sepsis Watch and TREWS each took \emph{years} to reach a handful of sites --- serious validation does not scale.}
-\end{frame}
-
-% ===================== BENCHMARKS SATURATE ===========================
-\begin{frame}{Public benchmarks help --- but cannot close the gap alone}
-  \begin{itemize}
-    \item MIMIC, eICU, HiRID, YAIB, EHRSHOT are essential for \emphc{reproducible development}
-    \item But they \emphc{centralize their test data} --- and so:
-    \begin{itemize}
-      \item inherit one source's selection biases
-      \item can \emph{saturate}: tuning against the same public set makes transport look easier than it is
-    \end{itemize}
-    \item None offers a standing, ICU-scoped, \emphc{federated validation} layer over data that never leaves the hospital
-  \end{itemize}
-  \vfill
-  \begin{center}\color{flairblue}\textbf{Develop on public MIMIC-CLIF \quad$\rightarrow$\quad validate federated.}\end{center}
-  \source{van de Water et al. 2023 (YAIB); Wornow et al. 2023 (EHRSHOT); Arnrich et al. 2025 (MEDS)}
-\end{frame}
-
-% ===================== BENCHMARKS: WHAT THEY MISS =====================
-\begin{frame}{What current ICU benchmarks measure --- and miss}
-  \begin{itemize}
-    \item Tasks cluster on \emphc{mortality, length-of-stay, and physiologic deterioration} (AKI, sepsis) --- even multi-center YAIB stays within mortality / AKI / sepsis / kidney / LOS
-    \item Sparse on \emphc{deployment decisions}: disposition (LTACH), extubation failure, readmission, and \emphc{leak-safe before-treatment} sepsis (CDC ASE)
-    \item \emphc{Global / random splits, not temporal} --- no pseudo-prospective, deployment-time estimate
-    \item Centralized (or single-site, e.g.\ EHRSHOT $=$ one Stanford site) test data --- external multi-site validation is not built in, and benchmarks saturate
-    \item Row-level metrics, not \emph{operational} (one alarm per stay)
-  \end{itemize}
-  \vfill
-  \begin{center}\color{flairblue}\textbf{They measure discrimination on public data --- not whether a model \emph{survives deployment} at a new hospital.}\end{center}
-  \source{van de Water et al.\ 2023; Wornow et al.\ 2023; Harutyunyan et al.\ 2019}
-\end{frame}
-
-% ===================== RELATED MODEL-TO-DATA EFFORTS ==================
-\begin{frame}{Related model-to-data efforts --- pieces of the answer}
-  \begin{itemize}
-    \item \emphc{OHDSI / LEGEND} --- federated network studies over OMOP (share SQL / coefficients)
-    \item \emphc{OpenSAFELY} --- analytic code to national primary-care data; no patient rows move
-    \item \emphc{MedPerf} --- model-to-data benchmarking, largely imaging
-    \item \emphc{FeTS} --- federated \emph{training} for imaging
-    \item \emphc{DREAM / EHR DREAM} --- model-to-data evaluation as a \emph{challenge}
-  \end{itemize}
-  \vfill
-  \begin{center}\color{flairmuted}
-  Missing for ICU EHR: a \emphc{standing, ICU-scoped federated benchmark} on a critical-care standard.
-  \end{center}
-  \begin{center}\color{flairblue}\textbf{FLAIR combines a critical-care standard (CLIF) $+$ a reusable task catalog $+$ a standing federated protocol.}\end{center}
-  \source{Guinney et al. 2018 (DREAM); Bergquist et al. 2024 (EHR DREAM); OpenSAFELY 2021; Karargyris et al. 2023 (MedPerf); Pati et al. 2022 (FeTS); Reps et al. 2020 (OHDSI/LEGEND)}
-\end{frame}
-
-% ===================== FLAIR = 3 ARTIFACTS ===========================
-\begin{frame}{FLAIR = three coupled artifacts}
-  \begin{columns}[T]
-  \begin{column}{0.33\textwidth}
-    \begin{block}{Data layer}
-      CLIF critical-care standard; public \emphc{MIMIC-CLIF} entry point ($\sim$72{,}800 stays)
-    \end{block}
-  \end{column}
-  \begin{column}{0.33\textwidth}
-    \begin{block}{Task layer}
-      Five inspectable Python tasks; \emphc{open, PR-extensible} catalog
-    \end{block}
-  \end{column}
-  \begin{column}{0.33\textwidth}
-    \begin{block}{Protocol layer}
-      Committee-reviewed, \emphc{aggregate-only} model-to-data execution
+  \begin{column}{0.45\textwidth}
+    \begin{block}{The clinical-scientific question}
+      Before we trust or deploy this model, can it survive contact with our ICU population, our workflows, and our data?
     \end{block}
   \end{column}
   \end{columns}
   \vfill
-  \begin{center}
-  {\large The model goes to the data. \quad Only aggregate, cell-suppressed reports come back.}
-  \end{center}
-  \vfill
-  {\color{flairmuted}\small Not a clinical-utility claim --- an \emph{evidence layer} between local development and any clinician-facing decision.}
+  \bigclaim{FLAIR turns that question into a repeatable network test.}
 \end{frame}
 
-% ===================== PUBLIC BENCHMARKS vs FLAIR =====================
-\begin{frame}{Public benchmarks vs FLAIR}
+\begin{frame}{The one-line value proposition}
+  \vfill
   \begin{center}
-  \scriptsize
-  \setlength{\tabcolsep}{5pt}
+    {\Large Develop models on public MIMIC-CLIF.}\\[0.7em]
+    {\Large Validate them across independent hospitals.}\\[0.7em]
+    {\Large Keep patient-level data inside each institution.}
+  \end{center}
+  \vfill
+  \begin{center}\color{flairblue}\Large\textbf{The model goes to the data. Only aggregate, cell-suppressed reports come back.}\end{center}
+  \vfill
+\end{frame}
+
+\begin{frame}{The result that makes this urgent}
+  \small
+  \begin{columns}[c]
+  \begin{column}{0.48\textwidth}
+    \begin{center}
+    \large
+    \begin{tabular}{lc}
+      \toprule
+      \textbf{Site} & \textbf{Sepsis AUROC} \\
+      \midrule
+      MIMIC-CLIF internal & \emphc{0.697} \\
+      Rush & \rushc{0.430} \\
+      Northwestern Medicine & \rushc{0.449} \\
+      UChicago Medicine & \rushc{0.440} \\
+      \bottomrule
+    \end{tabular}
+    \end{center}
+  \end{column}
+  \begin{column}{0.48\textwidth}
+    \begin{block}{What FLAIR surfaced}
+      A model that looked useful on public ICU data became \rushc{worse than chance}.\\[0.2em]
+      The highest-stakes task failed at every external health system.
+    \end{block}
+    \vskip0.7em
+    {\color{flairmuted}\small This is not a one-hospital anomaly. It is the exact failure mode external validation must reveal before clinical claims are made.}
+  \end{column}
+  \end{columns}
+\end{frame}
+
+\section{Why FLAIR}
+
+\begin{frame}{Public benchmarks are necessary, but not sufficient}
+  \begin{center}
+  \tiny
+  \setlength{\tabcolsep}{4pt}
   \rowcolors{2}{flairpanel}{white}
-  \begin{tabular}{>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}p{4.3cm}>{\raggedright\arraybackslash}p{4.3cm}}
+  \begin{tabular}{>{\raggedright\arraybackslash}p{2.35cm}>{\raggedright\arraybackslash}p{4.15cm}>{\raggedright\arraybackslash}p{4.15cm}}
   \toprule
   \textbf{Dimension} & \textbf{Public ICU benchmarks} & \textbf{FLAIR} \\
   \midrule
-  Test data & centralized / single-site & \emphc{federated}, stays at each hospital \\
-  Tasks & mortality, LOS, AKI, sepsis (generic) & 5 \emphc{deployment} tasks: LTACH disposition, extubation failure, before-treatment CDC-ASE sepsis, readmission, mortality \\
-  Train/test split & global / random & \emphc{temporal} (pseudo-prospective) at external sites \\
-  External validation & same repository / pooled & \emphc{independently governed} hospitals \\
-  Scoring & row-level & episodic / landmark / peak (\emphc{operational}) \\
-  Task catalog & fixed & \emphc{PR-extensible} \\
+  Test data & centralized / single-site & \emphc{federated}; stays at each hospital \\
+  Main value & reproducible development & \emphc{external validation} under real institutional variation \\
+  Tasks & mortality, LOS, AKI, generic sepsis & deployment-facing mortality, LTACH, extubation, CDC-ASE sepsis, readmission \\
+  Split & often global or random & \emphc{temporal} at external sites; pseudo-prospective \\
+  Scoring & frequently row-level & episodic / landmark / peak; closer to operational use \\
+  Saturation risk & public test data can be tuned against & private site data never enter public hands \\
   \bottomrule
   \end{tabular}
   \end{center}
   \vfill
-  {\color{flairmuted}\small Complementary, not competing: \emphc{develop} on public benchmarks, \emphc{validate} federated on FLAIR.}
-  \source{van de Water et al. 2023 (YAIB); Wornow et al. 2023 (EHRSHOT); Pollard et al. 2018 (eICU); Harutyunyan et al. 2019}
+  {\color{flairmuted}\scriptsize FLAIR complements MIMIC, eICU, HiRID, YAIB, EHRSHOT, and MEDS. It adds the missing federated validation layer.}
+  \source{van de Water et al. 2023; Wornow et al. 2023; Arnrich et al. 2025}
 \end{frame}
 
-\section{Methods}
+\begin{frame}{External validation is too slow today}
+  \begin{columns}[T]
+  \begin{column}{0.52\textwidth}
+    \begin{itemize}
+      \item Independent EHR model validation usually requires one-off data-use agreements, local analyst time, and repeated reimplementation
+      \item Flagship systems have taken \emphc{years} to reach only a handful of sites
+      \item The Epic Sepsis Model fell to \rushc{AUC 0.63} in independent evaluation, against vendor-claimed 0.76--0.83
+    \end{itemize}
+  \end{column}
+  \begin{column}{0.44\textwidth}
+    \begin{block}{FLAIR changes the unit of work}
+      From bespoke bilateral studies to a standing, governed model-to-data protocol over a shared ICU standard.
+    \end{block}
+  \end{column}
+  \end{columns}
+  \source{Wong et al., JAMA Intern Med 2021; Habib et al. 2021; Sendak et al. 2025; Adams et al. 2022}
+\end{frame}
 
-% ===================== DATA LAYER ====================================
-\begin{frame}{Data layer: CLIF and MIMIC-CLIF}
+\begin{frame}{The infrastructure gap: no standing ICU validation network}
   \begin{itemize}
-    \item \emphc{CLIF} harmonizes ICU EHR content into shared relational tables with mCIDE category definitions (vitals, labs, meds, respiratory support, microbiology, ADT, \dots)
-    \item Task code refers to \emphc{shared table names and category values} --- portable across sites, minimal per-site feature engineering
-    \item \emphc{MIMIC-CLIF} expresses MIMIC-IV in CLIF v2.1 ($\sim$72{,}800 ICU stays) --- the public development set
+    \item \emphc{OHDSI / LEGEND} federates studies over OMOP, but not an ICU benchmark catalog
+    \item \emphc{OpenSAFELY} moves analytic code to secure data, but not critical-care model benchmarking
+    \item \emphc{MedPerf} and \emphc{FeTS} prove model-to-data and federated training in imaging
+    \item \emphc{DREAM / EHR DREAM} show challenge-style model-to-data evaluation
   \end{itemize}
   \vfill
-  \begin{center}\color{flairblue}\textbf{Develop on public MIMIC-CLIF \quad$\rightarrow$\quad validate on private CLIF data.}\end{center}
-  \source{Rojas et al. 2025 (CLIF); Johnson et al. 2023 (MIMIC-IV)}
+  \bigclaim{Missing for ICU EHR: CLIF standardization + reusable, extensible tasks + governed federated evaluation.}
+  \source{Reps et al. 2020; OpenSAFELY 2021; Karargyris et al. 2023; Pati et al. 2022; Guinney et al. 2018; Bergquist et al. 2024}
 \end{frame}
 
-% ===================== DATA ACCESS: 3 WAYS ===========================
-\begin{frame}{Three ways to get data out of CLIF}
+\section{What FLAIR Is}
+
+\begin{frame}{FLAIR is three coupled products}
   \begin{columns}[T]
-  \begin{column}{0.33\textwidth}
-    \begin{block}{1. Direct feature extraction}
-      Compute features straight from the CLIF tables --- the reference baseline's path (count features over an ELF vocabulary).
+  \begin{column}{0.32\textwidth}
+    \begin{block}{1. Data layer}
+      CLIF critical-care standard plus public MIMIC-CLIF entry point for development.
     \end{block}
   \end{column}
-  \begin{column}{0.33\textwidth}
-    \begin{block}{2. MEDS format \emph{(optional)}}
-      Export as a standardized Medical Event Data Standard event stream for MEDS-native pipelines.
+  \begin{column}{0.32\textwidth}
+    \begin{block}{2. Task layer}
+      Five inspectable Python tasks today; open, governed, PR-extensible catalog.
     \end{block}
   \end{column}
-  \begin{column}{0.33\textwidth}
-    \begin{block}{3. Wide dataset}
-      A YAIB-style wide tabular matrix for models that expect one row of features per prediction.
+  \begin{column}{0.32\textwidth}
+    \begin{block}{3. Protocol layer}
+      Committee-reviewed model-to-data execution with aggregate-only reports.
     \end{block}
   \end{column}
   \end{columns}
   \vfill
-  \begin{center}\color{flairmuted}
-  MEDS is \emphc{one option}, not a required step --- a model developer picks whichever representation fits.
-  \end{center}
-  \source{Arnrich et al. 2025 (MEDS); van de Water et al. 2023 (YAIB); Wornow et al. 2023 (EHRSHOT/FEMR)}
+  \begin{center}\large\color{flairblue}\textbf{This is not another ICU model. It is the evidence layer models must pass through.}\end{center}
 \end{frame}
 
-% ===================== FIVE TASKS ====================================
-\begin{frame}{Task layer: five ICU prediction tasks}
+\begin{frame}{FLAIR is open infrastructure for ICU evaluation standards}
+  \begin{columns}[T]
+  \begin{column}{0.53\textwidth}
+    \begin{itemize}
+      \item Open-source task definitions, feature contracts, report generation, and evaluation protocol
+      \item A common way to define cohorts, prediction times, labels, splits, metrics, report bundles, and audit metadata
+      \item New tasks are added as inspectable Python modules, not one-off private benchmark forks
+    \end{itemize}
+  \end{column}
+  \begin{column}{0.43\textwidth}
+    \begin{block}{Task catalog standard}
+      Contribution requires MIMIC-CLIF reproducibility, clinician face-validity review, and multi-site governance sign-off.
+    \end{block}
+  \end{column}
+  \end{columns}
+  \vfill
+  \begin{center}\color{flairblue}\textbf{The goal is reusable, auditable, extensible ICU AI evaluation across the CLIF community.}\end{center}
+\end{frame}
+
+\begin{frame}{What each stakeholder gets}
+  \begin{center}
+  \small
+  \setlength{\tabcolsep}{5pt}
+  \rowcolors{2}{flairpanel}{white}
+  \begin{tabular}{>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{8.1cm}}
+  \toprule
+  \textbf{Stakeholder} & \textbf{FLAIR value} \\
+  \midrule
+  Model developers & A public development path plus credible external evidence without acquiring private ICU data \\
+  Hospitals & Local control: approve what runs, keep patient rows inside the institution, receive comparable performance reports \\
+  Journals / reviewers & Audit hashes, reproducible task code, cohort summaries, confidence intervals, calibration where meaningful \\
+  CLIF consortium & A high-value use case that makes CLIF adoption immediately useful for benchmarking and collaboration \\
+  Patients / public & Less reliance on claims from one development hospital before real-world evaluation \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+\end{frame}
+
+\begin{frame}{Why CLIF makes the network possible}
+  \begin{itemize}
+    \item CLIF maps ICU EHR content into shared relational tables and mCIDE categories: vitals, labs, medications, respiratory support, microbiology, ADT, diagnoses, and more
+    \item Task code refers to \emphc{shared table names and category values}, not local idiosyncratic EHR extracts
+    \item MIMIC-CLIF expresses MIMIC-IV in CLIF v2.1 with approximately \emphc{72{,}800 ICU stays}
+    \item Result: developers debug publicly, then run the same task/model contract across private CLIF sites
+  \end{itemize}
+  \vfill
+  \begin{center}\color{flairblue}\textbf{CLIF is the portability layer. FLAIR is the validation layer.}\end{center}
+  \source{Rojas et al. 2025; Johnson et al. 2023}
+\end{frame}
+
+\begin{frame}{Developers can plug in at the representation they need}
+  \begin{columns}[T]
+  \begin{column}{0.33\textwidth}
+    \begin{block}{CLIF-native features}
+      Direct table-based extraction for models that operate on CLIF relations.
+    \end{block}
+  \end{column}
+  \begin{column}{0.33\textwidth}
+    \begin{block}{MEDS event stream}
+      Optional event-sequence export for MEDS-native pipelines.
+    \end{block}
+  \end{column}
+  \begin{column}{0.33\textwidth}
+    \begin{block}{Wide table}
+      YAIB-style matrix for classical ML and one-row-per-prediction workflows.
+    \end{block}
+  \end{column}
+  \end{columns}
+  \vfill
+  \begin{center}\color{flairblue}\textbf{FLAIR standardizes the task and evaluation contract, not the model architecture.}\end{center}
+  {\color{flairmuted}\small Model teams can use their preferred representation as long as outputs meet the prediction-file contract. FLAIR can assist with supported formats; the model owner controls feature engineering and modeling choices.}
+  \source{Arnrich et al. 2025; van de Water et al. 2023; Wornow et al. 2023}
+\end{frame}
+
+\begin{frame}{The initial catalog covers decisions ICUs actually face}
   \begin{center}
   \footnotesize
   \setlength{\arrayrulewidth}{0.4pt}
@@ -292,160 +326,133 @@
   \midrule
   T1 & ICU daily mortality        & daily 07:00      & landmark & 0.125 \\
   T2 & LTACH discharge            & daily 07:00      & landmark & 0.062 \\
-  T3 & Extubation failure 24\,h   & at extubation    & episodic & 0.054 \\
-  T4 & Sepsis (CDC ASE) 6\,h      & hourly           & peak     & 0.061 \\
+  T3 & Extubation failure 24 h    & at extubation    & episodic & 0.054 \\
+  T4 & Sepsis (CDC ASE) 6 h       & hourly           & peak     & 0.061 \\
   T5 & Unplanned ICU readmission  & at ICU discharge & episodic & 0.093 \\
   \bottomrule
   \end{tabular}
   \end{center}
   \vfill
   \begin{itemize}\small
-    \item One Python module per task: \texttt{META} + \texttt{build()} $\rightarrow$ one row per prediction opportunity
-    \item Spans outcome, disposition, respiratory, infectious-deterioration, utilization
-    \item Catalog \emphc{grows by contribution}: acceptance needs MIMIC reproducibility, clinician face validity, $\geq$2-site sign-off
+    \item One Python module per task: \texttt{META} + \texttt{build()} returns one row per prediction opportunity
+    \item Catalog acceptance requires MIMIC-CLIF reproducibility, clinician face validity, and at least two-site sign-off
   \end{itemize}
 \end{frame}
 
-% ===================== T4 SEPSIS =====================================
-\begin{frame}{Task 4 is sepsis by the \emph{surveillance} definition}
-  \begin{columns}[T]
-  \begin{column}{0.58\textwidth}
-    \begin{itemize}
-      \item \emphc{CDC Adult Sepsis Event (ASE)} within 6\,h, hourly, hospital-wide
-      \item $t_0$ = earliest ASE criterion (blood culture, qualifying antibiotics, vasopressor, organ dysfunction) via \texttt{clifpy.utils.ase}
-      \item Prediction window ends \emphc{strictly before} $t_0$ --- no label leakage from treatment
-      \item Follows the \emph{before-treatment} formulation; contrasts with antibiotic-anchored Sepsis-3
-    \end{itemize}
-  \end{column}
-  \begin{column}{0.40\textwidth}
-    \begin{block}{Why it matters}
-      A rare, hospital-wide, hourly screen --- the most clinically consequential task, and the most fragile under distribution shift.
-    \end{block}
-  \end{column}
-  \end{columns}
-  \source{Kamran et al., NEJM AI 2024; Rhee et al. 2019 (CDC ASE)}
-\end{frame}
-
-% ===================== SAFEGUARDS ====================================
-\begin{frame}{Three safeguards make cohorts comparable across sites}
-  \begin{enumerate}
-    \item \emphc{Stitched hospitalizations.} Fragmented episodes (ED$\to$inpatient, discharge$\to$rapid readmit) joined into one \texttt{hospitalization\_join\_id} (6\,h gap) --- one episode is the unit, never split across train/test
-    \item \emphc{Strict point-in-time.} Features use only data at or before \texttt{prediction\_dttm} --- the no-future-data boundary
-    \item \emphc{Audit hash.} A SHA-256 over task source + policy metadata is stamped into every report
-  \end{enumerate}
-  \vfill
-  \begin{center}\color{flairblue}\textbf{Sites can prove they ran byte-identical task code.}\end{center}
-\end{frame}
-
-% ===================== DATA SPLITS ===================================
-\begin{frame}{Data splits: pseudo-prospective by design}
+\begin{frame}{Sepsis is the stress test}
   \begin{columns}[T]
   \begin{column}{0.56\textwidth}
     \begin{itemize}
-      \item \emphc{75/25} split at the \emphc{stitched-hospitalization} grain --- one hospitalization never straddles the boundary
-      \item \emphc{Default = temporal split}: oldest 75\% train, newest 25\% test
-      \item Estimates \emphc{pseudo-prospective performance} --- how the frozen model behaves \emph{going forward in time}, without a prospective trial
-      \item \emphc{MIMIC-CLIF is the exception}: de-identified admission dates carry no usable time order $\rightarrow$ deterministic hash split
+      \item Task 4 uses CDC Adult Sepsis Event within 6 hours on an hourly, hospital-wide grid
+      \item The prediction window ends strictly before onset: no future treatment signal
+      \item Peak scoring collapses each stay to the maximum risk, matching a one-alarm operational interpretation
+      \item It is rare, high-stakes, and sensitive to practice-pattern shift
     \end{itemize}
   \end{column}
-  \begin{column}{0.42\textwidth}
-    \begin{block}{Consequence}
-      At external sites, degradation blends \emph{temporal} shift (train-past $\to$ test-future) with \emph{cross-site} shift --- both are what a new hospital actually faces.
+  \begin{column}{0.40\textwidth}
+    \begin{block}{Why this matters}
+      If a sepsis model fails across hospitals, the field needs a safe way to find out before deployment, not after.
     \end{block}
   \end{column}
   \end{columns}
+  \source{Kamran et al., NEJM AI 2024; Rhee et al. 2019}
 \end{frame}
 
-% ===================== BASELINE ======================================
-\begin{frame}{Reference baseline: one frozen, shippable model}
-  \begin{itemize}
-    \item \emphc{XGBoost} over point-in-time \emphc{count features} (EHRSHOT/FEMR tradition)
-    \item CLIF events $\rightarrow$ fixed \emphc{211-code} ELF vocabulary; counts of codes strictly before prediction time
-    \item Units never features; discharge diagnoses excluded (no leakage)
-    \item HPO once on MIMIC-CLIF (\emphc{Optuna}, 30 trials, 5-fold CV AUROC)
-    \item Model + dictionary \emphc{shipped unchanged} to sites for \emph{inference only} --- no per-site training
-  \end{itemize}
-  \vfill
-  {\color{flairmuted}\small A benchmark check, not a claim that the baseline is clinically adequate. It exists to expose transport behavior.}
-  \source{Wornow et al. 2023; Steinberg et al. 2021 (FEMR)}
-\end{frame}
+\section{How It Works}
 
-% ===================== EVAL MODES + REPORT ===========================
-\begin{frame}{Three evaluation modes --- and what each report contains}
+\begin{frame}{Where FLAIR fits in the AI/CDSS lifecycle}
   \begin{center}
   \scriptsize
-  \setlength{\tabcolsep}{5pt}
+  \setlength{\tabcolsep}{4pt}
   \rowcolors{2}{flairpanel}{white}
-  \begin{tabular}{>{\raggedright\arraybackslash}p{1.5cm}>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}p{6.6cm}}
+  \begin{tabular}{>{\raggedright\arraybackslash}p{2.0cm}>{\raggedright\arraybackslash}p{4.7cm}>{\raggedright\arraybackslash}p{3.9cm}}
   \toprule
-  \textbf{Mode} & \textbf{Prediction unit} & \textbf{Report bundle} \\
+  \textbf{Step} & \textbf{In plain terms} & \textbf{Owner} \\
   \midrule
-  \emphc{Episodic}\newline (T3, T5) & one prediction per stay & AUROC, AUPRC, ROC \& PR curves, \emphc{calibration} (slope / intercept / Brier + reliability), \emphc{decision-curve analysis}, subgroup AUROC \\
-  \emphc{Landmark}\newline (T1, T2) & one per daily landmark & per-landmark $\widehat{\mathrm{AUC}}(t)$ \emph{curve} \emphc{plus} a single \emphc{pooled dynamic AUC}; lead-time / skill plots \\
-  \emphc{Peak}\newline (T4) & stay collapsed to max risk & discrimination + subgroup only; \emphc{calibration \& DCA omitted} (the ``peak-calibration trap'') \\
+  Cohort + task & Decide who is included, when prediction happens, and what counts as the outcome & \emphc{FLAIR standard}; community-extensible \\
+  Feature engineering & Turn raw clinical history into model inputs using CLIF-native, MEDS, or wide data & Model owner; FLAIR assists with formats \\
+  Model development & Train, tune, document, and freeze the algorithm & Model owner \\
+  Federated evaluation & Run the frozen artifact locally at each site using the same task and metrics & \emphc{FLAIR protocol}; site-approved \\
+  Evidence report & Return comparable, aggregate, cell-suppressed performance summaries & \emphc{FLAIR report standard} \\
   \bottomrule
   \end{tabular}
   \end{center}
   \vfill
-  {\color{flairmuted}\small Every bundle also carries a cohort summary, a suppressed-code registry, and audit metadata. All metrics on the held-out test split; percentile-bootstrap 95\% CIs at the \emph{stay} level.}
+  \begin{center}\color{flairblue}\textbf{Encapsulation makes evaluation faster and cleaner: shared task logic, private models, repeatable reports.}\end{center}
 \end{frame}
 
-% ===================== POOLED DYNAMIC AUC FORMULA ====================
-\begin{frame}{The landmark metric: pooled dynamic AUC}
-  \small
-  For a stitched hospitalization $h$ with event onset $T_h$, discharge $D_h$, horizon $\tau$, at landmark time $t$:
-  \vskip0.3em
+\begin{frame}{The model-to-data loop}
+  \begin{center}
+    \includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figure1_flair_overview.png}
+  \end{center}
+  \vskip-0.3em
+  {\centering\scriptsize\color{flairmuted} Central governance approves and stamps the artifact; each site runs it locally on CLIF; only aggregate, cell-suppressed reports return.\par}
+\end{frame}
+
+\begin{frame}{Governance is part of the product}
   \begin{columns}[T]
-  \begin{column}{0.5\textwidth}
-    \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{4pt}
-    Risk set (still admitted, event-free):
-    \[ R(t)=\{\,h : T_h>t,\ D_h>t\,\} \]
-    Dynamic label (event within $\tau$):
-    \[ Y_h(t)=\mathbf 1\{\,t<T_h\le t+\tau\,\} \]
-    Predicted risk from history $\mathcal H_h(t)$:
-    \[ p_h(t)=\hat P\!\left(t<T_h\le t+\tau \mid \mathcal H_h(t)\right) \]
-    Tie kernel: $\ \psi(a,b)=\mathbf 1\{a>b\}+\tfrac12\mathbf 1\{a=b\}$
+  \begin{column}{0.50\textwidth}
+    \begin{itemize}
+      \item Benchmark Committee reviews reproducibility, clinical face validity, task fit, and security
+      \item Sites retain final approval over what runs locally
+      \item Every report includes task hash, package version, split, report mode, n, prevalence, and threshold
+    \end{itemize}
   \end{column}
-  \begin{column}{0.5\textwidth}
-    \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{4pt}
-    Time-specific AUC:
-    \[ \resizebox{\linewidth}{!}{$\displaystyle \widehat{\mathrm{AUC}}(t)=\frac{\sum_{i,j\in R(t)}Y_i(t)\,[1-Y_j(t)]\,\psi\big(p_i(t),p_j(t)\big)}{\big(\sum_i Y_i(t)\big)\big(\sum_j [1-Y_j(t)]\big)}$} \]
-    Pooled across landmarks (\emphc{reported}):
-    \[ \resizebox{\linewidth}{!}{$\displaystyle \mathrm{AUC}_{\text{pooled}}=\frac{\sum_t \widehat{\mathrm{AUC}}(t)\,w_t}{\sum_t w_t},\ \ w_t=\text{cases}_t\!\cdot\!\text{controls}_t$} \]
+  \begin{column}{0.46\textwidth}
+    \begin{block}{Privacy posture}
+      No patient-level data leave any site. Counts below 10 are suppressed; sparse subgroups and calibration bins are withheld.
+    \end{block}
   \end{column}
   \end{columns}
-  \vskip0.2em
-  \begin{center}
-  {\scriptsize\color{flairmuted}$h$ hospitalization \textbullet\ $t$ landmark \textbullet\ $\tau$ horizon \textbullet\ $T_h$ onset \textbullet\ $D_h$ discharge\\
-  $R(t)$ risk set \textbullet\ $Y_h(t)$ label \textbullet\ $p_h(t)$ risk \textbullet\ $\psi$ tie kernel \textbullet\ $w_t$ case--control pairs at $t$}
-  \end{center}
-  \source{Heagerty \& Zheng 2005; van Houwelingen 2007; Blanche et al.\ 2013}
+  \vfill
+  \bigclaim{The network is usable because trust, review, and suppression are built in.}
 \end{frame}
 
-% ===================== PROTOCOL / WORKFLOW ===========================
-\begin{frame}{Protocol layer: the model-to-data loop}
-  \begin{center}
-    \includegraphics[width=\linewidth]{figure1_flair_overview.png}
-  \end{center}
-  {\centering\scriptsize\color{flairmuted} Centralized governance (top): MIMIC-CLIF $\rightarrow$ Model Owner $\rightarrow$ Committee (audit hash) $\rightarrow$ Portal. At each site (bottom): frozen baseline runs locally; only aggregate, cell-suppressed reports return.\par}
+\begin{frame}{Comparability safeguards make results credible}
+  \begin{enumerate}
+    \item \emphc{Stitched hospitalizations:} fragmented clinical episodes are joined into one \texttt{hospitalization\_join\_id}; one episode never straddles train/test
+    \item \emphc{Strict point-in-time features:} only data at or before \texttt{prediction\_dttm} can be used
+    \item \emphc{Pseudo-prospective external splits:} default is oldest 75\% train, newest 25\% test at each site
+    \item \emphc{Audit hashes:} sites can prove they ran byte-identical task code and policy metadata
+  \end{enumerate}
+  \vfill
+  {\color{flairmuted}\small MIMIC-CLIF uses a deterministic hash split because de-identified dates do not preserve usable temporal order.}
 \end{frame}
 
-% ===================== GOVERNANCE ====================================
-\begin{frame}{Privacy and governance are operational, not aspirational}
+\begin{frame}{Evaluation matches the way a task is used}
+  \begin{center}
+  \scriptsize
+  \setlength{\tabcolsep}{5pt}
+  \rowcolors{2}{flairpanel}{white}
+  \begin{tabular}{>{\raggedright\arraybackslash}p{1.7cm}>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{6.2cm}}
+  \toprule
+  \textbf{Mode} & \textbf{Prediction unit} & \textbf{Report bundle} \\
+  \midrule
+  Episodic (T3, T5) & one prediction per stay & AUROC, AUPRC, ROC/PR curves, calibration, decision curves, subgroup AUROC \\
+  Landmark (T1, T2) & one daily prediction while at risk & per-landmark AUC curve plus pooled dynamic AUC, lead-time and skill plots \\
+  Peak (T4) & stay collapsed to maximum risk & discrimination and subgroup metrics; calibration/DCA omitted to avoid peak-calibration distortion \\
+  \bottomrule
+  \end{tabular}
+  \end{center}
+  \vfill
+  \begin{center}\color{flairblue}\textbf{The benchmark measures operational behavior, not just row-level discrimination.}\end{center}
+\end{frame}
+
+\begin{frame}{The reference baseline is deliberately shippable}
   \begin{itemize}
-    \item \emphc{No patient-level data leave any site}
-    \item \emphc{Cell suppression} enforced by the library: cohort counts $<10$ suppressed; subgroups $<10$ omitted; sparse calibration bins withheld
-    \item \emphc{Governance precedes execution} --- committee review; sites keep final approval over what runs locally
-    \item Every report carries: discrimination, calibration/DCA (where applicable), subgroup + lead-time summaries, suppressed code registry, and \emphc{audit metadata}
+    \item One frozen XGBoost model over point-in-time count features, following EHRSHOT/FEMR tradition
+    \item CLIF events map to a fixed 211-code Event List Format vocabulary
+    \item Counts include only codes strictly before prediction time; units and discharge diagnoses are excluded
+    \item Hyperparameters tuned once on MIMIC-CLIF; model and dictionary ship unchanged to sites for inference only
   \end{itemize}
   \vfill
-  {\color{flairmuted}\small Model-to-data lineage of DREAM / EHR DREAM --- FLAIR makes it a \emph{standing ICU benchmark}.}
+  \begin{center}\color{flairmuted}\small The baseline is not the product. It is the benchmark check that exposes transport behavior.\end{center}
+  \source{Wornow et al. 2023; Steinberg et al. 2021}
 \end{frame}
 
-\section{Results}
+\section{What We Learned}
 
-% ===================== COHORT ========================================
-\begin{frame}{Four sites reporting; four onboarding}
+\begin{frame}{Four reporting sites; four onboarding}
   \begin{center}
   \footnotesize
   \rowcolors{2}{flairpanel}{white}
@@ -462,30 +469,28 @@
   \end{tabular}
   \end{center}
   \vfill
-  \begin{center}\large\color{flairblue}\textbf{278{,}065 ICU stays across four independent health systems.}\end{center}
-  {\color{flairmuted}\small Placeholder rows leave space for the full eight-site consortium --- no fabricated numbers.}
+  \begin{center}\large\color{flairblue}\textbf{278{,}065 ICU stays across four independent reporting health systems.}\end{center}
+  {\color{flairmuted}\small Placeholder rows leave space for the eight-site consortium without fabricating results.}
 \end{frame}
 
-% ===================== HEADLINE FOREST ===============================
-\begin{frame}{The headline: per-site discrimination, one panel per task}
+\begin{frame}{Per-site performance is the headline product}
   \begin{center}
     \includegraphics[width=0.98\linewidth]{figure2_forest_auroc.png}
   \end{center}
   \vskip-0.3em
-  {\color{flairmuted}\small A single pooled AUROC would hide this. The per-site \emph{spread} is the point.}
+  {\color{flairmuted}\small A single pooled AUROC would hide the story. FLAIR makes the per-site spread visible.}
 \end{frame}
 
-% ===================== DEGRADATION ===================================
 \begin{frame}{Strong internal discrimination does not survive transport}
   \begin{columns}[c]
   \begin{column}{0.62\textwidth}
     \includegraphics[width=\linewidth]{figure3_degradation.png}
   \end{column}
   \begin{column}{0.36\textwidth}
-    \small Median internal$\to$external AUROC drop:
+    \small Median internal $\rightarrow$ external AUROC drop:
     \begin{itemize}\small
       \item Sepsis \rushc{0.257}
-      \item LTACH \phantom{0}0.176
+      \item LTACH 0.176
       \item Readmission 0.147
       \item Mortality 0.067
       \item Extubation 0.033
@@ -495,29 +500,7 @@
   \end{columns}
 \end{frame}
 
-% ===================== SEPSIS BELOW CHANCE ===========================
-\begin{frame}{Sepsis falls \emph{below chance} at every external site}
-  \vfill
-  \begin{center}
-  \large
-  \begin{tabular}{lc}
-    MIMIC-CLIF (internal) & \emphc{0.697} \\[0.3em]
-    Rush & \rushc{0.430} \\
-    Northwestern Medicine & \rushc{0.449} \\
-    University of Chicago Medicine & \rushc{0.440} \\
-  \end{tabular}
-  \end{center}
-  \vfill
-  \begin{center}
-  {\large The reproducible external result on the highest-stakes task is a model}\\
-  {\large that is \rushc{worse than a coin flip}.}
-  \end{center}
-  \vfill
-  {\color{flairmuted}\small Not a one-hospital artifact --- three independent health systems, same failure.}
-\end{frame}
-
-% ===================== TASK-DEPENDENT NARRATIVE ======================
-\begin{frame}{Transportability is task-dependent --- and heterogeneous}
+\begin{frame}{Transportability is heterogeneous, not binary}
   \begin{columns}[T]
   \begin{column}{0.33\textwidth}
     \begin{block}{Transports}
@@ -526,55 +509,77 @@
   \end{column}
   \begin{column}{0.33\textwidth}
     \begin{block}{Collapses}
-      \textbf{Sepsis (T4)}\\ below chance everywhere\\ \textbf{Readmission (T5)}\\ $\approx$ chance
+      \textbf{Sepsis (T4)}\\ below chance everywhere\\ \textbf{Readmission (T5)}\\ near chance
     \end{block}
   \end{column}
   \begin{column}{0.33\textwidth}
     \begin{block}{Splits}
-      \textbf{Extubation (T3)}\\ Northwestern \emphc{0.703}\\ (ties MIMIC)\\ UChicago \rushc{0.531}
+      \textbf{Extubation (T3)}\\ Northwestern \emphc{0.703}\\ UChicago \rushc{0.531}
     \end{block}
   \end{column}
   \end{columns}
   \vfill
-  \begin{center}
-  {\large The within-task, across-site spread is exactly what federated external validation exists to surface.}
-  \end{center}
+  \bigclaim{This is why federated external validation matters: site effects are the signal.}
 \end{frame}
 
-\section{Discussion}
+\section{Why It Wins}
 
-% ===================== SATURATION / EVIDENCE LAYER ===================
-\begin{frame}{Why federate evaluation --- and why now}
+\begin{frame}{FLAIR's defensible advantages}
   \begin{itemize}
-    \item \emphc{Saturation resistance.} Test data stay siloed --- the leaderboard's data never enter public hands, limiting pretraining-on-the-test-set and tune-to-test incentives
-    \item \emphc{Evaluation, not training.} Aggregate cell-suppressed metrics leak less than the model updates exchanged in federated \emph{learning}; no per-site model object to share
-    \item \emphc{Re-inspectable.} Byte-identical code + audit hashes make cohort definitions, exclusions, and labels auditable across sites
+    \item \emphc{Saturation resistance:} evaluation data stay siloed and private, limiting tune-to-test and pretraining-on-test-set risks
+    \item \emphc{Evaluation, not training:} aggregate metrics leak less than federated-learning updates; no per-site model object is shared
+    \item \emphc{Auditability:} byte-identical code and hashes make labels, exclusions, splits, and cohorts re-inspectable
+    \item \emphc{Extensibility:} new tasks can enter through PRs and multi-site governance instead of one-off benchmark forks
+    \item \emphc{Adoption flywheel:} every CLIF site increases the value of every future model evaluation
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{What FLAIR is not claiming}
+  \begin{itemize}
+    \item It does not certify any model for bedside use
+    \item It does not replace prospective silent trials or clinical-impact studies
+    \item It does not move patient-level data or expose row-level errors centrally
+    \item It currently covers structured EHR binary prediction tasks, not notes, waveforms, imaging, treatment effects, or generative outputs
   \end{itemize}
   \vfill
-  \begin{center}\color{flairblue}\textbf{An evidence layer between local development and any clinician-facing claim.}\end{center}
+  \begin{center}\color{flairblue}\textbf{FLAIR is the pre-deployment evidence layer between local development and clinician-facing claims.}\end{center}
 \end{frame}
 
-% ===================== LIMITATIONS ===================================
-\begin{frame}{Limitations}
-  \begin{itemize}\small
-    \item Depends on \emphc{CLIF adoption} --- unmapped sites need an ETL step first
-    \item Structured EHR + binary classification only --- no notes, waveforms, images, or treatment effects
-    \item \emphc{Aggregate-only} reporting limits fine-grained error analysis; suppressed small subgroups invisible centrally
-    \item Evaluates \emphc{frozen} models --- no federated training
-    \item Four sites today (four onboarding); each external site uses a \emph{temporal} split, so some degradation may reflect temporal as well as cross-site shift
-  \end{itemize}
-\end{frame}
-
-% ===================== CONCLUSION ====================================
-\begin{frame}{Takeaways}
-  \begin{enumerate}
-    \item FLAIR federates ICU \emphc{evaluation} on a shared critical-care standard (CLIF) --- model-to-data, aggregate-only, auditable
-    \item A frozen public-data baseline already exposes \emphc{large, task-dependent} cross-site degradation across \emphc{four} real health systems
-    \item \emphc{Sepsis} discrimination falls \emph{below chance} at every external site; \emphc{mortality} transports; \emphc{extubation} splits by site
-    \item The contribution is not a model --- it is a \emphc{reproducible way to ask} whether ICU models behave alike across institutions
-  \end{enumerate}
+\begin{frame}{The ask}
+  \vfill
+  \begin{center}
+    {\Large Join the federated ICU validation network.}\\[1.0em]
+    {\large Map to CLIF, run approved artifacts locally, and help define the next benchmark tasks.}
+  \end{center}
+  \vfill
+  \begin{columns}[T]
+  \begin{column}{0.33\textwidth}
+    \begin{block}{For sites}
+      Contribute private external evidence without sharing private rows.
+    \end{block}
+  \end{column}
+  \begin{column}{0.33\textwidth}
+    \begin{block}{For developers}
+      Bring frozen models for auditable, multi-site validation.
+    \end{block}
+  \end{column}
+  \begin{column}{0.33\textwidth}
+    \begin{block}{For funders}
+      Invest in infrastructure that scales evidence, not just algorithms.
+    \end{block}
+  \end{column}
+  \end{columns}
   \vfill
   \begin{center}\Large\color{flairblue}\textbf{Develop on public MIMIC-CLIF. Validate federated.}\end{center}
+\end{frame}
+
+\begin{frame}{Takeaways}
+  \begin{enumerate}
+    \item FLAIR fills the missing layer in ICU AI: external validation across real hospitals without patient-data movement
+    \item CLIF makes the code portable; FLAIR makes the evaluation governed, auditable, and reusable
+    \item The first observed results already justify the network: sepsis falls below chance at every external site, while mortality transports and extubation splits by hospital
+    \item The contribution is not a model; it is a reproducible way to ask whether ICU models behave alike across institutions
+  \end{enumerate}
 \end{frame}
 
 % ===================== THANK YOU =====================================
@@ -585,8 +590,35 @@
   {\Huge\color{flairink}\textbf{Thank you}}\\[0.8em]
   {\large\color{flairmuted} FLAIR --- Federated Learning Assessment for ICU Research}\\[0.4em]
   {\small\color{flairmuted} github.com/clif-consortium/FLAIR}\\[1.2em]
-  {\footnotesize\color{flairmuted} MIMIC-CLIF \textperiodcentered\ Rush \textperiodcentered\ Northwestern \textperiodcentered\ UChicago Medicine \quad\textbullet\quad 278{,}065 ICU stays}
+  {\footnotesize\color{flairmuted} MIMIC-CLIF \textperiodcentered\ Rush \textperiodcentered\ Northwestern Medicine \textperiodcentered\ UChicago Medicine \quad\textbullet\quad 278{,}065 ICU stays}
   \vfill
+\end{frame}
+
+\appendix
+\section{Backup}
+
+\begin{frame}{Backup: pooled dynamic AUC for landmark tasks}
+  \small
+  For a stitched hospitalization $h$ with event onset $T_h$, discharge $D_h$, horizon $\tau$, at landmark time $t$:
+  \vskip0.3em
+  \begin{columns}[T]
+  \begin{column}{0.5\textwidth}
+    \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{4pt}
+    Risk set:
+    \[ R(t)=\{\,h : T_h>t,\ D_h>t\,\} \]
+    Dynamic label:
+    \[ Y_h(t)=\mathbf 1\{\,t<T_h\le t+\tau\,\} \]
+    Predicted risk:
+    \[ p_h(t)=\hat P\!\left(t<T_h\le t+\tau \mid \mathcal H_h(t)\right) \]
+  \end{column}
+  \begin{column}{0.5\textwidth}
+    \setlength{\abovedisplayskip}{2pt}\setlength{\belowdisplayskip}{4pt}
+    Tie kernel: $\psi(a,b)=\mathbf 1\{a>b\}+\tfrac12\mathbf 1\{a=b\}$
+    \[ \resizebox{\linewidth}{!}{$\displaystyle \widehat{\mathrm{AUC}}(t)=\frac{\sum_{i,j\in R(t)}Y_i(t)\,[1-Y_j(t)]\,\psi\big(p_i(t),p_j(t)\big)}{\big(\sum_i Y_i(t)\big)\big(\sum_j [1-Y_j(t)]\big)}$} \]
+    \[ \resizebox{\linewidth}{!}{$\displaystyle \mathrm{AUC}_{\text{pooled}}=\frac{\sum_t \widehat{\mathrm{AUC}}(t)\,w_t}{\sum_t w_t},\ \ w_t=\text{cases}_t\!\cdot\!\text{controls}_t$} \]
+  \end{column}
+  \end{columns}
+  \source{Heagerty \& Zheng 2005; van Houwelingen 2007; Blanche et al. 2013}
 \end{frame}
 
 \end{document}

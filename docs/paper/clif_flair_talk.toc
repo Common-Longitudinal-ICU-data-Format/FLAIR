@@ -1,4 +1,6 @@
-\beamer@sectionintoc {1}{The gap}{3}{0}{1}
-\beamer@sectionintoc {2}{Methods}{10}{0}{2}
-\beamer@sectionintoc {3}{Results}{22}{0}{3}
-\beamer@sectionintoc {4}{Discussion}{28}{0}{4}
+\beamer@sectionintoc {1}{Why FLAIR}{5}{0}{1}
+\beamer@sectionintoc {2}{What FLAIR Is}{9}{0}{2}
+\beamer@sectionintoc {3}{How It Works}{17}{0}{3}
+\beamer@sectionintoc {4}{What We Learned}{24}{0}{4}
+\beamer@sectionintoc {5}{Why It Wins}{29}{0}{5}
+\beamer@sectionintoc {6}{Backup}{35}{1}{6}
