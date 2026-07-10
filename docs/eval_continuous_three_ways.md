@@ -5,6 +5,8 @@ This note explains what `flair build-report` should do for two task shapes:
 1.  **Episodic tasks**: one prediction per hospital stay.
 2.  **Continuous tasks**: many predictions per hospital stay, such as daily ICU mortality or hourly sepsis risk.
 
+For a visual step-by-step version with toy calculations, open [`eval_task_labels_modes.html`](eval_task_labels_modes.html).
+
 The main rule is simple: **do not score continuous rows as if they were independent patients.** A 10-day stay would count 10 times, while a 2-day stay would count 2 times. That makes the numbers look better or worse for the wrong reason.
 
 ## 1. Episodic Tasks: Basic TRIPOD+AI Is Enough

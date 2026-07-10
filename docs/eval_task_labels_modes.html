@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FLAIR: Why Peak and Landmark Modes Exist</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #52616f;
+      --line: #d8dee6;
+      --soft: #f6f8fb;
+      --blue: #eaf3ff;
+      --green: #ecf9f0;
+      --yellow: #fff7e1;
+      --red: #fff0f0;
+      --purple: #f4efff;
+      --accent: #2457c5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+      background:
+        radial-gradient(circle at top left, #eef5ff 0, transparent 34rem),
+        linear-gradient(180deg, #ffffff 0, #f8fafc 100%);
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 56px;
+    }
+
+    h1, h2, h3 { line-height: 1.15; }
+
+    h1 {
+      max-width: 900px;
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 5vw, 4rem);
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      margin: 36px 0 12px;
+      font-size: clamp(1.45rem, 3vw, 2.2rem);
+      letter-spacing: -0.025em;
+    }
+
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 1.15rem;
+    }
+
+    p { margin: 10px 0; }
+
+    .lead {
+      max-width: 850px;
+      color: var(--muted);
+      font-size: 1.15rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin: 18px 0;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      background: #fff;
+      box-shadow: 0 10px 30px rgba(22, 34, 51, 0.06);
+    }
+
+    .card.blue { background: var(--blue); }
+    .card.green { background: var(--green); }
+    .card.yellow { background: var(--yellow); }
+    .card.red { background: var(--red); }
+    .card.purple { background: var(--purple); }
+
+    .tag {
+      display: inline-block;
+      margin: 0 0 10px;
+      padding: 4px 9px;
+      border: 1px solid rgba(36, 87, 197, 0.28);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(255, 255, 255, 0.7);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 20px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(22, 34, 51, 0.04);
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: #243244;
+      background: var(--soft);
+      font-size: 0.9rem;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    code, .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.95em;
+    }
+
+    .steps {
+      counter-reset: step;
+      display: grid;
+      gap: 10px;
+      margin: 14px 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 12px 14px 12px 52px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 14px;
+      top: 12px;
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--accent);
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+
+    .formula {
+      margin: 12px 0;
+      padding: 12px 14px;
+      border: 1px solid #ccd7ee;
+      border-radius: 14px;
+      background: #fbfdff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .callout {
+      margin: 18px 0;
+      padding: 16px 18px;
+      border-left: 5px solid var(--accent);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 8px 24px rgba(22, 34, 51, 0.05);
+    }
+
+    .small { color: var(--muted); font-size: 0.93rem; }
+
+    @media (max-width: 820px) {
+      .page { width: min(100% - 22px, 1120px); padding-top: 24px; }
+      .grid { grid-template-columns: 1fr; }
+      th, td { padding: 9px; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="hero">
+    <span class="tag">FLAIR evaluation</span>
+    <h1>Why Task 1/2 and Sepsis Need Different Continuous Evaluation</h1>
+    <p class="lead">
+      Task 1 and Task 2 have many rows per stay, but every row shares one final outcome label.
+      Sepsis is different: every row asks its own next-hours question. This is why FLAIR needs
+      <code>peak</code> and <code>landmark</code>, and why sepsis needs a special landmark setup.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>1. The Label Shape Is Different</h2>
+    <div class="grid">
+      <div class="card blue">
+        <span class="tag">Task 1 / Task 2</span>
+        <h3>One final stay label copied across rows</h3>
+        <p>
+          A stay has several daily rows. If the final outcome happened, every daily row gets the
+          same label, such as <code>1</code> for death or LTACH.
+        </p>
+        <p class="small">Question: did this stay eventually have the outcome?</p>
+      </div>
+      <div class="card green">
+        <span class="tag">Sepsis</span>
+        <h3>Each row has its own horizon label</h3>
+        <p>
+          Each hourly row asks a new question: will sepsis happen in the next 6 hours? A patient can
+          have many <code>0</code> rows, then some <code>1</code> rows near onset.
+        </p>
+        <p class="small">Question: from this exact hour, is sepsis coming soon?</p>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Rows per stay</th>
+          <th>Label meaning</th>
+          <th>Simple example</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Task 1 / Task 2</td>
+          <td>many daily rows</td>
+          <td>same final outcome copied to each row</td>
+          <td>death by discharge: <code>1, 1, 1</code></td>
+        </tr>
+        <tr>
+          <td>Sepsis</td>
+          <td>many hourly rows</td>
+          <td>new next-6-hours label at each hour</td>
+          <td>far from onset then close: <code>0, 0, 1</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>2. Task 1 / Task 2 Calculation: Why Row-Pooling Is Wrong</h2>
+    <p>
+      Setup: three ICU stays. Patient A dies. Patients B and C survive. The model predicts once per day.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>Day</th>
+          <th>Predicted risk</th>
+          <th>Label</th>
+          <th>Label meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>A</td><td>1</td><td>0.10</td><td>1</td><td>A eventually died</td></tr>
+        <tr><td>A</td><td>2</td><td>0.30</td><td>1</td><td>same final label copied</td></tr>
+        <tr><td>A</td><td>3</td><td>0.60</td><td>1</td><td>same final label copied</td></tr>
+        <tr><td>B</td><td>1</td><td>0.20</td><td>0</td><td>B survived</td></tr>
+        <tr><td>C</td><td>1</td><td>0.05</td><td>0</td><td>C survived</td></tr>
+        <tr><td>C</td><td>2</td><td>0.10</td><td>0</td><td>same final label copied</td></tr>
+      </tbody>
+    </table>
+
+    <ol class="steps">
+      <li>
+        <strong>True patient-level prevalence:</strong> 1 of 3 patients died.
+        <div class="formula">patient prevalence = 1 / 3 = 33%</div>
+      </li>
+      <li>
+        <strong>Naive row-pooled prevalence:</strong> the dying patient has 3 rows, so there are 3 positive rows out of 6 rows.
+        <div class="formula">row prevalence = 3 / 6 = 50%</div>
+      </li>
+      <li>
+        <strong>Why this is wrong:</strong> patient A counts 3 times because A stayed 3 days. Patient B counts once.
+        The report is now partly measuring length of stay, not just model quality.
+      </li>
+    </ol>
+
+    <div class="callout">
+      <strong>Takeaway:</strong> for Task 1/2, every row has the same final stay label. If we score every row,
+      long stays dominate the result. We need a stay-level reduction.
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>3. Peak Mode Calculation: The Alarm View</h2>
+    <p>
+      Peak mode keeps one number per stay: the highest risk during the stay. This answers the alert question:
+      did the patient ever cross the threshold?
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>All risks</th>
+          <th>Peak risk</th>
+          <th>Stay label</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>A</td><td>0.10, 0.30, 0.60</td><td>0.60</td><td>1</td></tr>
+        <tr><td>B</td><td>0.20</td><td>0.20</td><td>0</td></tr>
+        <tr><td>C</td><td>0.05, 0.10</td><td>0.10</td><td>0</td></tr>
+      </tbody>
+    </table>
+
+    <ol class="steps">
+      <li>
+        <strong>One row per stay:</strong> now the table has 3 rows, not 6. Each patient counts once.
+      </li>
+      <li>
+        <strong>AUROC by pairs:</strong> compare the positive stay A to negative stays B and C.
+        <div class="formula">A vs B: 0.60 &gt; 0.20 = correct</div>
+        <div class="formula">A vs C: 0.60 &gt; 0.10 = correct</div>
+        <div class="formula">AUROC = 2 correct pairs / 2 pairs = 1.00</div>
+      </li>
+      <li>
+        <strong>Alert threshold example:</strong> if the threshold is 0.25, A alerts and B/C do not.
+        <div class="formula">TP = 1, FP = 0, FN = 0, TN = 2</div>
+        <div class="formula">sensitivity = TP / (TP + FN) = 1 / 1 = 100%</div>
+        <div class="formula">PPV = TP / (TP + FP) = 1 / 1 = 100%</div>
+      </li>
+    </ol>
+
+    <div class="card red">
+      <h3>But peak is not a probability</h3>
+      <p>
+        The peak was selected because it was the biggest number. That makes it useful for ranking and alerts,
+        but bad for calibration. A peak score of 0.60 does not mean "this patient's true risk is exactly 60 percent."
+      </p>
+      <p>
+        This is why peak mode should not be used for calibration or DCA. Calibration and DCA need honest probabilities.
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>4. Task 1 / Task 2 Landmark Calculation: The Probability View</h2>
+    <p>
+      Landmark mode freezes time relative to the stay endpoint. At each landmark, each stay contributes at most one row.
+      That lets the report ask: at this lead time, is the risk number honest?
+    </p>
+
+    <h3>Landmark 0: last available row from each stay</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>Selected row</th>
+          <th>Risk</th>
+          <th>Label</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>A</td><td>Day 3</td><td>0.60</td><td>1</td></tr>
+        <tr><td>B</td><td>Day 1</td><td>0.20</td><td>0</td></tr>
+        <tr><td>C</td><td>Day 2</td><td>0.10</td><td>0</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Landmark 1: one row before the last row</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Patient</th>
+          <th>Selected row</th>
+          <th>Risk</th>
+          <th>Label</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>A</td><td>Day 2</td><td>0.30</td><td>1</td></tr>
+        <tr><td>C</td><td>Day 1</td><td>0.05</td><td>0</td></tr>
+        <tr><td>B</td><td>no earlier row</td><td>excluded</td><td>excluded</td></tr>
+      </tbody>
+    </table>
+
+    <ol class="steps">
+      <li>
+        <strong>At each landmark, one stay appears once.</strong> This removes the long-stay overweighting problem.
+      </li>
+      <li>
+        <strong>Run normal report metrics at each landmark.</strong> AUROC, calibration, DCA, and fairness now use a clean table.
+      </li>
+      <li>
+        <strong>Repeat over landmarks.</strong> The output is a curve: performance at the endpoint, one window earlier,
+        two windows earlier, and so on.
+      </li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>5. Sepsis Calculation: Each Row Has Its Own Label</h2>
+    <p>
+      Setup: sepsis onset is at 14:00. The prediction horizon is 6 hours. A row is labeled <code>1</code>
+      if onset happens within the next 6 hours from that row.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Hour</th>
+          <th>Question</th>
+          <th>Risk</th>
+          <th>Label</th>
+          <th>Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>06:00</td><td>sepsis by 12:00?</td><td>0.04</td><td>0</td><td>onset is 14:00, outside horizon</td></tr>
+        <tr><td>08:00</td><td>sepsis by 14:00?</td><td>0.18</td><td>1</td><td>onset is within 6 hours</td></tr>
+        <tr><td>10:00</td><td>sepsis by 16:00?</td><td>0.40</td><td>1</td><td>onset is within 6 hours</td></tr>
+        <tr><td>14:00</td><td>already septic</td><td>excluded</td><td>excluded</td><td>patient leaves risk set</td></tr>
+      </tbody>
+    </table>
+
+    <ol class="steps">
+      <li>
+        <strong>At 06:00:</strong> sepsis is not within the next 6 hours, so the label is <code>0</code>.
+      </li>
+      <li>
+        <strong>At 08:00:</strong> sepsis occurs exactly by the end of the 6-hour window, so the label is <code>1</code>.
+      </li>
+      <li>
+        <strong>At 10:00:</strong> sepsis is inside the next 6 hours, so the label is <code>1</code>.
+      </li>
+      <li>
+        <strong>At or after onset/treatment:</strong> do not keep scoring as if the patient is still at risk.
+        Otherwise the model may look good by reading treatment orders or clinician actions.
+      </li>
+    </ol>
+
+    <div class="callout">
+      <strong>Takeaway:</strong> sepsis is not "one final label copied across all rows." It is a moving next-hours label.
+      That is why Task 1/2 endpoint landmarking cannot be copied directly onto sepsis.
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>6. Can We Use Landmarking on Sepsis?</h2>
+    <p>
+      Yes, but not the same endpoint landmark used for Task 1/2. Sepsis needs a dynamic risk-set landmark.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Landmark type</th>
+          <th>Use for</th>
+          <th>How it works</th>
+          <th>Can use for sepsis?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Endpoint landmark</td>
+          <td>Task 1 / Task 2</td>
+          <td>line up rows by windows before the stay endpoint</td>
+          <td>No, not directly</td>
+        </tr>
+        <tr>
+          <td>Dynamic risk-set landmark</td>
+          <td>Sepsis / onset tasks</td>
+          <td>at each hour, include only patients still admitted and event-free</td>
+          <td>Yes</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Step-by-step sepsis dynamic landmark</h3>
+    <ol class="steps">
+      <li>Pick a landmark time, such as 08:00.</li>
+      <li>Keep only patients who are still admitted.</li>
+      <li>Remove patients who already had sepsis or already started treatment.</li>
+      <li>For each remaining patient, take one risk score at 08:00.</li>
+      <li>Label each patient <code>1</code> if sepsis starts in the next 6 hours, else <code>0</code>.</li>
+      <li>Compute AUROC, calibration, DCA, and fairness on that one-row-per-patient table.</li>
+      <li>Repeat at 09:00, 10:00, and so on to get a curve.</li>
+    </ol>
+
+    <div class="card purple">
+      <h3>Why peak is still needed for sepsis</h3>
+      <p>
+        A real sepsis alert often asks: did the model ever cross the alert threshold before treatment?
+        That is a peak question. Dynamic landmark tells us whether risks are honest at specific hours.
+        Peak tells us what the alert system would actually do over the whole encounter.
+      </p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Bottom Line</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Label shape</th>
+          <th>Use <code>peak</code>?</th>
+          <th>Use <code>landmark</code>?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Task 1 / Task 2</td>
+          <td>one final outcome copied across rows</td>
+          <td>optional alarm view</td>
+          <td>yes, endpoint landmark</td>
+        </tr>
+        <tr>
+          <td>Sepsis</td>
+          <td>each row has its own next-hours binary label</td>
+          <td>yes, for alert evaluation before treatment</td>
+          <td>yes, but only dynamic risk-set landmark</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>One sentence:</strong> Task 1/2 landmarking lines patients up before the stay endpoint;
+      sepsis landmarking lines patients up at a clock time while they are still at risk.
+    </div>
+  </div>
+</div>
+</body>
+</html>
