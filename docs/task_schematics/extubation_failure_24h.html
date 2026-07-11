@@ -33,14 +33,14 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 
   <p class="lead">
     At the moment of the first confirmed extubation, predict whether the patient
-    will accumulate less than one ventilator-free day in the next 24 hours — i.e.
-    die or get reintubated. One prediction per hospitalization, anchored at a single
-    per-encounter event. The key algorithmic ingredient is the
+    will require reintubation in the next 24 hours. Death without reintubation in
+    that window is excluded to avoid labeling palliative extubations as failures.
+    One prediction per hospitalization, anchored at a single per-encounter event.
+    The key algorithmic ingredient is the
     <strong>consensus-window IMV episode detector</strong>
     (<code>_ventilation_episodes.detect_imv_episodes</code>), which distinguishes a
     true extubation from sensor flicker, tracheostomy sentinels, and intermittent
     ventilator swaps. Ambiguous censoring is dropped to avoid positive-unlabeled bias
-    <a class="cite" href="references.html#ref-epstein1997vfd">[Epstein&nbsp;1997]</a>,
     <a class="cite" href="references.html#ref-thille2011extubation">[Thille&nbsp;2011]</a>.
   </p>
 
@@ -105,17 +105,19 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     <dd>\((t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}]\).</dd>
     <dt>Label (label_extubation_failure_24h)</dt>
     <dd>
-      \[ y_i = \mathbb{1}\!\left[ t_{\text{death}}^i \in (t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}] \ \vee\ t_{\text{reint}}^i \in (t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}] \right]. \]
+      \[ y_i = \mathbb{1}\!\left[ t_{\text{reint}}^i \in (t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}] \right]. \]
     </dd>
     <dt>Observability end</dt>
     <dd>\(t_{\text{obs\_end}}^i = \texttt{coalesce}(t_{\text{death}}^i,\, t_{\text{disch}}^i)\).</dd>
-    <dt>Censoring drop</dt>
+    <dt>Cohort retention</dt>
     <dd>
       Keep the row iff
-      \[ t_{\text{death}}^i \in (t_{\text{extub}}^i, t_{\text{extub}}^i + 24\text{h}] \ \vee\ t_{\text{reint}}^i \in (t_{\text{extub}}^i, t_{\text{extub}}^i + 24\text{h}] \ \vee\ t_{\text{obs\_end}}^i \ge t_{\text{extub}}^i + 24\text{h}. \]
+      \[ t_{\text{reint}}^i \in (t_{\text{extub}}^i, t_{\text{extub}}^i + 24\text{h}] \ \vee\ \left(t_{\text{death}}^i \notin (t_{\text{extub}}^i, t_{\text{extub}}^i + 24\text{h}] \ \wedge\ t_{\text{obs\_end}}^i \ge t_{\text{extub}}^i + 24\text{h}\right). \]
       A patient discharged alive less than 24h after extubation with no observed
       death or reintubation has <em>unobserved</em> outcome; treating it as \(y_i=0\)
-      would inject positive-unlabeled bias.
+      would inject positive-unlabeled bias. A patient who dies within 24h without
+      reintubation is also dropped to exclude likely palliative extubations from the
+      reintubation endpoint.
     </dd>
   </dl>
 
@@ -126,6 +128,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     <li>First IMV episode (<code>episode_index = 1</code>) has non-null <code>episode_end_dttm</code> (a confirmed extubation exists).</li>
     <li><strong>Exclude</strong> pre-existing tracheostomy (<code>is_pre_existing_trach</code>).</li>
     <li><strong>Exclude</strong> first episode closed by a trach sentinel (±1 min tolerance via <code>TRACH_CLOSURE_TOLERANCE_MIN = 1</code>; <code>_drop_trach_closed</code>).</li>
+    <li><strong>Exclude</strong> death within 24h post-extubation without reintubation (palliative extubation).</li>
     <li><strong>Exclude</strong> ambiguous censoring (discharged alive &lt;24h post-extubation with no death and no reintubation).</li>
   </ul>
 
@@ -173,14 +176,15 @@ flowchart TD
   trach["_drop_trach_closed<br/>trach row within ±1min of episode_end"]
   pred["t_extub = first extubation<br/>= episode_end_dttm of episode₁"]
   reint["join reintubation<br/>= episode_start_dttm of episode₂ (left join)"]
-  lab["label = died_in_24h ∨ reintubated_in_24h"]
-  decide{"event observed,<br/>OR obs_end ≥ t_extub + 24h?"}
+  lab["label = reintubated_in_24h"]
+  decide{"reintubated,<br/>OR no death and obs_end ≥ t_extub + 24h?"}
   split["temporal train/test split"]
   out(["output parquet<br/>(label_extubation_failure_24h,<br/>window_start/end, split)"])
   xicu["EXCLUDE: no ICU ADT"]
   ximv["EXCLUDE: no IMV episode"]
   xpre["EXCLUDE: pre-existing trach<br/>OR no confirmed extubation"]
   xtrach["EXCLUDE: trach-closed first episode<br/>(decannulation ≠ extubation)"]
+  xpall["EXCLUDE: death &lt;24h<br/>without reintubation<br/>(palliative extubation)"]
   xamb["EXCLUDE: ambiguous censoring<br/>(discharged alive &lt;24h post-extub,<br/>no death, no reintub)"]
   raw --> cohort --> loadresp --> detect --> filter --> trach --> pred --> reint --> lab --> decide
   decide -->|yes| split --> out
@@ -188,17 +192,19 @@ flowchart TD
   detect -.-> ximv
   filter -.-> xpre
   trach -.-> xtrach
-  decide -.->|no| xamb
+  decide -.->|death-only| xpall
+  decide -.->|censored| xamb
   classDef excl fill:#fbeaea,stroke:#cc6666,stroke-dasharray:4 3,color:#933;
   classDef outc fill:#e6f6ec,stroke:#3a8a63,stroke-width:2px;
-  class xicu,ximv,xpre,xtrach,xamb excl
+  class xicu,ximv,xpre,xtrach,xpall,xamb excl
   class out outc
     </pre>
     <p class="caption">Build pipeline for T3. Solid arrows: main flow. Dashed red
-      arrows: exclusions. The diamond enforces the censoring rule: any
-      hospitalization whose observation window closes before
-      \(t_{\text{extub}}+24\text{h}\) without an observed death or reintubation is
-      dropped, since its label is unobservable.</p>
+      arrows: exclusions. The diamond enforces the endpoint rule: reintubations
+      within 24h are positive; death without reintubation in that window is dropped;
+      and any hospitalization whose observation window closes before
+      \(t_{\text{extub}}+24\text{h}\) without reintubation is dropped because its
+      negative label is unobservable.</p>
   </div>
 
   <ol>
@@ -210,8 +216,8 @@ flowchart TD
     <li>Drop trach-closed first episodes via <code>_drop_trach_closed</code>: any first episode whose <code>episode_end_dttm</code> coincides with a <code>trach collar</code> or <code>tracheostomy=true</code> row within ±1 minute (decannulation ≠ extubation).</li>
     <li>Extract second-episode starts as \(t_{\text{reint}}^i\) = <code>episode_start_dttm</code> where <code>episode_index = 2</code> (left join; null if none).</li>
     <li>Join encounter-level \(t_{\text{death}}^i\) and \(t_{\text{disch}}^i\).</li>
-    <li>Compute \(y_i = \texttt{\_died} \vee \texttt{\_reintub}\).</li>
-    <li>Drop ambiguous censoring rows (the diamond).</li>
+    <li>Compute \(y_i = \texttt{\_reintub}\).</li>
+    <li>Drop death-only palliative extubations and ambiguous censoring rows (the diamond).</li>
     <li>Set <code>window_start = t_extub − 24h</code>, <code>window_end = t_extub</code> (fixed 24h lookback).</li>
     <li>Apply temporal split, keyed on \(t_{\text{extub}}^i\); select <code>OUTPUT_COLS</code>; persist as parquet.</li>
   </ol>
@@ -268,7 +274,8 @@ flowchart TD
   <h2>Out of scope</h2>
   <ul>
     <li>Second-, third-, and later-extubation decision points.</li>
-    <li>Non-invasive ventilation (NIV) as a failure mode (currently only death and reintubation count).</li>
+    <li>Death without reintubation as a failure mode (dropped to exclude palliative extubations).</li>
+    <li>Non-invasive ventilation (NIV) as a failure mode (currently only reintubation counts).</li>
     <li>A continuous variant predicting extubation failure ahead of the actual extubation.</li>
     <li>Curated drug-list or ventilator-mode feature design.</li>
   </ul>

@@ -2,9 +2,8 @@
 Task 3: Extubation failure within 24h of first extubation (binary, one-per-stay).
 
 Clinical question:
-  After the first confirmed extubation, will the patient accumulate < 1
-  ventilator-free day in the next 24h — i.e., die or get reintubated?
-  Equivalent to VFD_24h_post_extubation < 1.
+  After the first confirmed extubation, will the patient be reintubated
+  in the next 24h?
 
 Row shape: one row per stitched encounter (hospitalization_join_id) with a
 confirmed first extubation. Ventilation episodes are detected across the whole
@@ -26,10 +25,11 @@ Pipeline:
      drop pre-existing trach
   5. drop trach-closed episodes (trach row within +/-1min of episode_end)
   6. reintubation_dttm = episode 2's episode_start_dttm (if any)
-  7. label = died_in_24h OR reintubated_in_24h
-  8. drop ambiguous censoring (discharged alive < 24h post-extubation,
+  7. label = reintubated_in_24h
+  8. drop death in 24h without reintubation (palliative extubation)
+  9. drop ambiguous censoring (discharged alive < 24h post-extubation,
      no death, no reintubation)
-  9. assign_split()
+ 10. assign_split()
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ META = {
     # clinical_threshold, clinical_direction, report_mode — single-sourced
     **TASK_POLICY["task3_extubation_failure_24h"],
     "label_column": "label_extubation_failure_24h",
-    "positive_class": "vfd_lt_1_in_24h_post_extubation",
+    "positive_class": "reintubation_within_24h_post_extubation",
     "input_window_hours": None,
     "prediction_window": [0, HORIZON_HOURS],
     "cohort_description": "Adults with a first confirmed IMV episode closed by "
@@ -74,6 +74,8 @@ META = {
         "pre-existing tracheostomy",
         "first episode closed by trach sentinel "
         "(trach row within +/-1min of episode_end_dttm)",
+        "death within 24h of extubation without reintubation "
+        "(palliative extubation)",
         "discharged alive within 24h of extubation with no reintubation and "
         "no death (ambiguous — observability ends before window closes)",
     ],
@@ -152,15 +154,18 @@ def build(clif_config: str, train_end: str | None,
         reintubated_in_window.alias("_reintub"),
         pl.coalesce(["death_dttm", "discharge_dttm"]).alias("_obs_end"),
     ]).with_columns(
-        (pl.col("_died") | pl.col("_reintub"))
+        pl.col("_reintub")
         .cast(pl.Int32)
         .alias(META["label_column"])
     )
 
     df = df.filter(
-        pl.col("_died") | pl.col("_reintub")
-        | (pl.col("_obs_end") >= pl.col("prediction_dttm")
-           + pl.duration(hours=HORIZON_HOURS))
+        pl.col("_reintub")
+        | (
+            ~pl.col("_died")
+            & (pl.col("_obs_end") >= pl.col("prediction_dttm")
+               + pl.duration(hours=HORIZON_HOURS))
+        )
     )
 
     df = assign_split(df, cfg["site"], train_end, test_start,
