@@ -103,11 +103,11 @@ def build_report_cmd(
                             help="Output directory for the report JSONs"),
     mode: Optional[str] = typer.Option(
         None, "--mode",
-        help="How to score the task: 'episodic' (one-per-stay), 'peak' "
-             "(continuous -> stay-peak screening: discrimination + fairness), or "
-             "'landmark' (continuous -> per-lead-time skill/calibration + "
-             "leadtime). Inferred from META when omitted; continuous tasks must "
-             "pick peak or landmark."),
+        help="How to score the task: 'episodic' (one-per-stay) or 'continuous' "
+             "(multi-row-per-stay -> one bundle: stay-peak section + "
+             "per-landmark pillars over META['landmark_horizon'] landmarks + "
+             "leadtime with alert-vs-intervention timing). Inferred from META "
+             "when omitted."),
     episodic: bool = typer.Option(
         False, "--episodic",
         help="Deprecated alias for --mode episodic (one prediction per stay)."),
@@ -120,7 +120,7 @@ def build_report_cmd(
         help="Render local site-validation PNGs from the JSONs (default on; "
              "--no-viz to skip). Requires `pip install flair-benchmark[viz]`."),
 ) -> None:
-    """Generate the report bundle (--mode episodic | peak | landmark)."""
+    """Generate the report bundle (--mode episodic | continuous)."""
     from flair_benchmark.report import build_report
     from flair_benchmark.tasks import get_task
 

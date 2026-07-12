@@ -60,24 +60,33 @@ def report_dir(tmp_path_factory) -> Path:
     return out_dir
 
 
-def test_cli_landmark_mode(tmp_path):
-    """`--mode landmark` on a continuous task emits the 5-JSON landmark bundle."""
+def test_cli_continuous_mode(tmp_path):
+    """`--mode continuous` on a continuous task emits the merged 5-JSON bundle
+    (peak section + landmark pillars + leadtime with alert timing)."""
     preds_path = tmp_path / "preds.parquet"
     df = make_synth_continuous(n_stays=240, seed=7).rename({"label": "label_mortality"})
     df.write_parquet(preds_path)
-    out_dir = tmp_path / "lm"
+    out_dir = tmp_path / "ct"
 
     result = runner.invoke(app, [
         "build-report", str(preds_path),
         "--task", "task1_icu_daily_mortality", "--out", str(out_dir),
-        "--mode", "landmark",
+        "--mode", "continuous",
     ])
     assert result.exit_code == 0, result.output
     assert {p.stem for p in out_dir.glob("*.json")} >= {
-        "discrimination", "calibration", "dca", "fairness", "leadtime"}
+        "discrimination", "calibration", "dca", "fairness", "leadtime", "kpi"}
     disc = json.loads((out_dir / "discrimination.json").read_text())
-    assert disc["metadata"]["report_mode"] == "landmark"
-    assert len(disc["landmarks"]) == 12
+    assert disc["metadata"]["report_mode"] == "continuous"
+    assert "peak" in disc
+    # task1's META landmark_horizon = 30 (days); deep landmarks beyond the
+    # synthetic stay lengths are suppressed stubs but still emitted.
+    assert len(disc["landmarks"]) == 30
+    assert disc["landmarks"][0]["hospitalization_time"] == 1
+    lt = json.loads((out_dir / "leadtime.json").read_text())
+    assert "alert_vs_intervention" in lt
+    kpi = json.loads((out_dir / "kpi.json").read_text())
+    assert kpi["pooled_dynamic_auroc"] is not None
 
 
 def _load(report_dir: Path, name: str) -> dict:

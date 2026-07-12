@@ -28,14 +28,22 @@ __version__ = "0.0.1"
 # admission dates are de-identified/shifted (a real-date cap would empty the cohort).
 DATA_CUTOFF = date(2025, 12, 31)
 
-# Per-task clinical policy. report_mode is the baseline's recommended scoring
-# unit (episodic | peak | landmark); callers can still override via build_report.
+# Per-task clinical policy. report_mode is the task's scoring unit
+# (episodic | continuous). Continuous tasks additionally declare:
+#   landmark_horizon : how many landmarks (in the task's window_unit) the
+#                      landmark/leadtime sections evaluate — 30 days for the
+#                      daily tasks, 168 hours (7 days) for hourly sepsis.
+#   intervention     : (optional) the cohort column holding the per-stay
+#                      clinical-action timestamp, for the alert-vs-intervention
+#                      timing analysis. When set, that column MUST be present in
+#                      the cohort/preds at report time.
 TASK_POLICY: dict[str, dict] = {
-    "task1_icu_daily_mortality":    {"clinical_threshold": 0.95, "clinical_direction": "above", "report_mode": "landmark"},
-    "task2_icu_daily_ltach":        {"clinical_threshold": 0.5,  "clinical_direction": "above", "report_mode": "landmark"},
+    "task1_icu_daily_mortality":    {"clinical_threshold": 0.95, "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 30},
+    "task2_icu_daily_ltach":        {"clinical_threshold": 0.5,  "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 30},
     "task3_extubation_failure_24h": {"clinical_threshold": 0.15, "clinical_direction": "below", "report_mode": "episodic"},
-    "task4_sepsis_abx_6h":          {"clinical_threshold": 0.1,  "clinical_direction": "above", "report_mode": "peak"},
+    "task4_sepsis_abx_6h":          {"clinical_threshold": 0.1,  "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 168,
+                                     "intervention": {"column": "first_abx_dttm", "display": "antibiotics"}},
     "task5_icu_readmission":        {"clinical_threshold": 0.2,  "clinical_direction": "above", "report_mode": "episodic"},
 }
 
-REPORT_MODES = {"episodic", "peak", "landmark"}
+REPORT_MODES = {"episodic", "continuous"}

@@ -18,8 +18,10 @@ flair list-tasks
 | `task4_sepsis_abx_6h` | intervention | continuous | one-per-window (hourly) | binary | 0.10 (above) | treat with antibiotics |
 | `task5_icu_readmission` | outcome | episode | one-per-stay | binary | 0.20 (above) | keep in ICU |
 
-The recommended **report mode** follows from the temporal pattern: episode tasks → `episodic`;
-continuous tasks → `landmark` (T1, T2) or `peak` (T4). See [reports.md](reports.md).
+The **report mode** follows from the temporal pattern: episode tasks → `episodic`;
+continuous tasks (T1, T2, T4) → `continuous`, one bundle holding the stay-peak section and
+the per-landmark pillars over `META['landmark_horizon']` lead times (30 days for T1/T2,
+168 hours for T4) plus leadtime/alert timing. See [reports.md](reports.md).
 
 > The threshold, direction, and report mode for every task are single-sourced in
 > `flair_benchmark/_constants.py` (`TASK_POLICY`) — spread into each task's `META` at import

@@ -37,7 +37,7 @@ flair-baseline infer \
 
 `infer` re-applies the same deterministic 75/25 block split, so the model is evaluated on a
 **25% holdout** of *that* site's own data. The report mode per task is chosen automatically
-(landmark for T1/T2, peak for T4, episodic for T3/T5).
+(continuous for T1/T2/T4, episodic for T3/T5).
 
 ## Output: three site-prefixed folders
 

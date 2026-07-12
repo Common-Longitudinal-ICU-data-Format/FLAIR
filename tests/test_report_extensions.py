@@ -51,6 +51,7 @@ def make_synth(n_stays: int = 600, seed: int = 0,
         label = int(rng.random() < prob) if calibrated else int(latent > 0.8)
         rows.append({
             "patient_id": f"p{i}",
+            "hospitalization_join_id": f"h{i}",
             "hospitalization_id": f"h{i}",
             "prediction_dttm": adm,
             "label": label,
@@ -63,7 +64,8 @@ def make_synth(n_stays: int = 600, seed: int = 0,
             "y_pred": int(prob >= 0.5),
         })
     df = pl.DataFrame(rows)
-    output_cols = ["hospitalization_id", "prediction_dttm", "label", "split",
+    output_cols = ["hospitalization_id", "hospitalization_join_id",
+                   "prediction_dttm", "label", "split",
                    "age_at_admission", "sex_category", "race_category",
                    "ethnicity_category", "y_prob", "y_pred"]
     return finalize_cohort(df, output_cols, META)
@@ -74,8 +76,8 @@ def make_synth(n_stays: int = 600, seed: int = 0,
 
 def test_prediction_id_one_per_stay():
     df = make_synth(n_stays=20)
-    assert df.height == df["hospitalization_id"].n_unique() == 20
-    one = df.filter(pl.col("hospitalization_id") == "h0")
+    assert df.height == df["hospitalization_join_id"].n_unique() == 20
+    one = df.filter(pl.col("hospitalization_join_id") == "h0")
     assert one["window_number"][0] == 1
     assert one["prediction_id"][0] == "h0-h0-p0-1"
 
@@ -286,21 +288,55 @@ def test_build_report_requires_prediction_id(tmp_path):
                      episodic=True)
 
 
-def test_build_report_continuous_requires_mode(tmp_path):
-    # A continuous task with no --mode must tell the caller to pick peak/landmark
-    # (it used to raise NotImplementedError).
+def test_build_report_requires_hospitalization_join_id(tmp_path):
+    # hospitalization_join_id is the required report/evaluation unit; source
+    # hospitalization_id is audit-only and cannot substitute for it.
+    df = make_synth(n_stays=50).drop("hospitalization_join_id")
+    preds_path = tmp_path / "preds.parquet"
+    df.write_parquet(preds_path)
+    from flair_benchmark.report import build_report
+    with pytest.raises(ValueError, match="hospitalization_join_id"):
+        build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
+                     episodic=True)
+
+
+def test_build_report_rejects_same_join_id_in_train_and_test(tmp_path):
+    # The dangerous leakage case: one stitched encounter has rows in both train
+    # and test. This must fail before the report filters to test rows.
+    df = make_synth(n_stays=50)
+    train_row = df.head(1).with_columns(pl.lit("train").alias("split"))
+    bad = pl.concat([df, train_row])
+    preds_path = tmp_path / "preds.parquet"
+    bad.write_parquet(preds_path)
+    from flair_benchmark.report import build_report
+    with pytest.raises(ValueError, match="multiple splits"):
+        build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
+                     episodic=True)
+
+
+def test_build_report_continuous_mode_inferred(tmp_path):
+    # A continuous task with no --mode now infers mode='continuous' (peak +
+    # landmark merged); the horizon must come from META['landmark_horizon'].
     df = make_synth()
     preds_path = tmp_path / "preds.parquet"
     df.write_parquet(preds_path)
-    cont_task = SimpleNamespace(
-        META={**META, "temporal_pattern": "continuous",
-              "prediction_unit": "one-per-window"},
-        __file__=__file__)
-
     from flair_benchmark.report import build_report
-    with pytest.raises(ValueError, match="Continuous task"):
-        build_report(str(preds_path), cont_task, str(tmp_path / "r"),
-                     episodic=False)
+
+    cont_meta = {**META, "temporal_pattern": "continuous",
+                 "prediction_unit": "one-per-window"}
+    # without a landmark_horizon the continuous report cannot size its grid
+    with pytest.raises(ValueError, match="landmark_horizon"):
+        build_report(str(preds_path),
+                     SimpleNamespace(META=cont_meta, __file__=__file__),
+                     str(tmp_path / "r0"), episodic=False, viz=False)
+
+    cont_meta = {**cont_meta, "landmark_horizon": 2}
+    paths = build_report(str(preds_path),
+                         SimpleNamespace(META=cont_meta, __file__=__file__),
+                         str(tmp_path / "r1"), episodic=False, viz=False)
+    disc = json.loads(paths["discrimination"].read_text())
+    assert disc["metadata"]["report_mode"] == "continuous"
+    assert "peak" in disc and len(disc["landmarks"]) == 2
 
 
 def test_build_report_rejects_multi_row_per_stay(tmp_path):

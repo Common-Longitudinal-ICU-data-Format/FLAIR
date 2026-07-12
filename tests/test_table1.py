@@ -41,6 +41,13 @@ def test_grain_encounter_vs_row():
     assert t["by_grain"]["row"]["n_total"] == 15
 
 
+def test_requires_hospitalization_join_id():
+    # Table 1 headline counts are encounter-grain; do not silently fall back to
+    # hospitalization_id or raw rows if the stitched encounter key is missing.
+    with pytest.raises(ValueError, match="hospitalization_join_id"):
+        build_table1(_cohort().drop("hospitalization_join_id"), META)
+
+
 def test_by_label_positive_and_negative_columns():
     t = build_table1(_cohort(), META)
     assert set(t["by_label"].keys()) == {"0", "1"}

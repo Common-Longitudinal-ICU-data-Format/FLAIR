@@ -1,10 +1,11 @@
 """Report bundle builder, keyed on the unit of prediction (`--mode`).
 
-  episodic : one prediction per stay -> discrimination, calibration, dca, fairness.
-  peak     : continuous task collapsed to stay-peak risk -> discrimination +
-             fairness (+ NNE); calibration/dca omitted (peak-calibration trap).
-  landmark : continuous task scored at 12 risk-set landmarks counting back from
-             each stay's last window -> the four pillars per landmark + leadtime.
+  episodic   : one prediction per stay -> discrimination, calibration, dca, fairness.
+  continuous : multi-row-per-stay task -> ONE bundle holding the stay-peak view
+               (discrimination + fairness + NNE, as a "peak" section) AND the
+               per-landmark four pillars (META['landmark_horizon'] landmarks in
+               the task's window_unit) AND leadtime + alert-vs-intervention
+               timing. See report/continuous.py.
 
 All output is JSON with raw curve arrays + 95% CIs, at the task's fixed clinical
 threshold. Only JSON is exported to the FLAIR website (cross-site aggregation).
@@ -44,18 +45,16 @@ def build_report(preds_path: str, task_module, out_dir: str,
 
     Reports are ALWAYS computed on the held-out `test` split — the home site trains on
     `train`, every site (incl. inference-only) is scored on `test`, so cross-site
-    numbers are comparable. `mode` chooses how a continuous (multi-row-per-stay) task
-    is scored:
+    numbers are comparable. `mode` is the unit of prediction:
 
-      episodic : one prediction per stay -> discrimination/calibration/dca/fairness.
-      peak     : collapse to stay-peak risk -> discrimination + fairness (+ NNE);
-                 calibration/dca omitted (peak-calibration trap).
-      landmark : 12 risk-set slices counting back from each stay's last window ->
-                 the four pillars per landmark + leadtime.json.
+      episodic   : one prediction per stay -> discrimination/calibration/dca/fairness.
+      continuous : multi-row-per-stay -> one bundle: peak section + per-landmark
+                   pillars (META['landmark_horizon'] landmarks) + leadtime with
+                   the alert-vs-intervention timing arms.
 
     `episodic=True` is a deprecated alias for `mode="episodic"`. When neither is
     given, the mode is inferred from META.temporal_pattern (episode -> episodic;
-    continuous -> caller must pick peak or landmark).
+    continuous -> continuous).
     """
     from flair_benchmark import __version__
     from flair_benchmark._hash import task_script_sha256
@@ -63,7 +62,9 @@ def build_report(preds_path: str, task_module, out_dir: str,
     preds = pl.read_parquet(preds_path)
     meta = task_module.META
     _validate_preds_schema(preds, meta)
+    _validate_split_integrity(preds, meta)
     preds = _attach_cohort_context(preds, cohort_path, meta)
+    _validate_intervention_column(preds, meta)
     preds = _ensure_y_pred(preds, meta)
 
     # Reports are always scored on the held-out 'test' split only.
@@ -77,19 +78,17 @@ def build_report(preds_path: str, task_module, out_dir: str,
     if preds.height == 0:
         raise ValueError("'test' split is empty after filtering")
 
-    block = ("hospitalization_join_id"
-             if "hospitalization_join_id" in preds.columns
-             else "hospitalization_id")
+    block = "hospitalization_join_id"
     mode = _resolve_mode(mode, episodic, meta.get("temporal_pattern"))
 
     if mode == "episodic":
-        n_rows = preds["hospitalization_id"].n_unique()
-        if n_rows != preds.height:
+        n_stays = preds[block].n_unique()
+        if n_stays != preds.height:
             raise ValueError(
                 f"Episodic report expects one row per stay, but split '{split}' has "
-                f"{preds.height} rows for {n_rows} stays. Deduplicate to one "
+                f"{preds.height} rows for {n_stays} stays. Deduplicate to one "
                 f"prediction per stay, or this is a continuous task "
-                f"(use --mode peak or --mode landmark).")
+                f"(use --mode continuous).")
 
     prevalence = (round(float((preds[meta["label_column"]] > 0).mean()), 6)
                   if meta["task_type"] == "binary" else None)
@@ -110,26 +109,14 @@ def build_report(preds_path: str, task_module, out_dir: str,
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    pillars: dict | None = None   # set in landmark mode for the viz renderer
 
-    if mode == "landmark":
-        from flair_benchmark.report.landmark import build_landmark_report
-        from flair_benchmark.report.leadtime import build_leadtime
-        pillars = build_landmark_report(preds, meta)
-        payloads: dict[str, dict] = {
-            kind: {"metadata": audit, "landmarks": lst}
-            for kind, lst in pillars.items()}
-        leadtime = build_leadtime(preds, meta)
-        leadtime["metadata"] = {**audit, **leadtime.get("metadata", {})}
-        payloads["leadtime"] = leadtime
+    if mode == "continuous":
+        from flair_benchmark.report.continuous import build_continuous_report
+        payloads = build_continuous_report(preds, meta)
     else:
-        if mode == "peak":
-            from flair_benchmark.report.peak import build_peak_report
-            payloads = build_peak_report(preds, meta)
-        else:
-            payloads = build_episodic_report(preds, meta)
-        for payload in payloads.values():
-            payload["metadata"] = {**audit, **payload.get("metadata", {})}
+        payloads = build_episodic_report(preds, meta)
+    for payload in payloads.values():
+        payload["metadata"] = {**audit, **payload.get("metadata", {})}
 
     paths: dict[str, Path] = {}
     for kind, payload in payloads.items():
@@ -138,9 +125,9 @@ def build_report(preds_path: str, task_module, out_dir: str,
 
     if viz:
         try:
-            if mode == "landmark":
-                from flair_benchmark.report._viz import render_landmark_pngs
-                pngs = render_landmark_pngs(pillars, payloads["leadtime"], out / "viz")
+            if mode == "continuous":
+                from flair_benchmark.report._viz import render_continuous_pngs
+                pngs = render_continuous_pngs(payloads, out / "viz")
             else:
                 from flair_benchmark.report._viz import render_sanity_pngs
                 pngs = render_sanity_pngs(payloads, out / "viz")
@@ -158,30 +145,33 @@ def build_report(preds_path: str, task_module, out_dir: str,
 
 def _resolve_mode(mode: str | None, episodic: bool,
                   pattern: str | None) -> str:
-    """Pick episodic / peak / landmark from the explicit flag, alias, or META."""
+    """Pick episodic / continuous from the explicit flag, alias, or META."""
     if mode is None and episodic:
         mode = "episodic"            # deprecated --episodic alias
     if mode is None:
         if pattern == "continuous":
-            raise ValueError(
-                "Continuous task: choose --mode peak (stay-peak screening) or "
-                "--mode landmark (per-lead-time skill + calibration).")
+            return "continuous"
         if pattern == "episode":
             warnings.warn(
                 "Task META temporal_pattern=='episode'; using --mode episodic "
                 "(pass --mode to silence this).", stacklevel=3)
         return "episodic"
-    if mode not in {"episodic", "peak", "landmark"}:
+    if mode in {"peak", "landmark"}:
         raise ValueError(
-            f"Unknown --mode '{mode}'; expected episodic, peak, or landmark.")
+            f"--mode {mode} was merged into --mode continuous: one bundle with "
+            f"the peak section + per-landmark pillars + leadtime + "
+            f"alert-vs-intervention timing.")
+    if mode not in {"episodic", "continuous"}:
+        raise ValueError(
+            f"Unknown --mode '{mode}'; expected episodic or continuous.")
     if mode == "episodic" and pattern == "continuous":
         warnings.warn(
             "--mode episodic on a continuous task collapses many rows per stay; "
             "this errors unless predictions are already one-per-stay.", stacklevel=3)
-    if mode in {"peak", "landmark"} and pattern == "episode":
+    if mode == "continuous" and pattern == "episode":
         warnings.warn(
-            f"--mode {mode} on a one-per-stay (episode) task; --mode episodic is "
-            f"the usual choice.", stacklevel=3)
+            "--mode continuous on a one-per-stay (episode) task; --mode episodic "
+            "is the usual choice.", stacklevel=3)
     return mode
 
 
@@ -208,11 +198,17 @@ def _attach_cohort_context(preds: pl.DataFrame, cohort_path: str | None,
     Preference order:
       1. columns already present in preds (sites copy cohort columns through)
       2. join the cohort parquet on prediction_id, else
-         (hospitalization_id, prediction_dttm), else hospitalization_id
-         (safe for one-per-stay tasks only)
-    Missing context never fails — temporal sections degrade gracefully.
+         (hospitalization_join_id, prediction_dttm), else hospitalization_join_id
+          (safe for one-per-stay tasks only)
+    Missing context never fails — temporal sections degrade gracefully — EXCEPT
+    the META-declared intervention column, which is enforced afterwards by
+    `_validate_intervention_column` (the report only ever consumes cohort
+    columns, never raw CLIF data, so it must arrive here or already be on preds).
     """
-    needed = [c for c in _CONTEXT_COLS if c not in preds.columns]
+    context_cols = list(_CONTEXT_COLS)
+    if meta.get("intervention"):
+        context_cols.append(meta["intervention"]["column"])
+    needed = [c for c in context_cols if c not in preds.columns]
     if not needed or cohort_path is None:
         return preds
 
@@ -223,10 +219,11 @@ def _attach_cohort_context(preds: pl.DataFrame, cohort_path: str | None,
 
     if "prediction_id" in preds.columns and "prediction_id" in cohort.columns:
         keys = ["prediction_id"]
-    elif "prediction_dttm" in preds.columns and "prediction_dttm" in cohort.columns:
-        keys = ["hospitalization_id", "prediction_dttm"]
+    elif ("prediction_dttm" in preds.columns and "prediction_dttm" in cohort.columns
+          and "hospitalization_join_id" in cohort.columns):
+        keys = ["hospitalization_join_id", "prediction_dttm"]
     elif meta["prediction_unit"] == "one-per-stay":
-        keys = ["hospitalization_id"]
+        keys = ["hospitalization_join_id"]
     else:
         warnings.warn(
             "Cohort provided but predictions lack prediction_id/prediction_dttm "
@@ -243,10 +240,11 @@ def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
     """Enforce the strict preds parquet contract.
 
     Every predictions parquet must always carry: prediction_id, split, the task label,
-    hospitalization_id, and y_prob (the probability). y_pred is derived from y_prob at
-    0.5 when absent (see _ensure_y_pred).
+    hospitalization_join_id, and y_prob (the probability). hospitalization_id may
+    be present for audit traceability, but it is not the report/evaluation unit.
+    y_pred is derived from y_prob at 0.5 when absent (see _ensure_y_pred).
     """
-    required = {"hospitalization_id", "prediction_id", "split", meta["label_column"]}
+    required = {"hospitalization_join_id", "prediction_id", "split", meta["label_column"]}
     task_type = meta["task_type"]
     if task_type == "binary":
         required.add("y_prob")
@@ -260,7 +258,7 @@ def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
             f"Predictions parquet missing required columns for task "
             f"'{meta['name']}' ({task_type}): {sorted(missing)}. "
             f"Got columns: {sorted(preds.columns)}. "
-            f"Every preds parquet must carry prediction_id, split, "
+            f"Every preds parquet must carry hospitalization_join_id, prediction_id, split, "
             f"{meta['label_column']}, and y_prob — add y_prob to the cohort file: "
             f"cohort.with_columns(pl.Series('y_prob', probs))."
         )
@@ -283,3 +281,46 @@ def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
                 f"Pass calibrated probabilities (e.g. model.predict_proba(...)[:, 1]), "
                 f"not logits or scores."
             )
+
+
+def _validate_intervention_column(preds: pl.DataFrame, meta: dict) -> None:
+    """META-declared intervention column must be present after the cohort join.
+
+    The column (e.g. task4's `first_abx_dttm`) is generated at task-BUILD time
+    and stored in the cohort parquet; the report never touches raw CLIF data.
+    Null values are fine (never-treated stays are the no-intervention arm), but
+    a missing column means the eval cannot answer "did the model fire before
+    the intervention" — fail loudly rather than silently degrade.
+    """
+    iv = meta.get("intervention")
+    if iv and iv["column"] not in preds.columns:
+        raise ValueError(
+            f"Task '{meta['name']}' declares META['intervention'] on column "
+            f"'{iv['column']}', but it is missing from the predictions parquet. "
+            f"Regenerate the cohort with this flair version (the task build "
+            f"emits it) and either carry the column through your predictions "
+            f"or pass the cohort parquet via --cohort so it can be joined in."
+        )
+
+
+def _validate_split_integrity(preds: pl.DataFrame, meta: dict) -> None:
+    """A stitched encounter must belong to exactly one split.
+
+    Continuous tasks copy or derive labels across multiple prediction windows, so
+    putting rows from one hospitalization_join_id in both train and test leaks
+    patient-level signal into the test set. Cohort generation prevents this; this
+    guard catches hand-authored prediction files that bypass the cohort splitter.
+    """
+    bad = (
+        preds.group_by("hospitalization_join_id")
+        .agg(pl.col("split").drop_nulls().n_unique().alias("n_splits"))
+        .filter(pl.col("n_splits") > 1)
+    )
+    if bad.height:
+        examples = bad["hospitalization_join_id"].head(5).to_list()
+        raise ValueError(
+            f"Predictions parquet for task '{meta['name']}' has "
+            f"{bad.height} hospitalization_join_id values appearing in multiple "
+            f"splits (examples: {examples}). Split once per hospitalization_join_id; "
+            f"do not split prediction rows from the same stay across train/test."
+        )

@@ -81,7 +81,11 @@ def _to_encounter(cohort: pl.DataFrame, label_col: str, task_type: str) -> pl.Da
     """One row per stitched encounter. The encounter's label is ever-positive
     (max over its rows) for binary tasks; covariates are constant per encounter."""
     if JOIN_KEY not in cohort.columns:
-        return cohort
+        raise ValueError(
+            "Table 1 requires hospitalization_join_id so headline counts are at "
+            "stitched-encounter grain. Add hospitalization_join_id to the cohort "
+            "instead of falling back to hospitalization_id or prediction rows."
+        )
     date_col = _first_date_col(cohort)
     keep = [c for c in (CONTINUOUS_VARS + CATEGORICAL_VARS + ["split"]
                         + ([date_col] if date_col else []))

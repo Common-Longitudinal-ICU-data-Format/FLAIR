@@ -158,12 +158,12 @@ Build an aggregate report:
 flair build-report preds.parquet \
   --task task1_icu_daily_mortality \
   --cohort cohort.parquet \
-  --mode landmark \
   --out ./report/
 ```
 
-For continuous tasks, choose `--mode landmark` or `--mode peak`. Episode tasks
-normally use `--mode episodic`, which is inferred when omitted.
+The mode is inferred from the task: continuous tasks use `--mode continuous`
+(peak section + per-landmark pillars + leadtime with alert-vs-intervention
+timing in one bundle), episode tasks use `--mode episodic`.
 
 ## Benchmark Tasks
 
@@ -171,10 +171,10 @@ FLAIR currently includes five binary ICU prediction tasks.
 
 | Task | Clinical question | Pattern | Unit | Recommended report |
 |---|---|---|---|---|
-| `task1_icu_daily_mortality` | Daily in-hospital mortality risk at 07:00 | continuous | one row per window | `landmark` |
-| `task2_icu_daily_ltach` | Daily LTACH discharge risk at 07:00 | continuous | one row per window | `landmark` |
+| `task1_icu_daily_mortality` | Daily in-hospital mortality risk at 07:00 | continuous | one row per window | `continuous` (30-day landmark horizon) |
+| `task2_icu_daily_ltach` | Daily LTACH discharge risk at 07:00 | continuous | one row per window | `continuous` (30-day landmark horizon) |
 | `task3_extubation_failure_24h` | Extubation failure within 24 hours | episode | one row per stay | `episodic` |
-| `task4_sepsis_abx_6h` | Antibiotic-anchored sepsis within 6 hours | continuous | one row per window | `peak` |
+| `task4_sepsis_abx_6h` | Antibiotic-anchored sepsis within 6 hours | continuous | one row per window | `continuous` (168-hour landmark horizon) |
 | `task5_icu_readmission` | Unplanned ICU readmission after first ICU stay | episode | one row per stay | `episodic` |
 
 Task metadata records the task class, temporal pattern, prediction unit, label
@@ -305,8 +305,7 @@ Report modes:
 | Mode | Use for | Output focus |
 |---|---|---|
 | `episodic` | One prediction per stay | Discrimination, calibration, decision curves, fairness |
-| `landmark` | Continuous tasks scored at fixed lead-time landmarks | Skill, calibration, and lead-time behavior over time |
-| `peak` | Continuous screening tasks collapsed to stay-peak risk | Screening discrimination and fairness |
+| `continuous` | Multi-row-per-stay tasks | One bundle: stay-peak screening section + forward landmarks (time-varying AUC/calibration per hospitalization day/hour over `META['landmark_horizon']` times, KM at-risk counts) + leadtime with alert-vs-intervention timing + a `kpi.json` scoreboard (pooled dynamic AUROC, NNE, calibration, lead time) |
 
 Reports are computed on the held-out `test` split. JSON outputs include audit
 metadata such as the task name, FLAIR version, generation time, report mode, and

@@ -77,6 +77,7 @@ from flair_benchmark._clif import (
     base_icu_cohort,  # noqa: F401 — re-exported for parity with other tasks
     load_adt,
     load_hospitalization,
+    load_medication_admin_intermittent,
     load_patient,
     load_vitals,
     pd_to_pl,
@@ -96,6 +97,17 @@ GRID_STEP_HOURS = 1
 ASE_ONSET_COL = "ase_onset_w_lactate_dttm"
 ASE_INCLUDE_LACTATE = True
 EXCLUDE_LOCATION_CATEGORIES = ["psychiatric", "rehabilitation"]
+
+# The intervention timestamp for the report's alert-vs-antibiotics timing
+# (META["intervention"], see report/alert_timing.py): first administration of a
+# CMS-qualifying antibiotic — the SAME med_group clifpy's compute_ase uses as
+# its qualifying-antibiotic ASE criterion, so "intervention" stays
+# definitionally aligned with the label. We source it from the medication table
+# directly (not clifpy's first_qad_dttm) because first_qad_dttm is
+# day-granularity (a DATE cast) and only exists for stays with blood-culture
+# episodes, while the report also needs hour-level antibiotic times for
+# never-septic stays.
+ABX_MED_GROUP = "cms_sepsis_qualifying_antibiotics"
 
 from flair_benchmark._constants import TASK_POLICY
 
@@ -139,6 +151,7 @@ OUTPUT_COLS = [
     "hospitalization_id", "hospitalization_join_id", "prediction_dttm",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
+    "first_abx_dttm",
 ]
 
 def _hospital_wide_cohort(cfg: dict, min_age: int = 18) -> pl.DataFrame:
@@ -197,6 +210,22 @@ def _first_vital_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
         vitals.filter(pl.col("recorded_dttm").is_not_null())
         .group_by("hospitalization_id")
         .agg(pl.col("recorded_dttm").min().alias("first_vital_dttm"))
+    )
+
+
+def _first_abx_dttm(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
+    """First CMS-qualifying antibiotic administration per hospitalization.
+
+    Feeds the report's alert-vs-antibiotics timing (META["intervention"]); see
+    the ABX_MED_GROUP note above for why this comes from the medication table
+    rather than clifpy's day-granularity first_qad_dttm.
+    """
+    meds = load_medication_admin_intermittent(
+        cfg, hospitalization_ids=hosp_ids, med_groups=[ABX_MED_GROUP])
+    return (
+        meds.filter(pl.col("admin_dttm").is_not_null())
+        .group_by("hospitalization_id")
+        .agg(pl.col("admin_dttm").min().alias("first_abx_dttm"))
     )
 
 
@@ -282,6 +311,16 @@ def build(clif_config: str, train_end: str | None,
         .agg(pl.col("t_zero").min().alias("t_zero"))
     )
     cohort = cohort.join(t_zero, on="hospitalization_join_id", how="left")
+
+    # intervention timestamp for the report's alert-vs-antibiotics timing:
+    # folded to the encounter like first_vital/t_zero; LEFT join — a null means
+    # no qualifying antibiotic was ever given (the "no intervention" arm).
+    first_abx = (
+        attach_join_id(_first_abx_dttm(cfg, hosp_ids), idx)
+        .group_by("hospitalization_join_id")
+        .agg(pl.col("first_abx_dttm").min().alias("first_abx_dttm"))
+    )
+    cohort = cohort.join(first_abx, on="hospitalization_join_id", how="left")
 
     cohort = cohort.filter(
         pl.col("t_zero").is_null() | (pl.col("t_zero") > pl.col("pred_start"))

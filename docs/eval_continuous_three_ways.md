@@ -1,5 +1,28 @@
 # Episodic vs Continuous Evaluation, In Simple Terms
 
+> **Status update:** Way 2 (peak) and Way 3 (landmark) are no longer separate
+> `--mode` choices — they now ship together as SECTIONS of the single
+> `--mode continuous` report (inferred for continuous tasks). The landmark
+> horizon is no longer hardcoded: it comes from `META['landmark_horizon']`
+> (30 daily landmarks for T1/T2, 168 hourly for T4). The continuous bundle also
+> adds an **alert-vs-intervention timing** section inside `leadtime.json`
+> (`alert_vs_intervention`), generalizing the before-antibiotics question below:
+> among label-positive stays, did the model fire before the intervention (T4:
+> first CMS-qualifying antibiotic) and by how much (`t_alert − t_abx` in hours);
+> among treated-but-negative stays, the same; among never-treated negatives,
+> did it fire at all (false-alarm rate). Tasks without an intervention config
+> (T1/T2) degrade to generic fire/no-fire rates by label. Landmarking is
+> FORWARD-only: entries are indexed by `hospitalization_time` (day/hour
+> 1..horizon since the stay's first prediction window; unit from META), the
+> risk set at time t is every stay still at risk at t (a true KM
+> "No. at risk"), and NOTHING anchors on the event or outcome — the
+> event-anchored ("time before the end") view described for Way 3 below was
+> removed because its risk sets can only be formed after the outcome is
+> known. The bundle also ships a `kpi.json` scoreboard headlined by the
+> Heagerty & Zheng-style pooled dynamic AUROC plus peak NNE, calibration at
+> hospitalization time 1, and lead-time / alert-timing KPIs. The mode names
+> "peak" and "landmark" below describe those sections.
+
 This note explains what `flair build-report` should do for two task shapes:
 
 1.  **Episodic tasks**: one prediction per hospital stay.
@@ -8,6 +31,8 @@ This note explains what `flair build-report` should do for two task shapes:
 For a visual step-by-step version with toy calculations, open [`eval_task_labels_modes.html`](eval_task_labels_modes.html).
 
 The main rule is simple: **do not score continuous rows as if they were independent patients.** A 10-day stay would count 10 times, while a 2-day stay would count 2 times. That makes the numbers look better or worse for the wrong reason.
+
+FLAIR uses `hospitalization_join_id` as the required report unit. It means the full stitched encounter / stay. `hospitalization_id` may still exist for audit traceability, but reports, Table 1, peak mode, landmark mode, and split checks are keyed by `hospitalization_join_id`.
 
 ## 1. Episodic Tasks: Basic TRIPOD+AI Is Enough
 

@@ -1,4 +1,8 @@
 <!doctype html>
+<!-- STALE: peak and landmark are no longer separate report modes — they ship
+     together as sections of the single `continuous` report, with the landmark
+     horizon set by META['landmark_horizon'] (30 days T1/T2, 168 hours T4).
+     The toy calculations below still explain WHY both views exist. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -204,6 +208,7 @@
       Task 1 and Task 2 have many rows per stay, but every row shares one final outcome label.
       Sepsis is different: every row asks its own next-hours question. This is why FLAIR needs
       <code>peak</code> and <code>landmark</code>, and why sepsis needs a special landmark setup.
+      The report unit is always <code>hospitalization_join_id</code>, the full stitched encounter.
     </p>
   </div>
 

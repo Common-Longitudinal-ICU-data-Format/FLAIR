@@ -16,9 +16,13 @@ from pathlib import Path
 from types import ModuleType
 
 # Resolved META keys that define "the same task" for cross-site comparison.
+# (Keys absent from a task's META serialize as null — e.g. landmark_horizon /
+# intervention on episodic tasks. Extending this tuple changes every task's
+# digest, so cross-site comparisons must regenerate on the same version.)
 _AUDIT_KEYS = (
     "name", "label_column", "task_type", "temporal_pattern",
     "prediction_unit", "clinical_threshold", "clinical_direction", "report_mode",
+    "landmark_horizon", "intervention",
 )
 
 

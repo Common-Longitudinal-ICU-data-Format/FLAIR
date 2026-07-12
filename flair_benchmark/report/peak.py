@@ -40,7 +40,7 @@ def build_peak_report(preds: pl.DataFrame, meta: dict) -> dict[str, dict]:
     _inject_nne(discrimination)
     fairness = build_fairness(stay, meta)
 
-    note = {"report_mode": "peak", "n_stays": stay.height,
+    note = {"section": "peak", "n_stays": stay.height,
             "peak_calibration_omitted": True}
     for payload in (discrimination, fairness):
         payload.setdefault("metadata", {}).update(note)
@@ -49,9 +49,7 @@ def build_peak_report(preds: pl.DataFrame, meta: dict) -> dict[str, dict]:
 
 def _collapse_to_peak(preds: pl.DataFrame, meta: dict) -> pl.DataFrame:
     """One row per stay: peak y_prob, ever-positive label, first demographics."""
-    block = ("hospitalization_join_id"
-             if "hospitalization_join_id" in preds.columns
-             else "hospitalization_id")
+    block = "hospitalization_join_id"
     label_col = meta["label_column"]
     aggs = [pl.col("y_prob").max().alias("y_prob"),
             pl.col(label_col).max().alias(label_col),
