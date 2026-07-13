@@ -88,7 +88,8 @@ def _batches(items: list, size: int) -> list[list]:
 
 def build_shared_meds(clif_cfg: dict, elf_cfg: dict, hosp_ids: list[str],
                       idx: pl.DataFrame, out_dir: str,
-                      batch_size: int | None = None) -> dict[str, str]:
+                      batch_size: int | None = None,
+                      max_workers: int | None = None) -> dict[str, str]:
     """Build ONE shared MEDS store over ``hosp_ids`` → ``out_dir/MEDS/part-*.parquet``.
 
     This is the cross-task ETL: ``hosp_ids`` is the union of every task cohort's
@@ -119,7 +120,8 @@ def build_shared_meds(clif_cfg: dict, elf_cfg: dict, hosp_ids: list[str],
     versions: dict[str, str] = {}
     total = 0
     for i, batch in enumerate(batches):
-        events, vers = build_meds_events(clif_cfg, elf_cfg, batch)
+        events, vers = build_meds_events(clif_cfg, elf_cfg, batch,
+                                         max_workers=max_workers)
         versions.update(vers)
         events = attach_join_id(events, idx).select(DATA_COLS)
         part_path = meds_dir / f"part-{i:04d}.parquet"

@@ -11,6 +11,11 @@ Every returned frame has the MEDS event schema:
 """
 from __future__ import annotations
 
+import os
+import threading
+import warnings
+from typing import Callable, TypeVar
+
 import polars as pl
 from clifpy.utils.io import load_data
 
@@ -18,6 +23,12 @@ from flair_benchmark.meds_etl.transforms import normalize_categories, strip_tz
 
 # Keys in a domain YAML that are NOT concept sections.
 _CONFIG_META_KEYS = {"subject_id_col", "elf_version", "outlier_shaping"}
+
+# Above this many cohort ids, skip DuckDB predicate pushdown (the SQL IN literal
+# gets unwieldy) and fall back to full-load + in-memory filter.
+_PUSHDOWN_MAX_IDS = int(os.environ.get("FLAIR_PUSHDOWN_MAX_IDS", "50000"))
+
+_T = TypeVar("_T")
 
 MEDS_SCHEMA = {
     "subject_id": pl.Int64,
@@ -43,19 +54,76 @@ def subject_col(domain_cfg: dict, clif_cfg: dict) -> str:
     return domain_cfg.get("subject_id_col", clif_cfg.get("subject_id_col", "patient_id"))
 
 
-def load_clif_pandas(clif_cfg: dict, table_name: str):
-    """Load a CLIF table via clifpy as pandas (UTC → site-local conversion happens here)."""
-    return load_data(
+def hosp_filters(hosp_ids: list[str] | None) -> dict | None:
+    """clifpy ``filters=`` dict restricting a load to the cohort, or None when
+    pushdown should be skipped (no cohort, or the id list is too large for a
+    SQL IN literal)."""
+    if hosp_ids is None or len(hosp_ids) > _PUSHDOWN_MAX_IDS:
+        return None
+    return {"hospitalization_id": list(hosp_ids)}
+
+
+def load_clif_pandas(clif_cfg: dict, table_name: str, *,
+                     filters: dict | None = None,
+                     columns: list[str] | None = None):
+    """Load a CLIF table via clifpy as pandas (UTC → site-local conversion happens here).
+
+    ``filters``/``columns`` are pushed into clifpy's DuckDB scan so only the
+    cohort's rows leave disk. Pushdown is an optimization only: callers keep
+    their in-memory filters, and any pushdown failure falls back to the full load.
+    """
+    kwargs = dict(
         table_name=table_name,
         table_path=str(clif_cfg["data_directory"]),
         table_format_type=clif_cfg["filetype"],
         site_tz=clif_cfg.get("timezone"),
     )
+    if filters is None and columns is None:
+        return load_data(**kwargs)
+    try:
+        return load_data(**kwargs, filters=filters, columns=columns)
+    except Exception as exc:  # e.g. DuckDB cast error on a type-mismatched id column
+        warnings.warn(f"meds_etl: filter pushdown failed for '{table_name}' "
+                      f"({exc}); falling back to full load")
+        return load_data(**kwargs)
 
 
-def load_clif_table(clif_cfg: dict, table_name: str) -> pl.DataFrame:
+def load_clif_table(clif_cfg: dict, table_name: str, *,
+                    hosp_ids: list[str] | None = None) -> pl.DataFrame:
     """Load a CLIF table → polars, tz-stripped, categories normalized."""
-    return normalize_categories(strip_tz(pl.from_pandas(load_clif_pandas(clif_cfg, table_name))))
+    pdf = load_clif_pandas(clif_cfg, table_name, filters=hosp_filters(hosp_ids))
+    return normalize_categories(strip_tz(pl.from_pandas(pdf)))
+
+
+class TableCache:
+    """Per-run memoizer for shared table loads (hospitalization, weight vitals).
+
+    Thread-safe with per-key locks: two domains needing the same table share one
+    load, while loads of different tables can proceed concurrently.
+
+    Scope: one cache per ``build_meds_events`` call. Keys deliberately omit
+    ``hosp_ids`` (fixed within a run) — never share an instance across runs
+    with different cohorts.
+    """
+
+    def __init__(self) -> None:
+        self._results: dict[tuple, object] = {}
+        self._locks: dict[tuple, threading.Lock] = {}
+        self._meta = threading.Lock()
+
+    def get_or_load(self, key: tuple, loader: Callable[[], _T]) -> _T:
+        with self._meta:
+            if key in self._results:
+                return self._results[key]  # type: ignore[return-value]
+            lock = self._locks.setdefault(key, threading.Lock())
+        with lock:
+            with self._meta:
+                if key in self._results:
+                    return self._results[key]  # type: ignore[return-value]
+            value = loader()
+            with self._meta:
+                self._results[key] = value
+            return value
 
 
 def restrict_to_hosp(df: pl.DataFrame, hosp_ids: list[str] | None) -> pl.DataFrame:
@@ -88,7 +156,8 @@ def _needed_cols(concepts: dict) -> set[str]:
 
 
 def join_hospitalization(df: pl.DataFrame, clif_cfg: dict, concepts: dict,
-                         subject_id_col: str, hosp_ids: list[str] | None) -> pl.DataFrame:
+                         subject_id_col: str, hosp_ids: list[str] | None, *,
+                         cache: TableCache | None = None) -> pl.DataFrame:
     """Left-join the hospitalization table for subject_id / any missing referenced columns."""
     needed = _needed_cols(concepts)
     missing = {c for c in needed if c not in df.columns}
@@ -97,7 +166,11 @@ def join_hospitalization(df: pl.DataFrame, clif_cfg: dict, concepts: dict,
     if not missing or "hospitalization_id" not in df.columns:
         return df
 
-    hosp = restrict_to_hosp(load_clif_table(clif_cfg, "hospitalization"), hosp_ids)
+    def _load() -> pl.DataFrame:
+        return restrict_to_hosp(
+            load_clif_table(clif_cfg, "hospitalization", hosp_ids=hosp_ids), hosp_ids)
+
+    hosp = cache.get_or_load(("hospitalization",), _load) if cache is not None else _load()
     join_cols = ["hospitalization_id"] + [c for c in missing if c in hosp.columns]
     hosp = hosp.select(join_cols).unique(subset=["hospitalization_id"])
     df = df.with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
