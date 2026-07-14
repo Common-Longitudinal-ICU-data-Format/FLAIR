@@ -86,13 +86,27 @@ def test_cli_continuous_mode(tmp_path):
     # synthetic stay lengths are suppressed stubs but still emitted.
     assert len(disc["landmarks"]) == 30
     assert disc["landmarks"][0]["hospitalization_time"] == 1
-    # operating points: 3 thresholds (task1 clinical 0.95 +/- 0.05), confusion
-    # mandatory, no sub-analyses (task1 declares no intervention).
+    # operating points: task1's clinical threshold is 0.95, so the +0.05 arm lands on
+    # 1.0 — not a threshold (it flags nobody, has no PPV, and DCA's t/(1-t) odds
+    # diverge). It is DROPPED, not clamped, leaving TWO points: 0.90 and 0.95.
+    # Confusion is mandatory; no sub-analyses (task1 declares no intervention).
     op = json.loads((out_dir / "operating_points.json").read_text())
-    assert len(op["by_threshold"]) == 3
+    assert op["metadata"]["thresholds"] == [0.9, 0.95]
+    assert op["metadata"]["dropped_offsets"] == [
+        {"offset": 0.05, "threshold": 1.0,
+         "reason": "outside the open interval (0, 1)"}]
+    assert len(op["by_threshold"]) == 2
     assert "sub_analyses" not in op["by_threshold"][0]
+    # the row we threshold at is the row we publish: 0.95 - 0.05 is
+    # 0.8999999999999999 in float, and must not leak out as such.
+    assert op["by_threshold"][0]["threshold"] == 0.9
+    assert [e["is_clinical"] for e in op["by_threshold"]] == [False, True]
     kpi = json.loads((out_dir / "kpi.json").read_text())
     assert kpi["pooled_dynamic_auroc"] is not None
+    # the degenerate point must not survive into the KPI headline either.
+    fprs = kpi["operating_points"]["fpr_by_threshold"]
+    assert [e["threshold"] for e in fprs] == [0.9, 0.95]
+    assert kpi["operating_points"]["clinical_threshold"] == 0.95
 
 
 def _load(report_dir: Path, name: str) -> dict:

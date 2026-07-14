@@ -148,10 +148,14 @@ def _operating_points_block(op: dict) -> dict | None:
     if not by_thr:
         return None
     t0 = (op.get("metadata") or {}).get("clinical_threshold")
-    mid = by_thr[len(by_thr) // 2]
-    clinical = next((e for e in by_thr
-                     if t0 is not None and e.get("threshold") == round(t0, 4)),
-                    mid)
+    # The clinical row is flagged, never positional: a ± offset outside (0, 1) is
+    # dropped from the grid (task1 at 0.95 loses its +0.05 arm), so "the middle row"
+    # stops meaning "the clinical row". The 0.0 offset itself can never be dropped —
+    # tasks._validate_taxonomy guarantees 0 < clinical_threshold < 1.
+    clinical = next((e for e in by_thr if e.get("is_clinical")),
+                    next((e for e in by_thr
+                          if t0 is not None and e.get("threshold") == round(t0, 4)),
+                         by_thr[len(by_thr) // 2]))
     conf = clinical.get("confusion") or {}
     block = {
         "clinical_threshold": t0,

@@ -612,11 +612,16 @@ def _render_landmark_reliability(cal_items: list[dict], _save, plt,
 
 
 def _render_operating_points(op: dict, _save, plt) -> None:
-    """Per-stay ALERT × LABEL 2×2 at the three thresholds (operating_points_confusion.png).
+    """Per-stay ALERT × LABEL 2×2 per threshold (operating_points_confusion.png).
 
     One panel per threshold (clinical ± 0.05); the TP (fired & label-positive)
     cell is emphasized, with sensitivity / specificity / FPR / PPV / NNE beneath.
     Task-agnostic — no intervention config needed.
+
+    A task near the edge of (0, 1) gets FEWER than three panels: task1 sits at 0.95,
+    so its +0.05 arm is dropped rather than thresholded at an unusable 1.0. Say so on
+    the figure — otherwise a reader comparing task1's two panels against task2's three
+    is left to guess whether a panel failed to render.
     """
     by_thr = op.get("by_threshold") or []
     if not by_thr:
@@ -650,6 +655,12 @@ def _render_operating_points(op: dict, _save, plt) -> None:
         ax.set_title(f"t = {e.get('threshold')}   (n = {c.get('n')})", fontsize=10)
     fig.suptitle("Per-stay operating points  (alert == 1  ×  label == 1)",
                  fontsize=11)
+    dropped = (op.get("metadata") or {}).get("dropped_offsets") or []
+    if dropped:
+        note = "; ".join(
+            f"{d.get('offset'):+g} dropped (threshold {d.get('threshold')}: "
+            f"{d.get('reason')})" for d in dropped)
+        fig.text(0.5, 0.02, note, ha="center", fontsize=8, color="#8a6d3b")
     _save(fig, "operating_points_confusion.png")
 
 

@@ -24,6 +24,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from flair_benchmark._constants import TASK_POLICY
 from flair_benchmark.report._calib import calibration_extended
 from flair_benchmark.report._ci import bootstrap_ci
 from flair_benchmark.report.calibration import build_calibration
@@ -31,6 +32,8 @@ from flair_benchmark.report.dca import build_dca
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import build_fairness
 from flair_benchmark.report.operating_points import (
+    _DELTAS,
+    _EPISODIC_OFFSETS,
     build_episodic_operating_points,
     threshold_grid,
 )
@@ -282,6 +285,38 @@ def test_threshold_grid_rounds_drops_and_dedupes():
     grid, dropped = threshold_grid(0.10)
     assert [t for t, _o in grid] == [0.05, 0.10, 0.15, 0.20]
     assert [d["offset"] for d in dropped] == [-0.10]
+
+    # continuous passes its own (narrower) offsets through the SAME primitive.
+    grid, dropped = threshold_grid(0.95, (-0.05, 0.0, 0.05))
+    assert [t for t, _o in grid] == [0.90, 0.95]
+    assert [d["offset"] for d in dropped] == [0.05]
+    # and the rounding holds: 0.95 - 0.05 is 0.8999999999999999 in float.
+    assert grid[0][0] == 0.9
+
+
+@pytest.mark.parametrize("task_name", sorted(TASK_POLICY))
+def test_no_task_ever_emits_a_threshold_of_zero_or_one(task_name):
+    """A threshold must live in the OPEN interval (0, 1) -- in BOTH report modes.
+
+    At t=0, `y_prob >= 0` flags everyone; at t=1 it flags nobody (only a probability
+    of exactly 1.0 would fire), PPV is undefined, and DCA's t/(1-t) odds diverge.
+    `tasks._validate_taxonomy` already enforces 0 < clinical_threshold < 1 on the
+    policy itself; this pins the DERIVED +/- grid to the same invariant, so a future
+    task at t0=0.97 cannot silently reintroduce the degenerate row task1 shipped.
+    """
+    policy = TASK_POLICY[task_name]
+    t0 = policy["clinical_threshold"]
+    offsets = (_EPISODIC_OFFSETS if policy["report_mode"] == "episodic"
+               else _DELTAS)
+    grid, dropped = threshold_grid(t0, offsets)
+
+    assert grid, f"{task_name}: the clinical threshold itself must always survive"
+    for t, _o in grid:
+        assert 0.0 < t < 1.0, f"{task_name}: emitted an unusable threshold {t}"
+    # the clinical point (offset 0.0) can never be dropped.
+    assert round(float(t0), 4) in [t for t, _o in grid]
+    # nothing is swallowed: every requested offset is either kept or reported.
+    assert len(grid) + len(dropped) == len(offsets)
 
 
 def test_scorecard_clinical_entry_matches_the_old_operating_point():

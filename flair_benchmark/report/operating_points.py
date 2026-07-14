@@ -42,9 +42,10 @@ and conflating them is how a decision curve gets read backwards.
 
 ``build_operating_points`` (continuous; many predictions per stay)
 -----------------------------------------------------------------
-The stay-level decision view for a continuous task. Evaluated at THREE thresholds
-— the task's clinical threshold from META and clinical ± 0.05 — and at EACH
-threshold it produces:
+The stay-level decision view for a continuous task. Evaluated at the task's clinical
+threshold from META and clinical ± 0.05 — three points, unless an offset lands outside
+the open interval (0, 1), in which case it is dropped and recorded in
+``metadata.dropped_offsets`` (see ``threshold_grid``). At EACH threshold it produces:
 
   confusion    : model ALERT × LABEL per stay (fired = the stay ever crosses the
                  threshold, direction-aware; label = ever-positive) → {TP,FP,FN,TN}
@@ -130,8 +131,15 @@ def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
         out["intervention_offsets"] = None
         return out
 
-    thresholds = [min(1.0, max(0.0, t0 + d)) for d in _DELTAS]
-    md["thresholds"] = [round(t, 4) for t in thresholds]
+    # Same grid primitive the episodic scorecard uses: rounded, and offsets landing
+    # outside the OPEN interval (0, 1) are DROPPED rather than clamped. task1 sits at
+    # 0.95, so its +0.05 arm would otherwise be pinned to a threshold of 1.0 — which
+    # flags nobody, has no PPV, and makes DCA's t/(1-t) odds diverge.
+    grid, dropped = threshold_grid(t0, _DELTAS)
+    t0r = round(float(t0), 4)
+    md["thresholds"] = [t for t, _o in grid]
+    md["offsets"] = [o for _t, o in grid]
+    md["dropped_offsets"] = dropped
     iv_col = iv["column"] if iv else None
     has_dttm = "prediction_dttm" in preds.columns
     if not iv_col:
@@ -139,10 +147,12 @@ def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
             "no intervention/treatment column configured; sub-analyses omitted")
 
     by_threshold, clinical_agg = [], None
-    for t in thresholds:
+    for t, off in grid:
         agg = _agg_at(preds, t, direction, iv_col, has_dttm, label_col)
         entry: dict = {
-            "threshold": round(float(t), 4),
+            "threshold": t,
+            "offset": off,
+            "is_clinical": t == t0r,
             "confusion": _confusion_at(agg["label"].to_numpy(),
                                        agg["fired"].to_numpy(), t),
         }
@@ -153,7 +163,7 @@ def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
                 "label_negative_untreated": _untreated_negative_arm(agg),
             }
         by_threshold.append(entry)
-        if abs(t - t0) < 1e-9:
+        if t == t0r:
             clinical_agg = agg
 
     out["by_threshold"] = by_threshold
@@ -378,18 +388,24 @@ def _r1(x) -> float | None:
 def threshold_grid(t0: float,
                    offsets: tuple[float, ...] = _EPISODIC_OFFSETS
                    ) -> tuple[list[tuple[float, float]], list[dict]]:
-    """(grid, dropped) for the episodic sweep: [(threshold, offset), ...].
+    """(grid, dropped) for a ± sweep around t0: [(threshold, offset), ...].
+
+    THE grid primitive for both report modes — episodic passes _EPISODIC_OFFSETS,
+    continuous passes _DELTAS. One rule, so the two cannot drift.
 
     Rounding is not cosmetic — it is required. ``0.15 - 0.10`` is
-    0.049999999999999996 and ``0.2 + 0.1`` is 0.30000000000000004, so an unrounded
-    grid would emit thresholds that never compare equal to the clinical one and
-    would print as noise.
+    0.049999999999999996, ``0.2 + 0.1`` is 0.30000000000000004, and ``0.95 - 0.05``
+    is 0.8999999999999999, so an unrounded grid would threshold at one value while
+    publishing another, and would never compare equal to the clinical threshold.
 
     Offsets landing outside the OPEN interval (0, 1) are DROPPED, not clamped: at
     t=0 every stay is flagged, at t=1 none is, and DCA's t/(1-t) odds diverge at 1.
-    Clamping would also silently collapse two offsets onto the same threshold for a
-    task near the edge (e.g. t0=0.95 → both +0.05 and +0.10 become 1.0). Whatever
-    is dropped is reported, never silently swallowed.
+    A threshold of 1.0 is not a threshold — ``tasks._validate_taxonomy`` already
+    enforces 0 < clinical_threshold < 1 on the policy itself, and this keeps the
+    DERIVED grid honest to the same invariant. Clamping would also silently collapse
+    two offsets onto the same threshold for a task near the edge (e.g. t0=0.95 →
+    both +0.05 and +0.10 become 1.0). Whatever is dropped is reported, never
+    silently swallowed.
     """
     grid: list[tuple[float, float]] = []
     dropped: list[dict] = []
