@@ -5,11 +5,15 @@ How well the model RANKS stays, independent of calibration:
   - ROC / PR curves as downsampled raw points for downstream plotting, plus a
     fixed-FPR-grid ROC form (`grid_fpr` / `tpr_at_grid`) for cross-site pooling.
   - operating_point: sensitivity / specificity / PPV / NPV / F1 + confusion
-    counts at the task's clinical threshold (META `clinical_threshold`), each
-    with a 95% CI.
+    counts at a threshold, each with a 95% CI. Emitted only when
+    ``operating_point=True`` (the default, used by the continuous report's peak
+    and landmark sections). The EPISODIC report passes False and hoists every
+    threshold-dependent number into operating_points.json instead, which sweeps
+    the clinical threshold ± 0.05 / ± 0.10 — so discrimination.json is pure,
+    threshold-free ranking.
 
-Episodic only: the frame is one row per stay (split-filtered upstream), so the
-row bootstrap in report/_ci.py is a stay-level bootstrap.
+The frame is one row per stay (split-filtered upstream), so the row bootstrap in
+report/_ci.py is a stay-level bootstrap.
 """
 
 from __future__ import annotations
@@ -24,8 +28,13 @@ MAX_POINTS = 500
 GRID_FPR = np.round(np.arange(0.0, 1.0001, 0.01), 2)   # fixed, site-invariant
 
 
-def build_discrimination(preds: pl.DataFrame, meta: dict) -> dict:
-    """Switch on task_type; emit ranking metrics + curves (+ CI for binary)."""
+def build_discrimination(preds: pl.DataFrame, meta: dict,
+                         operating_point: bool = True) -> dict:
+    """Switch on task_type; emit ranking metrics + curves (+ CI for binary).
+
+    ``operating_point=False`` drops the threshold-dependent block (the episodic
+    report reports it in operating_points.json, across five thresholds).
+    """
     task_type = meta["task_type"]
     label_col = meta["label_column"]
     out: dict = {"task_type": task_type, "metadata": {"n": preds.height,
@@ -47,11 +56,10 @@ def build_discrimination(preds: pl.DataFrame, meta: dict) -> dict:
         pr_curve, pr_metrics = _pr_points(y_true, y_prob, prevalence)
         out["prevalence"] = prevalence
         # scalars (each with its 95% CI) first, raw curve arrays below.
-        out["metrics"] = {
-            **roc_metrics,
-            **pr_metrics,
-            "operating_point": _operating_point(y_true, y_prob, meta),
-        }
+        out["metrics"] = {**roc_metrics, **pr_metrics}
+        if operating_point:
+            out["metrics"]["operating_point"] = _operating_point(
+                y_true, y_prob, meta)
         out["curves"] = {"roc": roc_curve, "pr": pr_curve}
     elif task_type == "multiclass":
         out["curves"] = {
@@ -109,13 +117,24 @@ def _pr_points(y_true: np.ndarray, y_prob: np.ndarray,
     return curve, metrics
 
 
-def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict) -> dict:
-    """Confusion-derived metrics at the task's clinical threshold (label space).
+def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
+                     t: float | None = None) -> dict:
+    """Confusion-derived metrics at a threshold (label space).
 
-    Classifies y_prob >= threshold. Each rate carries a 95% bootstrap CI;
-    confusion counts pass through suppress() for PHI safety.
+    ``t`` defaults to the task's clinical threshold (META `clinical_threshold`).
+    Pass it explicitly to evaluate the same block at another point on the grid —
+    that is how operating_points.py sweeps clinical ± 0.05 / ± 0.10.
+
+    ALARM CONVENTION: classifies y_prob >= t in BOTH directions, so sensitivity /
+    specificity / PPV always mean "how well do we detect the event". The
+    direction-aware clinical decision (which flips for a `below` task like task3,
+    where the action fires on LOW risk) lives in the separate `action` block.
+
+    Each rate carries a 95% bootstrap CI; confusion counts pass through
+    suppress() for PHI safety.
     """
-    t = meta.get("clinical_threshold")
+    if t is None:
+        t = meta.get("clinical_threshold")
     direction = meta.get("clinical_direction", "above")
     if t is None:
         return {"reason": "no clinical_threshold in META"}

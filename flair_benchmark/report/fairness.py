@@ -38,15 +38,28 @@ _GAP_REPS = 500
 _GAP_SEED = 20260612
 
 
-def build_fairness(preds: pl.DataFrame, meta: dict) -> dict:
-    """Per-subgroup metrics + parity gaps at the clinical operating threshold."""
+def build_fairness(preds: pl.DataFrame, meta: dict,
+                   threshold_metrics: bool = True) -> dict:
+    """Per-subgroup metrics (+ parity gaps at the clinical threshold by default).
+
+    ``threshold_metrics=False`` drops everything that depends on a decision
+    threshold — the cohort-wide `overall` block, each subgroup's
+    positive_rate / TPR / FPR, and the `parity` gaps — leaving only the
+    threshold-free question: does the model RANK and CALIBRATE equally well
+    across groups (n, prevalence, AUROC, AUPRC, Brier, calibration slope)?
+
+    The episodic report passes False. Its threshold-dependent equity numbers are
+    reported per grid threshold in operating_points.json, so they can be read at
+    the clinical threshold AND at ± 0.05 / ± 0.10 around it.
+    """
     task_type = meta["task_type"]
     label_col = meta["label_column"]
 
     df = _bin_age(preds)
     clinical_t = meta.get("clinical_threshold")
     op_t = clinical_t if clinical_t is not None else 0.5
-    if task_type == "binary" and clinical_t is not None and "y_prob" in df.columns:
+    if (threshold_metrics and task_type == "binary" and clinical_t is not None
+            and "y_prob" in df.columns):
         # operate at the task's clinical decision threshold (label space)
         df = df.with_columns(
             (pl.col("y_prob") >= clinical_t).cast(pl.Int32).alias("y_pred"))
@@ -56,12 +69,29 @@ def build_fairness(preds: pl.DataFrame, meta: dict) -> dict:
     for col in SUBGROUP_COLS:
         if col not in df.columns:
             continue
-        levels = _subgroup_metrics(df, col, label_col, task_type)
+        levels = _subgroup_metrics(df, col, label_col, task_type, threshold_metrics)
         subgroups[col] = levels
+        if not threshold_metrics:
+            continue
         gaps = _parity_gaps(df, col, label_col, task_type)
         if levels:
-            gaps["reference_group"] = max(levels, key=lambda lv: levels[lv]["n"])
+            # largest subgroup is the reference; break exact-n ties on the label so
+            # the pick is stable regardless of group_by iteration order (polars is
+            # hash-ordered across process runs — an n-tie would otherwise flip).
+            gaps["reference_group"] = max(levels, key=lambda lv: (levels[lv]["n"], lv))
         parity[col] = gaps
+
+    if not threshold_metrics:
+        return {
+            "subgroups": subgroups,
+            "metadata": {
+                "min_subgroup_n": MIN_SUBGROUP_N,
+                "threshold_free": True,
+                "note": ("subgroup ranking + calibration only; the decision-threshold "
+                         "view (positive rate, TPR, FPR, parity gaps) is reported at "
+                         "every grid threshold in operating_points.json"),
+            },
+        }
 
     return {
         # cohort-wide operating point at the clinical threshold — the baseline each
@@ -114,30 +144,36 @@ def _bin_age(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _subgroup_metrics(df: pl.DataFrame, group_col: str, label_col: str,
-                      task_type: str) -> dict:
+                      task_type: str, threshold_metrics: bool = True) -> dict:
     out: dict = {}
     for level in df[group_col].unique().drop_nulls().to_list():
         sub = df.filter(pl.col(group_col) == level)
         if sub.height < MIN_SUBGROUP_N:
             continue
-        out[str(level)] = _metrics_one_group(sub, label_col, task_type)
+        out[str(level)] = _metrics_one_group(sub, label_col, task_type,
+                                             threshold_metrics)
     return out
 
 
-def _metrics_one_group(sub: pl.DataFrame, label_col: str, task_type: str) -> dict:
+def _metrics_one_group(sub: pl.DataFrame, label_col: str, task_type: str,
+                       threshold_metrics: bool = True) -> dict:
     n = sub.height
     if task_type == "binary":
         from sklearn.metrics import average_precision_score, roc_auc_score
         y_true = sub[label_col].to_numpy().astype(float)
-        y_pred = sub["y_pred"].to_numpy()
         y_prob = sub["y_prob"].to_numpy() if "y_prob" in sub.columns else None
-        positive_rate = float(y_pred.mean()) if len(y_pred) else 0.0
-        tpr = float((y_pred[y_true == 1] == 1).mean()) if (y_true == 1).any() else None
-        fpr = float((y_pred[y_true == 0] == 1).mean()) if (y_true == 0).any() else None
-        out: dict = {"n": n, "positive_rate": round(positive_rate, 4),
-                     "tpr": None if tpr is None else round(tpr, 4),
-                     "fpr": None if fpr is None else round(fpr, 4),
-                     "prevalence": round(float(y_true.mean()), 4)}
+        out: dict = {"n": n, "prevalence": round(float(y_true.mean()), 4)}
+        if threshold_metrics:
+            # decision-threshold view: who gets flagged, and at what error rates.
+            y_pred = sub["y_pred"].to_numpy()
+            positive_rate = float(y_pred.mean()) if len(y_pred) else 0.0
+            tpr = (float((y_pred[y_true == 1] == 1).mean())
+                   if (y_true == 1).any() else None)
+            fpr = (float((y_pred[y_true == 0] == 1).mean())
+                   if (y_true == 0).any() else None)
+            out.update({"positive_rate": round(positive_rate, 4),
+                        "tpr": None if tpr is None else round(tpr, 4),
+                        "fpr": None if fpr is None else round(fpr, 4)})
         if y_prob is not None and len(np.unique(y_true)) > 1:
             from sklearn.metrics import brier_score_loss
 

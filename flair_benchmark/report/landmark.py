@@ -16,10 +16,10 @@ Nothing anchors on the event or outcome: the slice at day t is exactly the
 cohort a deployed model would score on day t.
 
 Each slice has (at most) one row per stay — the day-t prediction — so it is an
-"episodic" cohort and runs through the unchanged four-pillar
-`build_episodic_report`. Stacking the slices gives skill, calibration, net
-benefit and fairness AS A FUNCTION OF HOSPITALIZATION TIME (the time-varying /
-dynamic AUC view).
+"episodic" cohort and runs through the four pillars (`_landmark_pillars`), with
+the threshold-dependent blocks kept inline. Stacking the slices gives skill,
+calibration, net benefit and fairness AS A FUNCTION OF HOSPITALIZATION TIME (the
+time-varying / dynamic AUC view).
 
 Why this is honest: one row per stay per landmark means report/_ci.py's row
 bootstrap is again a patient-level bootstrap (unlike row-pooling all windows).
@@ -30,17 +30,93 @@ Notes:
     undefined (no contrast) and emit a compact marker.
   - Deep landmarks shrink as stays end; a risk set below MIN_LANDMARK_N has its
     ENTIRE entry suppressed (not just per-cell), matching the house n<10 rule.
+  - Scored landmarks are built concurrently on a ProcessPoolExecutor (the
+    bootstrap loops are GIL-bound, so processes — not threads — give the
+    multicore speedup); output is deterministic and order-identical to a serial
+    run. Set FLAIR_REPORT_WORKERS to cap workers, or pass max_workers=1 for serial.
 """
 
 from __future__ import annotations
 
+import os
+from concurrent.futures import ProcessPoolExecutor
+
 import polars as pl
 
-from flair_benchmark.report.episodic import build_episodic_report
 from flair_benchmark.report._suppress import MIN_CELL_COUNT
+from flair_benchmark.report.calibration import build_calibration
+from flair_benchmark.report.dca import build_dca
+from flair_benchmark.report.discrimination import build_discrimination
+from flair_benchmark.report.fairness import build_fairness
+
+# Pin linear-algebra (BLAS/LAPACK) to ONE thread while building a landmark. A
+# degenerate logistic calibration fit on a tiny subgroup is sensitive to BLAS
+# thread count, so without this the numbers would drift with the machine's core
+# count / pool size. Pinning makes every landmark bit-reproducible regardless of
+# how many worker processes run — the pool only affects speed, never results.
+try:
+    from threadpoolctl import threadpool_limits as _threadpool_limits
+except Exception:                                # pragma: no cover - always present with sklearn
+    from contextlib import nullcontext as _nullcontext
+
+    def _threadpool_limits(*_a, **_k):
+        return _nullcontext()
+
+
+def _landmark_pillars(sl: pl.DataFrame, meta: dict) -> dict[str, dict]:
+    """The four pillars for ONE landmark slice, threshold blocks INCLUDED.
+
+    Landmarks keep the operating point, the DCA clinical marker and the fairness
+    parity gaps inline, because the point of the landmark report is to show how
+    the decision behaves as a function of hospitalization time — and kpi.py reads
+    those per-landmark numbers.
+
+    The EPISODIC report deliberately does NOT compose the pillars this way: it
+    hoists every threshold-dependent number into operating_points.json (swept over
+    five thresholds). Landmarks therefore build the pillars themselves rather than
+    borrowing build_episodic_report, so the two reports can evolve independently.
+    """
+    return {
+        "discrimination": build_discrimination(sl, meta),
+        "calibration": build_calibration(sl, meta),
+        "dca": build_dca(sl, meta),
+        "fairness": build_fairness(sl, meta),
+    }
+
+
+def _build_deterministic(sl, meta):
+    # limit ALL native thread pools (BLAS *and* OpenMP): a non-converged logistic
+    # calibration fit on a tiny subgroup is sensitive to both, so pinning only
+    # BLAS still lets OpenMP thread count (which varies with machine load) perturb
+    # the result. limits=1 with no user_api caps every pool.
+    with _threadpool_limits(limits=1):
+        return _landmark_pillars(sl, meta)
 
 MIN_LANDMARK_N = MIN_CELL_COUNT
 _PILLARS = ("discrimination", "calibration", "dca", "fairness")
+# only spin up a process pool when there are enough scored landmarks to amortize
+# the spawn + pickle overhead; smaller runs (tests, short stays) stay serial.
+_MIN_PARALLEL = 16
+
+
+def _worker_count(n_scored: int) -> int:
+    """Worker PROCESSES for the per-landmark builds: min(#scored, env/cpu), >=1.
+
+    FLAIR_REPORT_WORKERS overrides; otherwise os.cpu_count(). Each landmark's
+    4-pillar build is CPU-bound and mostly pure-Python bootstrap loops (GIL-bound),
+    so processes — not threads — give the real multicore speedup. Builds are
+    independent and bootstrap with fixed seeds, so the pooled result is
+    deterministic and order-identical to a serial run.
+    """
+    env = os.environ.get("FLAIR_REPORT_WORKERS")
+    cap = int(env) if (env and env.isdigit() and int(env) > 0) else (os.cpu_count() or 2)
+    return max(1, min(n_scored, cap))
+
+
+def _build_one(payload: tuple) -> dict:
+    """Module-level worker (picklable for ProcessPoolExecutor): build one slice."""
+    sl, meta = payload
+    return _build_deterministic(sl, meta)
 
 
 def resolve_n_landmarks(meta: dict, n_landmarks: int | None) -> int:
@@ -62,38 +138,74 @@ def resolve_n_landmarks(meta: dict, n_landmarks: int | None) -> int:
 
 
 def build_landmark_report(preds: pl.DataFrame, meta: dict,
-                          n_landmarks: int | None = None) -> dict[str, list[dict]]:
-    """Per-landmark episodic bundle, stacked into one list per pillar."""
+                          n_landmarks: int | None = None,
+                          max_workers: int | None = None) -> dict[str, list[dict]]:
+    """Per-landmark episodic bundle, stacked into one list per pillar.
+
+    The scored landmarks are built on a ProcessPoolExecutor (they are independent
+    and bootstrap with fixed seeds, so the output is byte-identical to a serial
+    run regardless of worker count). Pass ``max_workers=1`` to force serial.
+    """
     n_landmarks = resolve_n_landmarks(meta, n_landmarks)
     window_unit = meta.get("window_unit")
-
     label_col = meta["label_column"]
-    out: dict[str, list[dict]] = {p: [] for p in _PILLARS}
+
+    # 1) classify every landmark in the parent (cheap polars filters). Each job
+    #    is (lm, tag, kind, slice) — forward slice = everyone still at risk at
+    #    hospitalization time lm+1 (windows only exist pre-event/pre-discharge,
+    #    so it is the honest deployed-model risk set, never anchored on outcome).
+    jobs = []
     for lm in range(n_landmarks):
-        # forward slice: everyone still at risk at hospitalization time lm+1
-        # (windows only exist pre-event/pre-discharge, so this is the honest
-        # deployed-model risk set — never anchored on the outcome).
         sl = preds.filter(pl.col("window_number") == lm + 1)
         tag = {"landmark_index": lm, "hospitalization_time": lm + 1,
                "window_unit": window_unit, "n": sl.height}
         if sl.height < MIN_LANDMARK_N:
+            kind = "suppressed"
+        elif sl[label_col].n_unique() < 2:
+            # single-class risk set (e.g. early hours of a windowed task where no
+            # event falls inside the label horizon yet): AUROC/calibration/DCA
+            # are undefined — skip the builders and emit a compact marker.
+            kind = "undefined"
+        else:
+            kind = "score"
+        jobs.append((lm, tag, kind, sl if kind == "score" else None))
+
+    # 2) build the scored slices, in parallel across landmarks (process pool —
+    #    the bootstrap loops are GIL-bound, so threads would not scale).
+    scored = [(lm, sl) for lm, tag, kind, sl in jobs if kind == "score"]
+    reps: dict[int, dict] = {}
+    workers = max_workers if max_workers is not None else _worker_count(len(scored))
+    # honor an explicit max_workers; otherwise only parallelize larger runs.
+    use_pool = bool(scored) and workers > 1 and (
+        max_workers is not None or len(scored) >= _MIN_PARALLEL)
+    if use_pool:
+        try:
+            with ProcessPoolExecutor(max_workers=workers) as ex:
+                for (lm, _sl), rep in zip(
+                        scored, ex.map(_build_one,
+                                       [(sl, meta) for _, sl in scored])):
+                    reps[lm] = rep
+        except Exception:            # pool unavailable → deterministic serial path
+            reps = {lm: _build_deterministic(sl, meta) for lm, sl in scored}
+    else:
+        reps = {lm: _build_deterministic(sl, meta) for lm, sl in scored}
+
+    # 3) assemble in landmark order (identical layout to the serial version).
+    out: dict[str, list[dict]] = {p: [] for p in _PILLARS}
+    for lm, tag, kind, _sl in jobs:
+        if kind == "suppressed":
             stub = {**tag, "n": f"<{MIN_LANDMARK_N}", "suppressed": True}
             for p in _PILLARS:
                 out[p].append(dict(stub))
-            continue
-        # A single-class risk set (e.g. early hours of a windowed task where no
-        # event falls inside the label horizon yet) has no contrast: AUROC /
-        # calibration / DCA are all undefined. Skip the builders (avoids wasted
-        # work + sklearn single-class warnings) and emit a compact marker.
-        if sl[label_col].n_unique() < 2:
+        elif kind == "undefined":
             stub = {**tag, "undefined": True,
                     "reason": "single label class at this hospitalization time"}
             for p in _PILLARS:
                 out[p].append(dict(stub))
-            continue
-        rep = build_episodic_report(sl, meta)
-        for p in _PILLARS:
-            payload = rep[p]
-            payload.setdefault("metadata", {}).update(tag)
-            out[p].append({**tag, **payload})
+        else:
+            rep = reps[lm]
+            for p in _PILLARS:
+                payload = rep[p]
+                payload.setdefault("metadata", {}).update(tag)
+                out[p].append({**tag, **payload})
     return out

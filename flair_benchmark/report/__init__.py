@@ -1,6 +1,9 @@
 """Report bundle builder, keyed on the unit of prediction (`--mode`).
 
-  episodic   : one prediction per stay -> discrimination, calibration, dca, fairness.
+  episodic   : one prediction per stay -> discrimination, calibration, dca and
+               fairness (all THRESHOLD-FREE) + operating_points, the scorecard
+               holding every threshold-dependent metric, swept over the clinical
+               threshold and ± 0.05 / ± 0.10 around it.
   continuous : multi-row-per-stay task -> ONE bundle holding the stay-peak view
                (discrimination + fairness + NNE, as a "peak" section) AND the
                per-landmark four pillars (META['landmark_horizon'] landmarks in
@@ -27,6 +30,23 @@ from flair_benchmark.report.episodic import build_episodic_report
 
 __all__ = ["build_report"]
 
+# 2: episodic hoists every threshold-dependent metric into operating_points.json
+#    (swept over the clinical threshold ± 0.05 / ± 0.10), leaving discrimination,
+#    dca and fairness threshold-free. 1: the original four-pillar shape.
+REPORT_SCHEMA = 2
+
+
+def _blas_single_thread():
+    """Context manager pinning ALL native thread pools (BLAS + OpenMP) to one
+    thread, so report numbers are reproducible regardless of a machine's core
+    count / thread-pool state."""
+    try:
+        from threadpoolctl import threadpool_limits
+        return threadpool_limits(limits=1)
+    except Exception:                            # pragma: no cover
+        from contextlib import nullcontext
+        return nullcontext()
+
 # cohort columns the report can use when they flow through (or are joined in).
 # Demographics feed fairness.py; without them fairness emits no subgroups.
 # (The Table 1 is generated at task-generation time — see flair_benchmark/_table1.py.)
@@ -47,7 +67,8 @@ def build_report(preds_path: str, task_module, out_dir: str,
     `train`, every site (incl. inference-only) is scored on `test`, so cross-site
     numbers are comparable. `mode` is the unit of prediction:
 
-      episodic   : one prediction per stay -> discrimination/calibration/dca/fairness.
+      episodic   : one prediction per stay -> threshold-free discrimination /
+                   calibration / dca / fairness + the operating_points scorecard.
       continuous : multi-row-per-stay -> one bundle: peak section + per-landmark
                    pillars (META['landmark_horizon'] landmarks) + leadtime with
                    the alert-vs-intervention timing arms.
@@ -101,20 +122,32 @@ def build_report(preds_path: str, task_module, out_dir: str,
         "split": split,
         "n_stays": preds[block].n_unique(),
         "prevalence": prevalence,
-        # operating threshold the threshold-dependent sections (discrimination
-        # confusion point, dca clinical point, fairness) were evaluated at;
-        # null for tasks with no clinical_threshold in META.
+        # Shape of this bundle. Bump when a key moves between files: sites have
+        # already uploaded bundles in schema 1 (episodic carried its operating
+        # point inside discrimination.json, its net-benefit marker inside
+        # dca.json, and fairness was implicitly at the clinical threshold), and a
+        # reader needs to be able to tell the two apart.
+        "report_schema": REPORT_SCHEMA,
+        # The threshold the threshold-dependent numbers were evaluated at; null
+        # for tasks with no clinical_threshold in META. In episodic mode this is
+        # the CENTRE of the operating_points.json grid, not the only point scored.
         "evaled_at": meta.get("clinical_threshold"),
     }
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    if mode == "continuous":
-        from flair_benchmark.report.continuous import build_continuous_report
-        payloads = build_continuous_report(preds, meta)
-    else:
-        payloads = build_episodic_report(preds, meta)
+    # Pin linear algebra to ONE thread for the whole build so the report numbers
+    # are reproducible across machines: a degenerate logistic fit (e.g. a tiny
+    # fairness subgroup) is sensitive to the BLAS thread count, which otherwise
+    # varies with each site's core count. (Landmark worker processes re-pin
+    # inside report/landmark._build_one.) See report/landmark.py.
+    with _blas_single_thread():
+        if mode == "continuous":
+            from flair_benchmark.report.continuous import build_continuous_report
+            payloads = build_continuous_report(preds, meta)
+        else:
+            payloads = build_episodic_report(preds, meta)
     for payload in payloads.values():
         payload["metadata"] = {**audit, **payload.get("metadata", {})}
 

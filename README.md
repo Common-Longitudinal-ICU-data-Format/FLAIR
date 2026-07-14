@@ -162,8 +162,9 @@ flair build-report preds.parquet \
 ```
 
 The mode is inferred from the task: continuous tasks use `--mode continuous`
-(peak section + per-landmark pillars + leadtime with alert-vs-intervention
-timing in one bundle), episode tasks use `--mode episodic`.
+(peak section + per-landmark pillars + leadtime + an `operating_points` section
+— a per-threshold confusion matrix plus optional intervention sub-analyses — in
+one bundle), episode tasks use `--mode episodic`.
 
 ## Benchmark Tasks
 
@@ -304,8 +305,8 @@ Report modes:
 
 | Mode | Use for | Output focus |
 |---|---|---|
-| `episodic` | One prediction per stay | Discrimination, calibration, decision curves, fairness |
-| `continuous` | Multi-row-per-stay tasks | One bundle: stay-peak screening section + forward landmarks (time-varying AUC/calibration per hospitalization day/hour over `META['landmark_horizon']` times, KM at-risk counts) + leadtime with alert-vs-intervention timing + a `kpi.json` scoreboard (pooled dynamic AUROC, NNE, calibration, lead time) |
+| `episodic` | One prediction per stay | Four **threshold-free** pillars (discrimination, calibration, decision curves, fairness) + an `operating_points` scorecard holding every threshold-dependent metric — confusion matrix, sensitivity/specificity/PPV/NPV/F1/FPR/NNE/alert-rate, the act taken and its net benefit, and subgroup parity gaps — swept over the clinical threshold and ± 0.05 / ± 0.10 |
+| `continuous` | Multi-row-per-stay tasks | One bundle: stay-peak screening section + forward landmarks (time-varying AUC/calibration per hospitalization day/hour over `META['landmark_horizon']` times, KM at-risk counts) + leadtime + an `operating_points` section (per-threshold alert×label confusion matrix — clinical ± 0.05 — plus optional intervention sub-analyses) + a `kpi.json` scoreboard (pooled dynamic AUROC, NNE, calibration, lead time) |
 
 Reports are computed on the held-out `test` split. JSON outputs include audit
 metadata such as the task name, FLAIR version, generation time, report mode, and
@@ -319,6 +320,14 @@ Depending on mode, the report directory can include JSON files for:
 - fairness
 - lead time
 - threshold or operating-point behavior
+
+For a task whose action fires on LOW risk (`clinical_direction: "below"`, e.g. T3
+"extubate when failure risk < 0.15"), the decision curve is built on the
+**complement**: its event is *successful extubation* and its x-axis is the
+probability of success a clinician would require before extubating — 0 (extubate
+everyone) to 1 (extubate nobody). The shipped policy 0.15 therefore appears at
+x = 0.85. `dca.json`'s `metadata.x_axis` names the axis and its `metrics.verdict`
+states whether the model beats acting on everyone / no one at that point.
 
 When visualization support is installed, `--viz` writes local PNGs from the same
 JSON data. These PNGs are for site review; the portable artifact is the JSON

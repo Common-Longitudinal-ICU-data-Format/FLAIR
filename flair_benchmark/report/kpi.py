@@ -21,9 +21,11 @@ predictions, so the scoreboard can never disagree with the per-section JSONs.
                  window) + the slope range across landmarks (drift).
   leadtime     : pct of event stays ever caught + median first-alert
                  hospitalization time (how early in the stay the model fires).
-  alert_timing : fired-before-intervention rate, median delta hours, and the
-                 never-treated false-alarm rate (only when the task declares an
-                 intervention, e.g. task4 antibiotics).
+  operating_points : the clinical-threshold confusion headline (sensitivity /
+                 specificity / FPR / PPV / NNE) + FPR across the three thresholds,
+                 plus the intervention sub-analysis highlights (positive fire
+                 rate, median hours-before-treatment, treated-negative median Δ,
+                 untreated misfire rate) when the task declares an intervention.
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ _METHOD_NOTE = ("pooled dynamic AUC per Heagerty & Zheng 2005 (incident/dynamic"
 
 
 def build_kpi(peak: dict[str, dict], landmarks: dict[str, list[dict]],
-              leadtime: dict) -> dict:
+              leadtime: dict, operating_points: dict | None = None) -> dict:
     """Headline scoreboard from the built continuous sections."""
     disc_lms = landmarks.get("discrimination", [])
     out: dict = {"metadata": {
@@ -52,7 +54,7 @@ def build_kpi(peak: dict[str, dict], landmarks: dict[str, list[dict]],
     out["peak"] = _peak_block(peak.get("discrimination", {}))
     out["calibration"] = _calibration_block(landmarks.get("calibration", []))
     out["leadtime"] = _leadtime_block(leadtime)
-    out["alert_timing"] = _alert_block(leadtime.get("alert_vs_intervention"))
+    out["operating_points"] = _operating_points_block(operating_points or {})
     return out
 
 
@@ -136,17 +138,44 @@ def _leadtime_block(leadtime: dict) -> dict | None:
     }
 
 
-def _alert_block(avi: dict | None) -> dict | None:
-    if not avi or not (avi.get("metadata") or {}).get("intervention"):
+def _operating_points_block(op: dict) -> dict | None:
+    """Clinical-threshold confusion headline + FPR sweep + sub-analysis highlights.
+
+    Reads the built operating_points section. `sub_analyses` is None for tasks
+    without an intervention/treatment column.
+    """
+    by_thr = op.get("by_threshold") or []
+    if not by_thr:
         return None
-    w = (avi.get("label_positive") or {}).get("with_intervention") or {}
-    without = avi.get("label_negative_without_intervention") or {}
-    return {
-        "fired_before_intervention_rate":
-            w.get("fired_before_intervention_rate"),
-        "fired_before_intervention_rate_ci":
-            w.get("fired_before_intervention_rate_ci"),
-        "median_delta_hours": (w.get("delta_hours") or {}).get("median"),
-        "false_alarm_rate_untreated": without.get("false_alarm_rate"),
-        "false_alarm_rate_untreated_ci": without.get("false_alarm_rate_ci"),
+    t0 = (op.get("metadata") or {}).get("clinical_threshold")
+    mid = by_thr[len(by_thr) // 2]
+    clinical = next((e for e in by_thr
+                     if t0 is not None and e.get("threshold") == round(t0, 4)),
+                    mid)
+    conf = clinical.get("confusion") or {}
+    block = {
+        "clinical_threshold": t0,
+        "sensitivity": conf.get("sensitivity"),
+        "specificity": conf.get("specificity"),
+        "fpr": conf.get("fpr"),
+        "ppv": conf.get("ppv"),
+        "nne": conf.get("nne"), "nne_ci": conf.get("nne_ci"),
+        "fpr_by_threshold": [{"threshold": e.get("threshold"),
+                              "fpr": (e.get("confusion") or {}).get("fpr")}
+                             for e in by_thr],
+        "sub_analyses": None,
     }
+    sub = clinical.get("sub_analyses")
+    if sub:
+        pos = sub.get("label_positive") or {}
+        negt = sub.get("label_negative_treated") or {}
+        negu = sub.get("label_negative_untreated") or {}
+        block["sub_analyses"] = {
+            "pct_positive_fired": pos.get("pct_fired"),
+            "median_hours_before_treatment_positive":
+                (pos.get("hours_before_treatment") or {}).get("median"),
+            "median_hours_before_treatment_treated_negative":
+                (negt.get("hours_before_treatment") or {}).get("median"),
+            "misfire_rate_untreated": negu.get("misfire_rate"),
+        }
+    return block

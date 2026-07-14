@@ -98,8 +98,9 @@ ASE_ONSET_COL = "ase_onset_w_lactate_dttm"
 ASE_INCLUDE_LACTATE = True
 EXCLUDE_LOCATION_CATEGORIES = ["psychiatric", "rehabilitation"]
 
-# The intervention timestamp for the report's alert-vs-antibiotics timing
-# (META["intervention"], see report/alert_timing.py): first administration of a
+# The intervention/treatment timestamp for the report's operating-point
+# sub-analyses (META["intervention"], see report/operating_points.py): first
+# administration of a
 # CMS-qualifying antibiotic — the SAME med_group clifpy's compute_ase uses as
 # its qualifying-antibiotic ASE criterion, so "intervention" stays
 # definitionally aligned with the label. We source it from the medication table

@@ -26,8 +26,10 @@ from flair_benchmark.cli import app
 
 ARTIFACT_DIR = Path(__file__).parent / "artifacts" / "example_report"
 
-EXPECTED_JSONS = {"discrimination", "calibration", "dca", "fairness"}
-EXPECTED_PNGS = {"roc_pr.png", "calibration.png", "dca.png", "fairness_auroc.png"}
+EXPECTED_JSONS = {"discrimination", "calibration", "dca", "fairness",
+                  "operating_points"}
+EXPECTED_PNGS = {"roc_pr.png", "calibration.png", "dca.png", "fairness_auroc.png",
+                 "operating_points.png"}
 
 TASK = "task5_icu_readmission"      # episodic: one prediction per stay
 LABEL = "label_icu_readmission"
@@ -75,7 +77,8 @@ def test_cli_continuous_mode(tmp_path):
     ])
     assert result.exit_code == 0, result.output
     assert {p.stem for p in out_dir.glob("*.json")} >= {
-        "discrimination", "calibration", "dca", "fairness", "leadtime", "kpi"}
+        "discrimination", "calibration", "dca", "fairness", "leadtime",
+        "operating_points", "kpi"}
     disc = json.loads((out_dir / "discrimination.json").read_text())
     assert disc["metadata"]["report_mode"] == "continuous"
     assert "peak" in disc
@@ -83,8 +86,11 @@ def test_cli_continuous_mode(tmp_path):
     # synthetic stay lengths are suppressed stubs but still emitted.
     assert len(disc["landmarks"]) == 30
     assert disc["landmarks"][0]["hospitalization_time"] == 1
-    lt = json.loads((out_dir / "leadtime.json").read_text())
-    assert "alert_vs_intervention" in lt
+    # operating points: 3 thresholds (task1 clinical 0.95 +/- 0.05), confusion
+    # mandatory, no sub-analyses (task1 declares no intervention).
+    op = json.loads((out_dir / "operating_points.json").read_text())
+    assert len(op["by_threshold"]) == 3
+    assert "sub_analyses" not in op["by_threshold"][0]
     kpi = json.loads((out_dir / "kpi.json").read_text())
     assert kpi["pooled_dynamic_auroc"] is not None
 
@@ -118,9 +124,71 @@ def test_discrimination_values(report_dir):
     lo, hi = m["auroc_ci"]
     assert lo <= m["auroc"] <= hi
     assert len(roc["fpr"]) == len(roc["tpr"]) <= 500
-    op = m["operating_point"]
-    assert op["threshold"] == 0.20   # task5 clinical threshold
-    assert op["sensitivity_ci"][0] <= op["sensitivity"] <= op["sensitivity_ci"][1]
+    # threshold-free by construction: the operating point moved to the scorecard.
+    assert "operating_point" not in m
+
+
+def test_operating_points_scorecard(report_dir):
+    op = _load(report_dir, "operating_points")
+    md = op["metadata"]
+    # task5: clinical 0.20, direction "above" -> a full five-point grid.
+    assert md["thresholds"] == [0.10, 0.15, 0.20, 0.25, 0.30]
+    assert md["offsets"] == [-0.10, -0.05, 0.0, 0.05, 0.10]
+    assert md["clinical_index"] == 2
+    assert md["dropped_offsets"] == []
+
+    rows = op["by_threshold"]
+    assert len(rows) == 5
+    clinical = [e for e in rows if e["is_clinical"]]
+    assert len(clinical) == 1 and clinical[0]["threshold"] == 0.20
+
+    for e in rows:
+        c, m = e["confusion"], e["metrics"]
+        assert c["tp"] + c["fp"] + c["fn"] + c["tn"] == 800
+        assert 0.0 <= m["flag_rate"] <= 1.0
+        for k in ("sensitivity", "specificity", "ppv", "npv", "f1", "fpr"):
+            v, ci = m[k], m.get(f"{k}_ci")
+            if v is not None and ci:
+                assert ci[0] <= v <= ci[1], f"{k} at t={e['threshold']} outside its CI"
+        # net benefit is the DECISION basis and lives in its own block
+        assert "net_benefit" not in m
+        assert e["decision"]["net_benefit_treat_none"] == 0.0
+
+    # Raising the bar flags fewer stays: sensitivity falls, specificity rises.
+    sens = [e["metrics"]["sensitivity"] for e in rows]
+    spec = [e["metrics"]["specificity"] for e in rows]
+    flag = [e["metrics"]["flag_rate"] for e in rows]
+    assert sens == sorted(sens, reverse=True)
+    assert spec == sorted(spec)
+    assert flag == sorted(flag, reverse=True)
+
+
+def test_operating_points_decision_is_direction_aware(report_dir):
+    """task5 is direction 'above', so the two bases collapse into one."""
+    op = _load(report_dir, "operating_points")
+    assert op["metadata"]["clinical_direction"] == "above"
+    for e in op["by_threshold"]:
+        dec = e["decision"]
+        assert dec["acts_on"] == "y_prob >= threshold"
+        # the acted arm IS the flagged arm when the action fires on HIGH risk
+        assert dec["n_acted"] == e["confusion"]["n_flagged"]
+        # ...and the decision curve's axis is the label axis, untransformed
+        assert dec["dca_threshold"] == e["threshold"]
+
+
+def test_operating_points_carries_subgroup_equity(report_dir):
+    """Fairness at a threshold lives here now — at every threshold, not just one."""
+    op = _load(report_dir, "operating_points")
+    for e in op["by_threshold"]:
+        sex = e["fairness"]["subgroups"]["sex_category"]
+        assert set(sex) == {"Male", "Female"}
+        for lvl in sex.values():
+            assert lvl["n"] >= 10
+            assert 0.0 <= lvl["positive_rate"] <= 1.0
+        parity = e["fairness"]["parity"]["sex_category"]
+        assert parity["reference_group"] in ("Male", "Female")
+        assert parity["demographic_parity_gap"] >= 0
+        assert "demographic_parity_gap_ci" in parity
 
 
 def test_calibration_values(report_dir):
@@ -133,25 +201,59 @@ def test_calibration_values(report_dir):
 
 
 def test_dca_values(report_dir):
+    """dca.json keeps its curve AND its verdict — the decision curve is the analysis."""
     dca = _load(report_dir, "dca")
     m, curves = dca["metrics"], dca["curves"]
-    assert len(curves["thresholds"]) == 124
+    assert len(curves["thresholds"]) == 164   # dense tail at BOTH ends + 0.01-0.99
     assert curves["net_benefit_none"] == 0.0
+    assert "useful_range" in m and "all_useful_intervals" in m
+    v = m["verdict"]
+    assert {"clinically_useful", "model", "model_ci", "treat_all", "beats"} <= set(v)
+    # task5 is "above": the decision axis IS the label axis
+    assert dca["metadata"]["clinical_threshold_on_axis"] == 0.20
     assert m["clinical_threshold"] == 0.20
-    nb = m["net_benefit_at_clinical_threshold"]
-    assert "model" in nb and "model_ci" in nb
+
+
+def test_net_benefit_has_one_definition_across_the_bundle(report_dir):
+    """THE cross-check. The scorecard and dca.json must be the same quantity.
+
+    They are computed from the same primitives (dca.to_decision_basis /
+    axis_threshold), so at every grid threshold the scorecard's decision.net_benefit
+    must equal dca.json's curve at decision.dca_threshold, and at the clinical
+    threshold both must equal dca.json's verdict. If these ever drift apart, one of
+    the two files is quietly reporting a different decision.
+    """
+    dca = _load(report_dir, "dca")
+    thr = dca["curves"]["thresholds"]
+    nb_model = dca["curves"]["net_benefit_model"]
+    nb_all = dca["curves"]["net_benefit_all"]
+
+    for e in _load(report_dir, "operating_points")["by_threshold"]:
+        dec = e["decision"]
+        x = dec["dca_threshold"]
+        i = min(range(len(thr)), key=lambda j: abs(thr[j] - x))
+        assert dec["net_benefit"] == nb_model[i], f"NB drifted at t={e['threshold']}"
+        assert dec["net_benefit_treat_all"] == nb_all[i]
+        if e["is_clinical"]:
+            v = dca["metrics"]["verdict"]
+            assert dec["net_benefit"] == v["model"]
+            assert dec["net_benefit_ci"] == v["model_ci"]
+            assert dec["net_benefit_treat_all"] == v["treat_all"]
+            assert dec["clinically_useful"] == v["clinically_useful"]
 
 
 def test_fairness_subgroups_and_parity(report_dir):
+    """fairness.json keeps the threshold-FREE view: subgroup ranking + calibration."""
     f = _load(report_dir, "fairness")
-    assert f["metadata"]["operating_threshold"] == 0.20
+    assert f["metadata"]["threshold_free"] is True
     sex = f["subgroups"]["sex_category"]
     assert set(sex) == {"Male", "Female"}
     for m in sex.values():
         assert m["n"] >= 10 and "brier" in m and "auroc" in m
-    parity = f["parity"]["sex_category"]
-    assert parity["reference_group"] in ("Male", "Female")
-    assert "demographic_parity_gap_ci" in parity
+        # the decision-threshold view is reported per threshold, not here
+        assert "positive_rate" not in m and "tpr" not in m and "fpr" not in m
+    assert "parity" not in f
+    assert "overall" not in f
 
 
 def test_y_prob_only_derives_y_pred(tmp_path):

@@ -5,13 +5,17 @@
 > `--mode continuous` report (inferred for continuous tasks). The landmark
 > horizon is no longer hardcoded: it comes from `META['landmark_horizon']`
 > (30 daily landmarks for T1/T2, 168 hourly for T4). The continuous bundle also
-> adds an **alert-vs-intervention timing** section inside `leadtime.json`
-> (`alert_vs_intervention`), generalizing the before-antibiotics question below:
-> among label-positive stays, did the model fire before the intervention (T4:
-> first CMS-qualifying antibiotic) and by how much (`t_alert − t_abx` in hours);
-> among treated-but-negative stays, the same; among never-treated negatives,
-> did it fire at all (false-alarm rate). Tasks without an intervention config
-> (T1/T2) degrade to generic fire/no-fire rates by label. Landmarking is
+> ships a single **`operating_points.json`** section: a per-threshold (clinical
+> and clinical ± 0.05) **alert × label** confusion matrix (sensitivity /
+> specificity / true FPR / PPV / NPV / NNE / F1) — MANDATORY for every continuous
+> task — plus, only when the task declares a treatment-time `intervention` column
+> (T4 = first CMS-qualifying antibiotic, `display` "treatment"), three
+> per-threshold sub-analyses keyed on `(label, treatment, alert)`: among positives,
+> how many fired and the *hours before treatment* the alarm fired; among
+> treated-but-negative stays, `Δ = t_alert − t_treatment`; among never-treated
+> negatives, the misfire (false-alarm) count. The report layer is generic and
+> META-driven — it never assumes sepsis/antibiotics; tasks without an
+> intervention column (T1/T2) get only the confusion matrix. Landmarking is
 > FORWARD-only: entries are indexed by `hospitalization_time` (day/hour
 > 1..horizon since the stay's first prediction window; unit from META), the
 > risk set at time t is every stay still at risk at t (a true KM

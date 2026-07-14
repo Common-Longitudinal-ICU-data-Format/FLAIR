@@ -106,7 +106,8 @@ def build_report_cmd(
         help="How to score the task: 'episodic' (one-per-stay) or 'continuous' "
              "(multi-row-per-stay -> one bundle: stay-peak section + "
              "per-landmark pillars over META['landmark_horizon'] landmarks + "
-             "leadtime with alert-vs-intervention timing). Inferred from META "
+             "leadtime + an operating_points section (per-threshold confusion "
+             "matrix + optional intervention sub-analyses)). Inferred from META "
              "when omitted."),
     episodic: bool = typer.Option(
         False, "--episodic",

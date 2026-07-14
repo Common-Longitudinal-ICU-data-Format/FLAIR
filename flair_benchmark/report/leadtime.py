@@ -26,7 +26,7 @@ import polars as pl
 
 from flair_benchmark.report._ci import bootstrap_ci
 from flair_benchmark.report._suppress import MIN_CELL_COUNT, suppress
-from flair_benchmark.report.alert_timing import alert_expr
+from flair_benchmark.report.operating_points import alert_expr
 from flair_benchmark.report.discrimination import _mk_stat
 from flair_benchmark.report.landmark import resolve_n_landmarks
 
@@ -129,9 +129,9 @@ def _median_first_alert(preds: pl.DataFrame, block: str, label_col: str,
     """Median hospitalization time of the FIRST alert over caught positive stays.
 
     Forward view: among ever-positive stays, the first window_number whose
-    prediction crosses the threshold (direction-aware, shared with
-    alert_timing) — "how early in the stay does the model first fire". All of
-    the stay's windows count, not only the labeled-positive ones.
+    prediction crosses the threshold (direction-aware, via the shared
+    `operating_points.alert_expr`) — "how early in the stay does the model first
+    fire". All of the stay's windows count, not only the labeled-positive ones.
     """
     per_stay = (
         preds.with_columns(pl.col(label_col).max().over(block).alias("_outcome"))
