@@ -11,7 +11,6 @@ import threading
 import polars as pl
 
 from flair_benchmark.meds_etl._emit import (
-    MEDS_SCHEMA,
     TableCache,
     build_clamp,
     concept_section,

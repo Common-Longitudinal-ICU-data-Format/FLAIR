@@ -11,14 +11,17 @@ predictions, so the scoreboard can never disagree with the per-section JSONs.
 
             AUC_pooled = sum_t AUC(t) * w_t / sum_t w_t ,  w_t = cases_t * controls_t
 
-        with cases_t = n_t * prevalence_t. The CI is the pair-weighted
-        combination of the per-landmark bootstrap CIs — an interim method,
-        pending a stay-level pooled bootstrap. (Same formula the FLAIR paper
-        pipeline uses; single-sourced here so papers can read kpi.json.)
+        with cases_t = n_t * prevalence_t. The CI is a STAY-LEVEL pooled
+        bootstrap: one stay-resample per replicate, every scored landmark's AUC
+        and pair weight recomputed on that resample, pooled, percentile
+        (2.5, 97.5) over replicates — honest to the within-stay correlation
+        across landmarks. (Same formula the FLAIR paper pipeline uses;
+        single-sourced here so papers can read kpi.json.)
   peak         : stay-peak screening headline (AUROC/AUPRC, operating point,
                  NNE = 1/PPV — alarms per true case).
-  calibration  : calibration at hospitalization time 1 (the first prediction
-                 window) + the slope range across landmarks (drift).
+  calibration  : calibration at the earliest SCORED hospitalization time
+                 (`at_hospitalization_time` names it — landmark 1 itself can be
+                 suppressed/single-class) + the slope range across landmarks.
   leadtime     : pct of event stays ever caught + median first-alert
                  hospitalization time (how early in the stay the model fires).
   operating_points : the clinical-threshold confusion headline (sensitivity /
@@ -30,17 +33,29 @@ predictions, so the scoreboard can never disagree with the per-section JSONs.
 
 from __future__ import annotations
 
+import numpy as np
+import polars as pl
+
+from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED
+
 _METHOD_NOTE = ("pooled dynamic AUC per Heagerty & Zheng 2005 (incident/dynamic"
                 " concordance, pair-weighted across FORWARD landmark risk sets"
                 " — patients still at risk at each hospitalization day/hour);"
-                " landmarking per van Houwelingen. Pooled CI is the"
-                " pair-weighted combination of per-landmark bootstrap CIs"
-                " (interim).")
+                " landmarking per van Houwelingen. Pooled CI is a stay-level"
+                " pooled bootstrap (one stay resample per replicate; all"
+                " landmark AUCs + pair weights recomputed per replicate).")
 
 
 def build_kpi(peak: dict[str, dict], landmarks: dict[str, list[dict]],
-              leadtime: dict, operating_points: dict | None = None) -> dict:
-    """Headline scoreboard from the built continuous sections."""
+              leadtime: dict, operating_points: dict | None = None,
+              preds: pl.DataFrame | None = None,
+              meta: dict | None = None) -> dict:
+    """Headline scoreboard from the built continuous sections.
+
+    ``preds``/``meta`` (the raw continuous frame + task META) enable the
+    stay-level pooled bootstrap CI; without them the scoreboard stays pure
+    aggregation and the pooled CI is null.
+    """
     disc_lms = landmarks.get("discrimination", [])
     out: dict = {"metadata": {
         "horizon": len(disc_lms),
@@ -50,7 +65,9 @@ def build_kpi(peak: dict[str, dict], landmarks: dict[str, list[dict]],
 
     pooled = _pooled_dynamic_auroc(disc_lms)
     out["pooled_dynamic_auroc"] = pooled[0]
-    out["pooled_dynamic_auroc_ci"] = pooled[1]
+    out["pooled_dynamic_auroc_ci"] = (
+        _pooled_auroc_stay_bootstrap_ci(preds, meta, disc_lms)
+        if preds is not None and meta is not None else None)
     out["peak"] = _peak_block(peak.get("discrimination", {}))
     out["calibration"] = _calibration_block(landmarks.get("calibration", []))
     out["leadtime"] = _leadtime_block(leadtime)
@@ -67,7 +84,14 @@ def _scored(entries: list[dict]) -> list[dict]:
 
 def _pooled_dynamic_auroc(entries: list[dict]) -> tuple[float | None,
                                                         list[float] | None]:
-    num = den = lo_num = hi_num = 0.0
+    """Pair-weighted pooled point estimate over the scored landmarks.
+
+    (The CI is NOT derived here — averaging per-landmark CI bounds has no
+    coverage guarantee, and substituting zero-width intervals for missing
+    landmark CIs shrank the pool as landmarks got LESS stable. The honest CI
+    is the stay-level pooled bootstrap below.)
+    """
+    num = den = 0.0
     for e in _scored(entries):
         auc = e["metrics"].get("auroc")
         prev = e.get("prevalence")
@@ -78,15 +102,78 @@ def _pooled_dynamic_auroc(entries: list[dict]) -> tuple[float | None,
         w = cases * (n - cases)      # Mann-Whitney comparable pairs at t
         if w <= 0:
             continue
-        ci = e["metrics"].get("auroc_ci") or [auc, auc]
         num += auc * w
         den += w
-        lo_num += ci[0] * w
-        hi_num += ci[1] * w
     if den == 0:
         return None, None
-    return (round(num / den, 4),
-            [round(lo_num / den, 4), round(hi_num / den, 4)])
+    return round(num / den, 4), None
+
+
+def _pooled_auroc_stay_bootstrap_ci(preds: pl.DataFrame, meta: dict,
+                                    entries: list[dict],
+                                    reps: int = BOOT_REPS,
+                                    seed: int = BOOT_SEED) -> list[float] | None:
+    """Stay-level pooled bootstrap CI for the pooled dynamic AUROC.
+
+    One stay resample per replicate; within the replicate every scored
+    landmark's AUC and pair weight are recomputed on the resampled cohort and
+    pooled with the same Mann-Whitney weights as the point estimate. This
+    respects the within-stay correlation across landmarks (the same stays
+    appear at every time they are at risk), which per-landmark CIs cannot.
+
+    Resampling uses sample WEIGHTS (a stay drawn k times counts k-fold via
+    sklearn's sample_weight) — identical to materializing repeated rows.
+    Landmarks that are suppressed/undefined in the published report are
+    excluded, so the CI describes exactly the pooled point estimate's set.
+    Single-class landmarks within a replicate are skipped for that replicate.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    scored_times = {e["hospitalization_time"] for e in _scored(entries)
+                    if e["metrics"].get("auroc") is not None}
+    if not scored_times:
+        return None
+
+    label_col = meta["label_column"]
+    # per scored landmark: (stay codes, labels, probs) — one row per stay.
+    stays = preds["hospitalization_join_id"].unique().sort()
+    code_of = {s: i for i, s in enumerate(stays.to_list())}
+    n_stays = len(code_of)
+    slices: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+    for t in sorted(scored_times):
+        sl = preds.filter(pl.col("window_number") == t)
+        codes = np.array([code_of[s] for s in
+                          sl["hospitalization_join_id"].to_list()])
+        slices.append((codes,
+                       sl[label_col].to_numpy().astype(int),
+                       sl["y_prob"].to_numpy().astype(float)))
+
+    rng = np.random.default_rng(seed)
+    pooled: list[float] = []
+    for _ in range(reps):
+        mult = np.bincount(rng.integers(0, n_stays, n_stays),
+                           minlength=n_stays).astype(float)
+        num = den = 0.0
+        for codes, y, p in slices:
+            w = mult[codes]
+            wsum = float(w.sum())
+            if wsum <= 0:
+                continue
+            cases = float(w[y == 1].sum())
+            controls = wsum - cases
+            pairs = cases * controls
+            if pairs <= 0:
+                continue                      # single-class in this resample
+            auc = roc_auc_score(y, p, sample_weight=w)
+            num += auc * pairs
+            den += pairs
+        if den > 0:
+            pooled.append(num / den)
+
+    if len(pooled) < reps // 2:
+        return None
+    lo, hi = np.percentile(pooled, [2.5, 97.5])
+    return [round(float(lo), 4), round(float(hi), 4)]
 
 
 def _peak_block(disc: dict) -> dict | None:
@@ -148,14 +235,12 @@ def _operating_points_block(op: dict) -> dict | None:
     if not by_thr:
         return None
     t0 = (op.get("metadata") or {}).get("clinical_threshold")
-    # The clinical row is flagged, never positional: a ± offset outside (0, 1) is
-    # dropped from the grid (task1 at 0.95 loses its +0.05 arm), so "the middle row"
-    # stops meaning "the clinical row". The 0.0 offset itself can never be dropped —
-    # tasks._validate_taxonomy guarantees 0 < clinical_threshold < 1.
-    clinical = next((e for e in by_thr if e.get("is_clinical")),
-                    next((e for e in by_thr
-                          if t0 is not None and e.get("threshold") == round(t0, 4)),
-                         by_thr[len(by_thr) // 2]))
+    # The clinical row is flagged, never positional: the 0.0 offset can never be
+    # dropped from the grid (tasks._validate_taxonomy guarantees
+    # 0 < clinical_threshold < 1), so exactly one is_clinical row exists in any
+    # non-empty sweep. Fail loudly if that invariant ever breaks — a silent
+    # positional fallback would publish the wrong row's headline numbers.
+    clinical = next(e for e in by_thr if e.get("is_clinical"))
     conf = clinical.get("confusion") or {}
     block = {
         "clinical_threshold": t0,

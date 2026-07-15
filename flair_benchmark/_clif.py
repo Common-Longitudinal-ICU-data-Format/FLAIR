@@ -31,8 +31,18 @@ def read_clif_config(path: str) -> dict:
     """
     with open(path) as f:
         cfg = json.load(f)
+    if not cfg.get("site"):
+        # Fail loudly: two behaviors key on the exact site string — the
+        # DATA_CUTOFF year filter is SKIPPED only for site == "mimic"
+        # (de-identified/shifted dates), and the no-dates split regime is
+        # MIMIC-keyed. A defaulted "unknown" site would silently apply the real
+        # date cutoff to MIMIC's shifted dates and empty the whole cohort.
+        raise ValueError(
+            f"clif config {path!r} is missing required key 'site'. Set it to "
+            f"your site name (use 'mimic' for MIMIC-IV — it controls the "
+            f"date-cutoff exemption and the random-split regime).")
     out = {
-        "site": cfg.get("site", "unknown"),
+        "site": cfg["site"],
         "data_directory": cfg["data_directory"],
         "filetype": cfg["filetype"],
         "timezone": cfg.get("timezone", "US/Central"),

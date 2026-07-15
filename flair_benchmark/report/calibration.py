@@ -46,11 +46,12 @@ def build_calibration(preds: pl.DataFrame, meta: dict) -> dict:
 
     bins = _calibration_bins(y_true, y_prob, n_bins=N_BINS)
     ext = calibration_extended(y_true.astype(float), y_prob)
+    slope_stat, intercept_stat = _paired_slope_intercept_stats()
     ci = bootstrap_ci(y_true, y_prob, {
         "ece": lambda yt, yp: _ece(yt, yp, N_BINS),
         "brier": _brier,
-        "slope": lambda yt, yp: calibration_slope_intercept(yt, yp)[0],
-        "intercept": lambda yt, yp: calibration_slope_intercept(yt, yp)[1],
+        "slope": slope_stat,
+        "intercept": intercept_stat,
     })
 
     out["prevalence"] = round(float(y_true.mean()), 6)
@@ -113,3 +114,26 @@ def _ece(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int) -> float:
 def _brier(y_true: np.ndarray, y_prob: np.ndarray) -> float:
     from sklearn.metrics import brier_score_loss
     return float(brier_score_loss(y_true.astype(float), y_prob))
+
+
+def _paired_slope_intercept_stats():
+    """(slope_stat, intercept_stat) sharing ONE logistic fit per resample.
+
+    bootstrap_ci evaluates every stat on the SAME resampled array objects
+    within a replicate, so a one-slot cache keyed on array identity lets the
+    intercept stat reuse the slope stat's fit — halving the LogisticRegression
+    fits (the dominant replicate cost; a landmark report runs this per slice).
+    Holding a reference to the cached arrays guarantees their ids are not
+    recycled across replicates.
+    """
+    cache: dict = {"arrays": None, "fit": (None, None)}
+
+    def _fit(yt: np.ndarray, yp: np.ndarray) -> tuple[float | None, float | None]:
+        arrays = cache["arrays"]
+        if arrays is None or arrays[0] is not yt or arrays[1] is not yp:
+            cache["arrays"] = (yt, yp)
+            cache["fit"] = calibration_slope_intercept(yt, yp)
+        return cache["fit"]
+
+    return (lambda yt, yp: _fit(yt, yp)[0],
+            lambda yt, yp: _fit(yt, yp)[1])

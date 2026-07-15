@@ -50,7 +50,7 @@ def report_dir(tmp_path_factory) -> Path:
     result = runner.invoke(app, [
         "build-report", str(preds_path),
         "--task", TASK, "--out", str(out_dir),
-        "--episodic", "--viz",
+        "--mode", "episodic", "--viz",
     ])
     assert result.exit_code == 0, result.output
     for kind in EXPECTED_JSONS:
@@ -283,14 +283,14 @@ def test_y_prob_only_derives_y_pred(tmp_path):
     base.drop("y_pred").write_parquet(a_path)
     out_a = tmp_path / "report_a"
     res_a = runner.invoke(app, ["build-report", str(a_path), "--task", TASK,
-                                "--out", str(out_a), "--episodic"])
+                                "--out", str(out_a), "--mode", "episodic"])
     assert res_a.exit_code == 0, res_a.output
 
     b_path = tmp_path / "b.parquet"
     base.write_parquet(b_path)
     out_b = tmp_path / "report_b"
     res_b = runner.invoke(app, ["build-report", str(b_path), "--task", TASK,
-                                "--out", str(out_b), "--episodic"])
+                                "--out", str(out_b), "--mode", "episodic"])
     assert res_b.exit_code == 0, res_b.output
 
     disc_a = json.loads((out_a / "discrimination.json").read_text())["curves"]["roc"]
@@ -304,7 +304,7 @@ def test_binary_without_y_pred_or_y_prob_rejected(tmp_path):
     preds_path = tmp_path / "preds.parquet"
     df.write_parquet(preds_path)
     result = runner.invoke(app, ["build-report", str(preds_path), "--task", TASK,
-                                 "--out", str(tmp_path / "r"), "--episodic"])
+                                 "--out", str(tmp_path / "r"), "--mode", "episodic"])
     assert result.exit_code != 0
     assert "y_prob" in str(result.exception)
 
@@ -323,7 +323,7 @@ def test_y_prob_out_of_range_rejected(tmp_path, bad_prob):
         .otherwise(pl.col("y_prob")).alias("y_prob"))
     result = runner.invoke(app, ["build-report", str(_write_preds(tmp_path, df)),
                                  "--task", TASK, "--out", str(tmp_path / "r"),
-                                 "--episodic"])
+                                 "--mode", "episodic"])
     assert result.exit_code != 0
     msg = str(result.exception)
     assert "y_prob" in msg and "[0, 1]" in msg
@@ -336,6 +336,6 @@ def test_y_prob_null_rejected(tmp_path):
         .otherwise(pl.col("y_prob")).alias("y_prob"))
     result = runner.invoke(app, ["build-report", str(_write_preds(tmp_path, df)),
                                  "--task", TASK, "--out", str(tmp_path / "r"),
-                                 "--episodic"])
+                                 "--mode", "episodic"])
     assert result.exit_code != 0
     assert "y_prob" in str(result.exception) and "null" in str(result.exception)

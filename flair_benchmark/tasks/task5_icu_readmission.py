@@ -58,7 +58,6 @@ META = {
     "temporal_pattern": "episode",
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
-    "clinical_action": "keep in ICU",
     # clinical_threshold, clinical_direction, report_mode — single-sourced
     **TASK_POLICY["task5_icu_readmission"],
     "label_column": "label_icu_readmission",

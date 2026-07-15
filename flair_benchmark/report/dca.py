@@ -49,8 +49,16 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
+from flair_benchmark.report._basis import (
+    axis_threshold,
+    net_benefit,
+    net_benefit_all,
+    to_decision_basis,
+)
 from flair_benchmark.report._ci import bootstrap_ci
 from flair_benchmark.report._suppress import MIN_CELL_COUNT
+
+__all__ = ["build_dca", "axis_threshold", "net_benefit_all", "to_decision_basis"]
 
 # Uniform 0.01..0.99 body, plus a dense tail at BOTH ends (step .002).
 #   low  (0.001..0.05): the rare-event decision region, where an "above" task with
@@ -65,43 +73,6 @@ _HIGH = np.round(np.arange(0.90, 1.0, 0.002), 3)
 THRESHOLDS = np.unique(np.concatenate([
     _LOW, np.round(np.arange(0.01, 1.00, 0.01), 2), _HIGH]))
 _TOL = 1e-9
-
-
-def axis_threshold(t: float, direction: str) -> float:
-    """Where a clinical threshold t (label scale) sits on the DECISION-CURVE axis.
-
-    An "act on LOW risk" task decides on the complement, so its threshold maps to
-    1-t: task3's 0.15 (P failure) is 0.85 (P successful extubation).
-    """
-    return round(1.0 - t, 6) if direction == "below" else t
-
-
-def net_benefit_all(prevalence: float, t: float) -> float | None:
-    """Net benefit of acting on EVERYONE at t — the treat-all default strategy.
-
-    Shared with operating_points.py. Note the ``float()`` before rounding: iterating
-    the numpy THRESHOLDS grid yields np.float64, whose round() is
-    ``rint(x*1e6)/1e6`` and can land 1 ULP away from Python's correctly-rounded
-    round() on the identical value. Two files computing "the same" net benefit would
-    then disagree in the 6th decimal. Round in one place, in one dtype.
-    """
-    if t >= 1:
-        return None
-    odds = t / (1 - t)
-    return round(float(prevalence - (1 - prevalence) * odds), 6)
-
-
-def to_decision_basis(y_true: np.ndarray, y_prob: np.ndarray,
-                      direction: str) -> tuple[np.ndarray, np.ndarray]:
-    """Put (labels, probabilities) into the frame the clinician decides in.
-
-    For "below", complement both: the event becomes the label's complement (task3:
-    successful extubation) and the score becomes P(that event). Net benefit then
-    describes treating-the-low-risk — extubating — instead of reading backwards.
-    """
-    if direction == "below":
-        return 1 - y_true, 1.0 - y_prob
-    return y_true, y_prob
 
 
 def build_dca(preds: pl.DataFrame, meta: dict) -> dict:
@@ -139,21 +110,24 @@ def build_dca(preds: pl.DataFrame, meta: dict) -> dict:
         t = float(t_np)
         all_nb = net_benefit_all(prev, t)
         nb_all.append(all_nb)
-        pred_pos = y_prob >= t
+        # acted arm: strict > on the complement basis of a "below" task, so the
+        # curve equals the shipped action (p_fail < t) at the boundary — see
+        # report/_basis.py's boundary convention.
+        pred_pos = (y_prob > t) if below else (y_prob >= t)
         n_flagged = int(pred_pos.sum())
         if n_flagged < MIN_CELL_COUNT:
             nb_model.append(None)
             suppressed.append(t)
             useful_mask.append(False)
             continue
-        model_nb = _net_benefit(y_true, y_prob, t)
+        model_nb = net_benefit(y_true, y_prob, t, strict=below)
         nb_model.append(round(float(model_nb), 6))
         useful_mask.append(model_nb > max(all_nb, 0.0) + _TOL)
 
     intervals = _contiguous_intervals(THRESHOLDS, useful_mask)
     axis = _axis_framing(meta, direction, t_clin, t_eval)
     clinical = _clinical_marker(t_eval, nb_model, nb_all, intervals, y_true, y_prob,
-                                axis["action"])
+                                axis["action"], strict=below)
     # zoom the plot to where rare-event decisions live (treating at ~10x prevalence
     # already implies a high alarm rate), but always include the clinical threshold;
     # capped at 1.0. Keeps the full grid in JSON.
@@ -222,7 +196,8 @@ def _axis_framing(meta: dict, direction: str, t_clin: float | None,
 
 def _clinical_marker(t: float | None, nb_model: list, nb_all: list,
                      intervals: list[dict], y_true: np.ndarray,
-                     y_prob: np.ndarray, action: str = "treat") -> dict:
+                     y_prob: np.ndarray, action: str = "treat",
+                     strict: bool = False) -> dict:
     """The DCA's own conclusion AT the shipped policy: does the model earn its keep?
 
     `t` is the threshold on the evaluated (decision-basis) curve — the META
@@ -239,7 +214,8 @@ def _clinical_marker(t: float | None, nb_model: list, nb_all: list,
         return {}
     idx = int(np.argmin(np.abs(THRESHOLDS - t)))
     ci = bootstrap_ci(y_true, y_prob,
-                      {"model": lambda yt, yp: _net_benefit(yt, yp, t)})["model"]
+                      {"model": lambda yt, yp: net_benefit(yt, yp, t,
+                                                           strict=strict)})["model"]
     model, treat_all = nb_model[idx], nb_all[idx]
     useful = any(iv["low"] <= t <= iv["high"] for iv in intervals)
     return {
@@ -276,17 +252,6 @@ def _beats(model: float | None, treat_all: float | None, useful: bool,
                 f"earn its keep at the shipped policy")
     return (f"'{action}' on NO ONE beats the model (net benefit 0 vs {model:.3f}) — "
             f"the model does not earn its keep at the shipped policy")
-
-
-def _net_benefit(y_true: np.ndarray, y_prob: np.ndarray, t: float) -> float | None:
-    """Model net benefit at threshold t: TP/n - FP/n * t/(1-t)."""
-    n = len(y_true)
-    if n == 0 or t >= 1:
-        return None
-    pred_pos = y_prob >= t
-    tp = int((pred_pos & (y_true == 1)).sum())
-    fp = int(pred_pos.sum()) - tp
-    return tp / n - (fp / n) * (t / (1 - t))
 
 
 def _contiguous_intervals(thresholds: np.ndarray, mask: list[bool]) -> list[dict]:

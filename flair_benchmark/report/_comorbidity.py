@@ -33,7 +33,12 @@ def compute_cci_elix(cfg: dict,
     cci_slim = _slim(cci, "cci_score", "charlson_score")
     elix_slim = _slim(elix, "elix_score", "elix_score")
 
-    return cci_slim.join(elix_slim, on="hospitalization_id", how="outer")
+    # how="full" + coalesce: polars' full join does NOT coalesce keys by
+    # default, so elix-only rows would get a null hospitalization_id (their
+    # score dropped by downstream joins) plus a stray hospitalization_id_right
+    # column leaking into the cohort_scores cache.
+    return cci_slim.join(elix_slim, on="hospitalization_id", how="full",
+                         coalesce=True)
 
 
 def _slim(df, score_col: str, out_name: str) -> pl.DataFrame:

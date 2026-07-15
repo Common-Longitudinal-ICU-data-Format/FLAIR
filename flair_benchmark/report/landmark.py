@@ -63,6 +63,19 @@ except Exception:                                # pragma: no cover - always pre
         return _nullcontext()
 
 
+# THE pillar registry: one source for what gets built per slice AND which keys
+# the suppressed/undefined stubs and the assembly loop must cover. A pillar
+# added here automatically stays aligned across scored and stub landmarks —
+# hand-syncing a separate tuple was one forgotten edit away from ragged
+# per-landmark arrays.
+PILLAR_BUILDERS = {
+    "discrimination": build_discrimination,
+    "calibration": build_calibration,
+    "dca": build_dca,
+    "fairness": build_fairness,
+}
+
+
 def _landmark_pillars(sl: pl.DataFrame, meta: dict) -> dict[str, dict]:
     """The four pillars for ONE landmark slice, threshold blocks INCLUDED.
 
@@ -76,12 +89,7 @@ def _landmark_pillars(sl: pl.DataFrame, meta: dict) -> dict[str, dict]:
     five thresholds). Landmarks therefore build the pillars themselves rather than
     borrowing build_episodic_report, so the two reports can evolve independently.
     """
-    return {
-        "discrimination": build_discrimination(sl, meta),
-        "calibration": build_calibration(sl, meta),
-        "dca": build_dca(sl, meta),
-        "fairness": build_fairness(sl, meta),
-    }
+    return {name: build(sl, meta) for name, build in PILLAR_BUILDERS.items()}
 
 
 def _build_deterministic(sl, meta):
@@ -93,7 +101,7 @@ def _build_deterministic(sl, meta):
         return _landmark_pillars(sl, meta)
 
 MIN_LANDMARK_N = MIN_CELL_COUNT
-_PILLARS = ("discrimination", "calibration", "dca", "fairness")
+_PILLARS = tuple(PILLAR_BUILDERS)   # derived — cannot drift from the registry
 # only spin up a process pool when there are enough scored landmarks to amortize
 # the spawn + pickle overhead; smaller runs (tests, short stays) stay serial.
 _MIN_PARALLEL = 16
@@ -119,6 +127,20 @@ def _build_one(payload: tuple) -> dict:
     return _build_deterministic(sl, meta)
 
 
+def partition_windows(preds: pl.DataFrame) -> dict[int, pl.DataFrame]:
+    """{window_number: slice} in ONE pass over the frame.
+
+    Replaces per-landmark ``filter(window_number == t)`` loops (landmark,
+    leadtime curve, leadtime trajectory each scanned the full frame per
+    landmark — up to ~500 full scans for task 4). ``maintain_order=True`` keeps
+    each slice's row order identical to the filter it replaces, so the seeded
+    bootstraps see the same rows in the same order.
+    """
+    parts = preds.partition_by("window_number", as_dict=True,
+                               maintain_order=True)
+    return {(k[0] if isinstance(k, tuple) else k): v for k, v in parts.items()}
+
+
 def resolve_n_landmarks(meta: dict, n_landmarks: int | None) -> int:
     """Explicit override wins; otherwise the task's META['landmark_horizon'].
 
@@ -139,24 +161,31 @@ def resolve_n_landmarks(meta: dict, n_landmarks: int | None) -> int:
 
 def build_landmark_report(preds: pl.DataFrame, meta: dict,
                           n_landmarks: int | None = None,
-                          max_workers: int | None = None) -> dict[str, list[dict]]:
+                          max_workers: int | None = None,
+                          parts: dict[int, pl.DataFrame] | None = None
+                          ) -> dict[str, list[dict]]:
     """Per-landmark episodic bundle, stacked into one list per pillar.
 
     The scored landmarks are built on a ProcessPoolExecutor (they are independent
     and bootstrap with fixed seeds, so the output is byte-identical to a serial
     run regardless of worker count). Pass ``max_workers=1`` to force serial.
+    ``parts`` (from :func:`partition_windows`) lets the continuous composer share
+    one partition pass across landmark/leadtime instead of re-filtering.
     """
     n_landmarks = resolve_n_landmarks(meta, n_landmarks)
     window_unit = meta.get("window_unit")
     label_col = meta["label_column"]
+    if parts is None:
+        parts = partition_windows(preds)
+    empty = preds.clear()
 
-    # 1) classify every landmark in the parent (cheap polars filters). Each job
-    #    is (lm, tag, kind, slice) — forward slice = everyone still at risk at
+    # 1) classify every landmark in the parent. Each job is
+    #    (lm, tag, kind, slice) — forward slice = everyone still at risk at
     #    hospitalization time lm+1 (windows only exist pre-event/pre-discharge,
     #    so it is the honest deployed-model risk set, never anchored on outcome).
     jobs = []
     for lm in range(n_landmarks):
-        sl = preds.filter(pl.col("window_number") == lm + 1)
+        sl = parts.get(lm + 1, empty)
         tag = {"landmark_index": lm, "hospitalization_time": lm + 1,
                "window_unit": window_unit, "n": sl.height}
         if sl.height < MIN_LANDMARK_N:

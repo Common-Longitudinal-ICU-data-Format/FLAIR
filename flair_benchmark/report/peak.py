@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import polars as pl
 
+from flair_benchmark.report._confusion import nne_from_ppv
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import build_fairness
 
@@ -56,7 +57,9 @@ def _collapse_to_peak(preds: pl.DataFrame, meta: dict) -> pl.DataFrame:
             pl.len().alias("n_windows")]
     aggs += [pl.col(c).first().alias(c)
              for c in _CARRY_FIRST if c in preds.columns]
-    return preds.group_by(block).agg(aggs)
+    # .sort is load-bearing: group_by's row order is nondeterministic, and the
+    # seeded bootstrap resamples by row INDEX (see _ci's caller contract).
+    return preds.group_by(block).agg(aggs).sort(block)
 
 
 def _inject_nne(discrimination: dict) -> None:
@@ -70,18 +73,4 @@ def _inject_nne(discrimination: dict) -> None:
     op = discrimination.get("metrics", {}).get("operating_point")
     if not op:
         return
-    ppv = op.get("ppv")
-    if not ppv or ppv <= 0:
-        op["nne"] = None
-        op["nne_ci"] = None
-        return
-    op["nne"] = round(1.0 / ppv, 1)
-    ci = op.get("ppv_ci")
-    # 1/x is decreasing, so [ppv_lo, ppv_hi] -> [1/ppv_hi, 1/ppv_lo]; a zero
-    # lower PPV bound means an unbounded NNE upper bound (null).
-    if ci and ci[0] is not None and ci[1] is not None:
-        hi = round(1.0 / ci[0], 1) if ci[0] > 0 else None
-        lo = round(1.0 / ci[1], 1) if ci[1] > 0 else None
-        op["nne_ci"] = [lo, hi]
-    else:
-        op["nne_ci"] = None
+    op["nne"], op["nne_ci"] = nne_from_ppv(op.get("ppv"), op.get("ppv_ci"))

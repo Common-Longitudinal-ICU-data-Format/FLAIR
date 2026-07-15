@@ -26,6 +26,7 @@ from pathlib import Path
 
 import polars as pl
 
+from flair_benchmark._constants import REPORT_MODES
 from flair_benchmark.report.episodic import build_episodic_report
 
 __all__ = ["build_report"]
@@ -57,7 +58,6 @@ _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
 
 
 def build_report(preds_path: str, task_module, out_dir: str,
-                 episodic: bool = False,
                  cohort_path: str | None = None,
                  viz: bool = True, site: str | None = None,
                  mode: str | None = None) -> dict[str, Path]:
@@ -73,9 +73,8 @@ def build_report(preds_path: str, task_module, out_dir: str,
                    pillars (META['landmark_horizon'] landmarks) + leadtime with
                    the alert-vs-intervention timing arms.
 
-    `episodic=True` is a deprecated alias for `mode="episodic"`. When neither is
-    given, the mode is inferred from META.temporal_pattern (episode -> episodic;
-    continuous -> continuous).
+    When `mode` is omitted it is inferred from META.temporal_pattern
+    (episode -> episodic; continuous -> continuous).
     """
     from flair_benchmark import __version__
     from flair_benchmark._hash import task_script_sha256
@@ -100,7 +99,7 @@ def build_report(preds_path: str, task_module, out_dir: str,
         raise ValueError("'test' split is empty after filtering")
 
     block = "hospitalization_join_id"
-    mode = _resolve_mode(mode, episodic, meta.get("temporal_pattern"))
+    mode = _resolve_mode(mode, meta.get("temporal_pattern"))
 
     if mode == "episodic":
         n_stays = preds[block].n_unique()
@@ -176,11 +175,8 @@ def build_report(preds_path: str, task_module, out_dir: str,
     return paths
 
 
-def _resolve_mode(mode: str | None, episodic: bool,
-                  pattern: str | None) -> str:
-    """Pick episodic / continuous from the explicit flag, alias, or META."""
-    if mode is None and episodic:
-        mode = "episodic"            # deprecated --episodic alias
+def _resolve_mode(mode: str | None, pattern: str | None) -> str:
+    """Pick episodic / continuous from the explicit flag or META."""
     if mode is None:
         if pattern == "continuous":
             return "continuous"
@@ -194,9 +190,9 @@ def _resolve_mode(mode: str | None, episodic: bool,
             f"--mode {mode} was merged into --mode continuous: one bundle with "
             f"the peak section + per-landmark pillars + leadtime + "
             f"alert-vs-intervention timing.")
-    if mode not in {"episodic", "continuous"}:
+    if mode not in REPORT_MODES:
         raise ValueError(
-            f"Unknown --mode '{mode}'; expected episodic or continuous.")
+            f"Unknown --mode '{mode}'; expected one of {sorted(REPORT_MODES)}.")
     if mode == "episodic" and pattern == "continuous":
         warnings.warn(
             "--mode episodic on a continuous task collapses many rows per stay; "

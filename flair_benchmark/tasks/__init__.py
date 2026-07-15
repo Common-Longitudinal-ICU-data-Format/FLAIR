@@ -16,7 +16,7 @@ import importlib
 import pkgutil
 from types import ModuleType
 
-from flair_benchmark._constants import REPORT_MODES
+from flair_benchmark._constants import REPORT_MODES, TASK_POLICY
 
 TASK_CLASS_VALUES = {"outcome", "deterioration", "intervention", "operational"}
 TEMPORAL_PATTERN_VALUES = {"episode", "fixed_horizon", "continuous"}
@@ -54,6 +54,25 @@ def get_task(name: str) -> ModuleType:
 
 
 def _validate_taxonomy(task_name: str, meta: dict) -> None:
+    # META must agree with the module's own TASK_POLICY entry. Task files
+    # hand-type `**TASK_POLICY["<their own name>"]`, so a copy-pasted key would
+    # otherwise silently spread ANOTHER task's threshold/direction/dca_axis.
+    if meta.get("name") != task_name:
+        raise ValueError(
+            f"Task {task_name!r}: META['name'] = {meta.get('name')!r} must "
+            f"match the module filename."
+        )
+    policy = TASK_POLICY.get(task_name)
+    if policy is not None:
+        drifted = {k: (meta.get(k), v) for k, v in policy.items()
+                   if meta.get(k) != v}
+        if drifted:
+            raise ValueError(
+                f"Task {task_name!r}: META disagrees with "
+                f"_constants.TASK_POLICY[{task_name!r}] on {sorted(drifted)} "
+                f"(META vs policy: {drifted}). Spread the task's OWN policy "
+                f"entry into META and put policy changes in _constants.py."
+            )
     if meta.get("task_type") == "binary":
         t = meta.get("clinical_threshold")
         if not isinstance(t, (int, float)) or not 0 < t < 1:

@@ -438,7 +438,7 @@ def test_build_report_episodic_end_to_end(tmp_path):
 
     from flair_benchmark.report import build_report
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "report"),
-                         episodic=True)
+                         mode="episodic")
     jsons = {k: p for k, p in paths.items() if not k.endswith("_png")}
     assert set(jsons) == {"discrimination", "calibration", "dca", "fairness",
                           "operating_points"}
@@ -461,7 +461,7 @@ def test_build_report_always_scores_test_only(tmp_path):
 
     from flair_benchmark.report import build_report
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
-                         episodic=True)
+                         mode="episodic")
     disc = json.loads(paths["discrimination"].read_text())
     assert disc["metadata"]["n_stays"] == 200
     assert disc["metadata"]["split"] == "test"
@@ -472,7 +472,7 @@ def test_build_report_always_scores_test_only(tmp_path):
     no_test.write_parquet(no_test_path)
     with pytest.raises(ValueError, match="test"):
         build_report(str(no_test_path), _fake_task(), str(tmp_path / "r2"),
-                     episodic=True)
+                     mode="episodic")
 
 
 def test_build_report_requires_prediction_id(tmp_path):
@@ -483,7 +483,7 @@ def test_build_report_requires_prediction_id(tmp_path):
     from flair_benchmark.report import build_report
     with pytest.raises(ValueError, match="prediction_id"):
         build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
-                     episodic=True)
+                     mode="episodic")
 
 
 def test_build_report_requires_hospitalization_join_id(tmp_path):
@@ -495,7 +495,7 @@ def test_build_report_requires_hospitalization_join_id(tmp_path):
     from flair_benchmark.report import build_report
     with pytest.raises(ValueError, match="hospitalization_join_id"):
         build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
-                     episodic=True)
+                     mode="episodic")
 
 
 def test_build_report_rejects_same_join_id_in_train_and_test(tmp_path):
@@ -509,7 +509,7 @@ def test_build_report_rejects_same_join_id_in_train_and_test(tmp_path):
     from flair_benchmark.report import build_report
     with pytest.raises(ValueError, match="multiple splits"):
         build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
-                     episodic=True)
+                     mode="episodic")
 
 
 def test_build_report_continuous_mode_inferred(tmp_path):
@@ -526,12 +526,12 @@ def test_build_report_continuous_mode_inferred(tmp_path):
     with pytest.raises(ValueError, match="landmark_horizon"):
         build_report(str(preds_path),
                      SimpleNamespace(META=cont_meta, __file__=__file__),
-                     str(tmp_path / "r0"), episodic=False, viz=False)
+                     str(tmp_path / "r0"), viz=False)
 
     cont_meta = {**cont_meta, "landmark_horizon": 2}
     paths = build_report(str(preds_path),
                          SimpleNamespace(META=cont_meta, __file__=__file__),
-                         str(tmp_path / "r1"), episodic=False, viz=False)
+                         str(tmp_path / "r1"), viz=False)
     disc = json.loads(paths["discrimination"].read_text())
     assert disc["metadata"]["report_mode"] == "continuous"
     assert "peak" in disc and len(disc["landmarks"]) == 2
@@ -547,7 +547,7 @@ def test_build_report_rejects_multi_row_per_stay(tmp_path):
     from flair_benchmark.report import build_report
     with pytest.raises(ValueError, match="one row per stay"):
         build_report(str(preds_path), _fake_task(), str(tmp_path / "r"),
-                     episodic=True)
+                     mode="episodic")
 
 
 def test_build_report_cohort_join(tmp_path):
@@ -562,7 +562,7 @@ def test_build_report_cohort_join(tmp_path):
 
     from flair_benchmark.report import build_report
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "report"),
-                         cohort_path=str(cohort_path), episodic=True)
+                         cohort_path=str(cohort_path), mode="episodic")
     fairness = json.loads(paths["fairness"].read_text())
     assert "sex_category" in fairness["subgroups"]
 
@@ -575,7 +575,7 @@ def test_viz_renders_episodic_pngs(tmp_path):
 
     from flair_benchmark.report import build_report
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "report"),
-                         episodic=True, viz=True)
+                         mode="episodic", viz=True)
     pngs = {p.name for p in paths.values() if p.suffix == ".png"}
     assert pngs == {"roc_pr.png", "calibration.png", "dca.png", "fairness_auroc.png",
                     "operating_points.png"}

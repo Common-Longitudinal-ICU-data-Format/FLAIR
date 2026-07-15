@@ -61,7 +61,6 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
-    "clinical_action": "withdraw life support",
     # clinical_threshold, clinical_direction, report_mode — single-sourced
     **TASK_POLICY["task1_icu_daily_mortality"],
     "label_column": "label_mortality",

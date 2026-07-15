@@ -119,7 +119,6 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
-    "clinical_action": "treat with antibiotics",
     # clinical_threshold, clinical_direction, report_mode — single-sourced
     **TASK_POLICY["task4_sepsis_abx_6h"],
     "label_column": "label_sepsis_6h",

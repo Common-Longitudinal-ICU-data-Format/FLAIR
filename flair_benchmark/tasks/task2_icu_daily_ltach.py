@@ -60,7 +60,6 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
-    "clinical_action": "early tracheostomy",
     # clinical_threshold, clinical_direction, report_mode — single-sourced
     **TASK_POLICY["task2_icu_daily_ltach"],
     "label_column": "label_ltach",

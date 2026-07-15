@@ -29,13 +29,12 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from flair_benchmark.report._ci import bootstrap_ci
+from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED, bootstrap_ci
+from flair_benchmark.report._confusion import pct
 from flair_benchmark.report.discrimination import _operating_point
 
 SUBGROUP_COLS = ["sex_category", "race_category", "ethnicity_category", "age_bin"]
 MIN_SUBGROUP_N = 10
-_GAP_REPS = 500
-_GAP_SEED = 20260612
 
 
 def build_fairness(preds: pl.DataFrame, meta: dict,
@@ -134,11 +133,15 @@ def _overall_metrics(df: pl.DataFrame, label_col: str, meta: dict) -> dict:
 def _bin_age(df: pl.DataFrame) -> pl.DataFrame:
     if "age_at_admission" not in df.columns:
         return df
+    # A null age must yield a null bin (dropped from subgrouping, like every
+    # other demographic column) — a bare .otherwise("80+") would catch nulls,
+    # silently counting missing-age rows as 80+ patients in the equity blocks.
     return df.with_columns(
         pl.when(pl.col("age_at_admission") < 40).then(pl.lit("18-39"))
         .when(pl.col("age_at_admission") < 65).then(pl.lit("40-64"))
         .when(pl.col("age_at_admission") < 80).then(pl.lit("65-79"))
-        .otherwise(pl.lit("80+"))
+        .when(pl.col("age_at_admission") >= 80).then(pl.lit("80+"))
+        .otherwise(None)
         .alias("age_bin")
     )
 
@@ -214,28 +217,40 @@ def _eligible_levels(df: pl.DataFrame, group_col: str) -> list:
             if df.filter(pl.col(group_col) == lv).height >= MIN_SUBGROUP_N]
 
 
-def _gap_triplet(df: pl.DataFrame, group_col: str, label_col: str,
-                 levels: list):
+def encode_levels(values: np.ndarray, levels: list) -> np.ndarray:
+    """Integer codes for a PINNED level list (-1 = not one of the levels).
+
+    Encoding once lets the bootstrap index with numpy instead of re-filtering
+    a frame per level per replicate — same semantics, one implementation for
+    fairness.py AND operating_points._fairness_by_threshold.
+    """
+    codes = np.full(len(values), -1, dtype=int)
+    for k, lv in enumerate(levels):
+        codes[values == lv] = k
+    return codes
+
+
+def gap_triplet(codes: np.ndarray, label: np.ndarray, pred: np.ndarray,
+                n_levels: int) -> tuple[float | None, float | None, float | None]:
     """(dp_gap, tpr_gap, fpr_gap) over a FIXED set of subgroup levels.
 
-    `levels` is pinned from the full data (n>=MIN there); inside a bootstrap
+    Levels are pinned from the full data (n>=MIN there); inside a bootstrap
     resample we do NOT re-apply the n<10 drop, so the gap is always taken over
     the same group set. If a pinned level vanishes in a resample (0 rows), the
     whole triplet is None so that resample is discarded — keeps the CI honest
     instead of silently shrinking the comparison set.
     """
     pos_rates, tprs, fprs = [], [], []
-    for level in levels:
-        sub = df.filter(pl.col(group_col) == level)
-        if sub.height == 0:
+    for k in range(n_levels):
+        m = codes == k
+        if not m.any():
             return None, None, None
-        y_true = sub[label_col].to_numpy().astype(float)
-        y_pred = sub["y_pred"].to_numpy()
-        pos_rates.append(float(y_pred.mean()) if len(y_pred) else 0.0)
-        if (y_true == 1).any():
-            tprs.append(float((y_pred[y_true == 1] == 1).mean()))
-        if (y_true == 0).any():
-            fprs.append(float((y_pred[y_true == 0] == 1).mean()))
+        lab_k, pred_k = label[m], pred[m]
+        pos_rates.append(float(pred_k.mean()))
+        if (lab_k == 1).any():
+            tprs.append(float(pred_k[lab_k == 1].mean()))
+        if (lab_k == 0).any():
+            fprs.append(float(pred_k[lab_k == 0].mean()))
     if len(pos_rates) < 2:
         return None, None, None
     dp = max(pos_rates) - min(pos_rates)
@@ -251,7 +266,10 @@ def _parity_gaps(df: pl.DataFrame, group_col: str, label_col: str,
     levels = _eligible_levels(df, group_col)
     if len(levels) < 2:
         return {}
-    dp, tpr_gap, fpr_gap = _gap_triplet(df, group_col, label_col, levels)
+    codes = encode_levels(df[group_col].to_numpy(), levels)
+    label = df[label_col].to_numpy().astype(int)
+    pred = df["y_pred"].to_numpy().astype(int)
+    dp, tpr_gap, fpr_gap = gap_triplet(codes, label, pred, len(levels))
     if dp is None:
         return {}
     out = {
@@ -259,26 +277,24 @@ def _parity_gaps(df: pl.DataFrame, group_col: str, label_col: str,
         "equalized_odds_tpr_gap": None if tpr_gap is None else round(tpr_gap, 4),
         "equalized_odds_fpr_gap": None if fpr_gap is None else round(fpr_gap, 4),
     }
-    out.update(_parity_gap_ci(df, group_col, label_col, levels))
+    out.update(_parity_gap_ci(codes, label, pred, len(levels)))
     return out
 
 
-def _parity_gap_ci(df: pl.DataFrame, group_col: str, label_col: str,
-                   levels: list) -> dict:
+def _parity_gap_ci(codes: np.ndarray, label: np.ndarray, pred: np.ndarray,
+                   n_levels: int) -> dict:
     """95% CI for each parity gap by resampling rows (= stays in episodic).
 
-    The subgroup set is pinned to `levels` (eligible in the full data); a CI is
-    None when too few resamples keep every pinned group populated.
+    The subgroup set is pinned (eligible in the full data, encoded in `codes`);
+    a CI is None when too few resamples keep every pinned group populated.
     """
-    rng = np.random.default_rng(_GAP_SEED)
-    n = df.height
-    keep = [c for c in (group_col, label_col, "y_pred") if c in df.columns]
-    sub = df.select(keep)
+    rng = np.random.default_rng(BOOT_SEED)
+    n = len(label)
     dps, tprs, fprs = [], [], []
-    for _ in range(_GAP_REPS):
+    for _ in range(BOOT_REPS):
         idx = rng.integers(0, n, n)
-        boot = sub[idx]
-        dp, tpr_gap, fpr_gap = _gap_triplet(boot, group_col, label_col, levels)
+        dp, tpr_gap, fpr_gap = gap_triplet(codes[idx], label[idx], pred[idx],
+                                           n_levels)
         if dp is not None:
             dps.append(dp)
         if tpr_gap is not None:
@@ -286,14 +302,7 @@ def _parity_gap_ci(df: pl.DataFrame, group_col: str, label_col: str,
         if fpr_gap is not None:
             fprs.append(fpr_gap)
     return {
-        "demographic_parity_gap_ci": _pct(dps),
-        "equalized_odds_tpr_gap_ci": _pct(tprs),
-        "equalized_odds_fpr_gap_ci": _pct(fprs),
+        "demographic_parity_gap_ci": pct(dps, BOOT_REPS),
+        "equalized_odds_tpr_gap_ci": pct(tprs, BOOT_REPS),
+        "equalized_odds_fpr_gap_ci": pct(fprs, BOOT_REPS),
     }
-
-
-def _pct(vals: list[float]) -> list[float] | None:
-    if len(vals) < _GAP_REPS // 2:
-        return None
-    lo, hi = np.percentile(vals, [2.5, 97.5])
-    return [round(float(lo), 4), round(float(hi), 4)]

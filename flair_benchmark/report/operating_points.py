@@ -47,11 +47,12 @@ threshold from META and clinical ± 0.05 — three points, unless an offset land
 the open interval (0, 1), in which case it is dropped and recorded in
 ``metadata.dropped_offsets`` (see ``threshold_grid``). At EACH threshold it produces:
 
-  confusion    : model ALERT × LABEL per stay (fired = the stay ever crosses the
-                 threshold, direction-aware; label = ever-positive) → {TP,FP,FN,TN}
-                 + sensitivity / specificity / FPR / PPV / NPV / NNE / F1 /
-                 flag-rate, each with a 500-rep stay bootstrap CI. MANDATORY for
-                 every continuous task — no config needed.
+  confusion    : model ALARM × LABEL per stay (fired = the stay ever crossed
+                 ABOVE the threshold, in BOTH directions — the same alarm
+                 convention as the episodic scorecard; label = ever-positive)
+                 → {TP,FP,FN,TN} + sensitivity / specificity / FPR / PPV / NPV /
+                 NNE / F1 / flag-rate, each with a 500-rep stay bootstrap CI.
+                 MANDATORY for every continuous task — no config needed.
   sub_analyses : OPTIONAL, present only when the task declares an
                  ``intervention`` config ``{"column", "display"}`` naming a
                  per-stay treatment-time column in the cohort. Three arms keyed on
@@ -84,16 +85,32 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED, bootstrap_ci
-from flair_benchmark.report._suppress import MIN_CELL_COUNT, suppress
-from flair_benchmark.report.dca import (
-    _net_benefit,
+from flair_benchmark.report._basis import (
+    action_expr,
+    alarm_expr,
     axis_threshold,
+    net_benefit,
     net_benefit_all,
     to_decision_basis,
 )
-from flair_benchmark.report.discrimination import _confusion_metric, _operating_point
-from flair_benchmark.report.fairness import MIN_SUBGROUP_N, SUBGROUP_COLS, _bin_age
+from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED, bootstrap_ci, scalar_ci
+from flair_benchmark.report._confusion import (
+    confusion_counts,
+    confusion_metric,
+    mk_stat,
+    nne_from_ppv,
+    pct,
+    r1,
+)
+from flair_benchmark.report._suppress import MIN_CELL_COUNT, suppress
+from flair_benchmark.report.discrimination import _operating_point
+from flair_benchmark.report.fairness import (
+    MIN_SUBGROUP_N,
+    SUBGROUP_COLS,
+    _bin_age,
+    encode_levels,
+    gap_triplet,
+)
 
 _BLOCK = "hospitalization_join_id"
 _DELTAS = (-0.05, 0.0, 0.05)   # continuous: clinical threshold and ±0.05
@@ -104,11 +121,10 @@ _DELTAS = (-0.05, 0.0, 0.05)   # continuous: clinical threshold and ±0.05
 _EPISODIC_OFFSETS = (-0.10, -0.05, 0.0, 0.05, 0.10)
 
 
-def alert_expr(threshold: float, direction: str) -> pl.Expr:
-    """Direction-aware alert: p < t when the action fires on LOW risk."""
-    if direction == "below":
-        return pl.col("y_prob") < threshold
-    return pl.col("y_prob") >= threshold
+# Direction-aware alert (ACTION basis: p < t when the action fires on LOW risk).
+# Single-sourced in report/_basis.py; kept under its historical name because the
+# timing/first-alert consumers (here and leadtime.py) import it as alert_expr.
+alert_expr = action_expr
 
 
 def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
@@ -175,16 +191,32 @@ def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
 
 def _agg_at(preds: pl.DataFrame, t: float, direction: str, iv_col: str | None,
             has_dttm: bool, label_col: str) -> pl.DataFrame:
-    """One row per stay at threshold t: label, fired, first-alert + treatment ts."""
-    alert = alert_expr(t, direction)
+    """One row per stay at threshold t: label + BOTH firing bases + timestamps.
+
+    TWO BASES, TWO COLUMNS (see report/_basis.py):
+      fired : ALARM basis — the stay ever crossed ABOVE the threshold, in BOTH
+              directions. Feeds the confusion matrix, so sensitivity/PPV always
+              mean "how well do we detect the event" (identical to the episodic
+              scorecard's convention; scoring the action instead would book
+              "acted AND the event happened" as a TP on a 'below' task).
+      acted : ACTION basis — the stay ever crossed on the DECISION side (p < t
+              for a 'below' task). Feeds the timing sub-analyses and first-alert
+              time, where "did the model fire before treatment" is genuinely
+              direction-dependent.
+    For an 'above' task the two coincide.
+    """
+    action = action_expr(t, direction)
     aggs = [(pl.col(label_col).max() > 0).cast(pl.Int8).alias("label"),
-            alert.any().alias("fired")]
+            alarm_expr(t).any().alias("fired"),
+            action.any().alias("acted")]
     if has_dttm:
-        aggs += [pl.col("prediction_dttm").filter(alert).min().alias("first_alert_dttm"),
+        aggs += [pl.col("prediction_dttm").filter(action).min().alias("first_alert_dttm"),
                  pl.col("prediction_dttm").min().alias("_stay_start_dttm")]
     if iv_col is not None:
         aggs.append(pl.col(iv_col).min().alias("_treat_dttm"))
-    return preds.group_by(_BLOCK).agg(aggs)
+    # .sort is load-bearing: group_by's row order is nondeterministic, and the
+    # seeded bootstrap resamples by row INDEX (see _ci's caller contract).
+    return preds.group_by(_BLOCK).agg(aggs).sort(_BLOCK)
 
 
 # --------------------------------------------------------------- confusion matrix
@@ -195,18 +227,17 @@ def _confusion_at(label: np.ndarray, fired: np.ndarray, t: float) -> dict:
     lab = label.astype(int)
     fire = fired.astype(bool)
     n = len(lab)
-    tp = int((fire & (lab == 1)).sum())
-    fp = int((fire & (lab == 0)).sum())
-    fn = int((~fire & (lab == 1)).sum())
-    tn = int((~fire & (lab == 0)).sum())
+    tp, fp, fn, tn = confusion_counts(lab, fire)
 
-    fns = {k: _confusion_stat(k)
+    # mk_stat(0.5, k) over the fired-as-0/1 column recovers the fired mask
+    # exactly (alarm-convention threshold on a {0.0, 1.0} array).
+    fns = {k: mk_stat(0.5, k)
            for k in ("sensitivity", "specificity", "ppv", "npv", "f1", "fpr")}
     ci = bootstrap_ci(lab, fire.astype(float), fns)
-    point = {k: _confusion_metric(tp, fp, fn, tn, k)
+    point = {k: confusion_metric(tp, fp, fn, tn, k)
              for k in ("sensitivity", "specificity", "ppv", "npv", "f1")}
-    fpr = fp / (fp + tn) if (fp + tn) else None
-    nne, nne_ci = _nne_from_ppv(point["ppv"], ci.get("ppv"))
+    fpr = confusion_metric(tp, fp, fn, tn, "fpr")
+    nne, nne_ci = nne_from_ppv(point["ppv"], ci.get("ppv"))
     return {
         "threshold": round(float(t), 4),
         "n": n,
@@ -220,33 +251,6 @@ def _confusion_at(label: np.ndarray, fired: np.ndarray, t: float) -> dict:
     }
 
 
-def _confusion_stat(name: str):
-    """Bootstrap stat_fn over (label, fired-as-0/1): one confusion rate."""
-    def _fn(yt: np.ndarray, yp: np.ndarray) -> float | None:
-        pred = yp >= 0.5
-        tp = int((pred & (yt == 1)).sum())
-        fp = int((pred & (yt == 0)).sum())
-        fn = int((~pred & (yt == 1)).sum())
-        tn = int((~pred & (yt == 0)).sum())
-        if name == "fpr":
-            return fp / (fp + tn) if (fp + tn) else None
-        return _confusion_metric(tp, fp, fn, tn, name)
-    return _fn
-
-
-def _nne_from_ppv(ppv: float | None,
-                  ci: list[float] | None) -> tuple[float | None, list | None]:
-    """NNE = 1/PPV (alarms per true positive); CI is the inverted PPV CI."""
-    if not ppv or ppv <= 0:
-        return None, None
-    nne = round(1.0 / ppv, 1)
-    if ci and ci[0] is not None and ci[1] is not None:
-        hi = round(1.0 / ci[0], 1) if ci[0] > 0 else None
-        lo = round(1.0 / ci[1], 1) if ci[1] > 0 else None
-        return nne, [lo, hi]
-    return nne, None
-
-
 # ------------------------------------------------------------------ sub-analyses
 
 
@@ -256,11 +260,11 @@ def _positive_arm(agg: pl.DataFrame, has_dttm: bool) -> dict:
     n = pos.height
     if n < MIN_CELL_COUNT:
         return {"n_stays": suppress(n), "suppressed": True}
-    n_fired = int(pos["fired"].sum())
+    n_fired = int(pos["acted"].sum())
     arm: dict = {"n_stays": n, "n_fired": suppress(n_fired),
                  "pct_fired": round(n_fired / n, 4)}
     if has_dttm:
-        fp = pos.filter(pl.col("fired") & pl.col("_treat_dttm").is_not_null()
+        fp = pos.filter(pl.col("acted") & pl.col("_treat_dttm").is_not_null()
                         & pl.col("first_alert_dttm").is_not_null())
         # positive = alarm fired BEFORE the treatment time.
         hb = ((pl.col("_treat_dttm") - pl.col("first_alert_dttm"))
@@ -280,11 +284,11 @@ def _treated_negative_arm(agg: pl.DataFrame, has_dttm: bool) -> dict:
     n = neg.height
     if n < MIN_CELL_COUNT:
         return {"n": suppress(n), "suppressed": True}
-    n_fired = int(neg["fired"].sum())
+    n_fired = int(neg["acted"].sum())
     arm: dict = {"n": n, "n_fired": suppress(n_fired),
                  "pct_fired": round(n_fired / n, 4)}
     if has_dttm:
-        fr = neg.filter(pl.col("fired") & pl.col("first_alert_dttm").is_not_null())
+        fr = neg.filter(pl.col("acted") & pl.col("first_alert_dttm").is_not_null())
         hb = ((pl.col("_treat_dttm") - pl.col("first_alert_dttm"))
               .dt.total_seconds() / 3600)
         arm["hours_before_treatment"] = _delta_summary(
@@ -298,7 +302,7 @@ def _untreated_negative_arm(agg: pl.DataFrame) -> dict:
     n = neg.height
     if n < MIN_CELL_COUNT:
         return {"n": suppress(n), "suppressed": True}
-    fired = neg["fired"].to_numpy().astype(float)
+    fired = neg["acted"].to_numpy().astype(float)
     n_mis = int(fired.sum())
     return {"n": n, "n_misfired": suppress(n_mis),
             "misfire_rate": round(float(fired.mean()), 4),
@@ -321,9 +325,7 @@ def _delta_summary(deltas: np.ndarray) -> dict | None:
     out = {
         "n": len(deltas),
         "median": round(float(np.median(deltas)), 2),
-        "median_ci": bootstrap_ci(
-            deltas, deltas,
-            {"median": lambda a, _b: float(np.median(a))})["median"],
+        "median_ci": scalar_ci(deltas),
         "mean": round(float(deltas.mean()), 2),
         "p10": round(float(p10), 2), "p25": round(float(p25), 2),
         "p75": round(float(p75), 2), "p90": round(float(p90), 2),
@@ -373,13 +375,11 @@ def _intervention_offsets(agg: pl.DataFrame, window_unit: str | None,
 
 def _rate_ci(indicator: np.ndarray) -> list[float] | None:
     """Stay-bootstrap 95% CI of a proportion (mean of a 0/1 indicator)."""
-    return bootstrap_ci(
-        indicator, indicator,
-        {"rate": lambda a, _b: float(a.mean())})["rate"]
+    return scalar_ci(indicator, stat=np.mean)
 
 
-def _r1(x) -> float | None:
-    return None if x is None else round(float(x), 4)
+# report-standard 4-dp scalar rounding, single-sourced in _confusion.py
+_r1 = r1
 
 
 # ============================================================ EPISODIC SCORECARD
@@ -489,21 +489,31 @@ def _episodic_entry(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
     (dca.to_decision_basis), which is the frame the clinician decides in — so the
     number here IS dca.json's curve at dca_threshold, not a second opinion.
     """
-    op = _operating_point(y_true, y_prob, meta, t=t)
+    # ONE bootstrap loop per grid point: fpr and the decision-basis net benefit
+    # ride the confusion stats' resample stream via extra_stats (same seed and
+    # indices as separate calls, ~3x less resampling work).
+    direction = meta.get("clinical_direction", "above")
+    below = direction == "below"
+    t_axis = axis_threshold(t, direction)
+
+    def _nb_stat(yt: np.ndarray, yp: np.ndarray) -> float | None:
+        return net_benefit(*to_decision_basis(yt, yp, direction), t_axis,
+                           strict=below)
+
+    op = _operating_point(y_true, y_prob, meta, t=t,
+                          extra_stats={"fpr": mk_stat(t, "fpr"),
+                                       "nb": _nb_stat})
+    extra_ci = op.pop("_extra_ci")
     n = len(y_true)
-    pred = y_prob >= t
-    n_flagged = int(pred.sum())
-    tp = int((pred & (y_true == 1)).sum())
-    fp = n_flagged - tp
-    fn = int((~pred & (y_true == 1)).sum())
-    tn = n - n_flagged - fn
+    tp, fp, fn, tn = confusion_counts(y_true, y_prob >= t)
+    n_flagged = tp + fp
 
     rates = {k: op.get(k) for k in
              ("sensitivity", "specificity", "ppv", "npv", "f1")}
     cis = {f"{k}_ci": op.get(f"{k}_ci") for k in rates}
-    fpr = fp / (fp + tn) if (fp + tn) else None
-    fpr_ci = bootstrap_ci(y_true, y_prob, {"fpr": _fpr_stat(t)})["fpr"]
-    nne, nne_ci = _nne_from_ppv(rates["ppv"], cis["ppv_ci"])
+    fpr = confusion_metric(tp, fp, fn, tn, "fpr")
+    fpr_ci = extra_ci["fpr"]
+    nne, nne_ci = nne_from_ppv(rates["ppv"], cis["ppv_ci"])
 
     metrics: dict = {
         **{k: _r1(v) for k, v in rates.items()}, **cis,
@@ -518,7 +528,8 @@ def _episodic_entry(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
                       "tp": suppress(tp), "fp": suppress(fp),
                       "fn": suppress(fn), "tn": suppress(tn)},
         "metrics": metrics,
-        "decision": _decision_at(y_true, y_prob, meta, t, op),
+        "decision": _decision_at(y_true, y_prob, meta, t, op,
+                                 nb_ci=extra_ci["nb"]),
     }
 
     # A threshold that flags almost nobody yields a PPV derived from a handful of
@@ -536,7 +547,8 @@ def _episodic_entry(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
 
 
 def _decision_at(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
-                 t: float, op: dict) -> dict:
+                 t: float, op: dict,
+                 nb_ci: list[float] | None = None) -> dict:
     """The act taken at t, and what it is worth — all on the DECISION basis.
 
     Absorbs discrimination._action_block (who gets acted on, and the observed event
@@ -545,13 +557,18 @@ def _decision_at(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
     `net_benefit` here equals dca.json's curve at `dca_threshold` by construction.
     """
     direction = meta.get("clinical_direction", "above")
+    below = direction == "below"
     action = dict(op.get("action") or {})
     t_axis = axis_threshold(t, direction)
     yt, yp = to_decision_basis(y_true, y_prob, direction)
 
-    nb = _net_benefit(yt, yp, t_axis)
-    nb_ci = bootstrap_ci(
-        yt, yp, {"nb": lambda a, b: _net_benefit(a, b, t_axis)})["nb"]
+    # strict > on the complement basis: the acted arm is exactly the shipped
+    # action (p_fail < t) — same boundary convention as dca.py / _basis.py.
+    nb = net_benefit(yt, yp, t_axis, strict=below)
+    if nb_ci is None:                      # not precomputed by the caller's loop
+        nb_ci = bootstrap_ci(
+            yt, yp, {"nb": lambda a, b: net_benefit(a, b, t_axis,
+                                                    strict=below)})["nb"]
     prev = float(yt.mean()) if len(yt) else None
     nb_all = None if prev is None else net_benefit_all(prev, t_axis)
 
@@ -576,16 +593,6 @@ def _decision_at(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
         out["suppressed_reason"] = (
             f"fewer than {MIN_CELL_COUNT} stays acted on at this threshold")
     return out
-
-
-def _fpr_stat(t: float):
-    """Bootstrap stat_fn: false-positive rate at threshold t (alarm convention)."""
-    def _fn(yt: np.ndarray, yp: np.ndarray) -> float | None:
-        pred = yp >= t
-        fp = int((pred & (yt == 0)).sum())
-        tn = int((~pred & (yt == 0)).sum())
-        return fp / (fp + tn) if (fp + tn) else None
-    return _fn
 
 
 # ------------------------------------------------- per-threshold subgroup equity
@@ -629,10 +636,7 @@ def _fairness_by_threshold(preds: pl.DataFrame, meta: dict,
                   if int((values == lv).sum()) >= MIN_SUBGROUP_N]
         if len(levels) < 2:
             continue
-        codes = np.full(len(values), -1, dtype=int)
-        for k, lv in enumerate(levels):
-            codes[values == lv] = k
-        pinned[col] = (codes, [str(lv) for lv in levels])
+        pinned[col] = (encode_levels(values, levels), [str(lv) for lv in levels])
     if not pinned:
         return None
 
@@ -663,10 +667,13 @@ def _fairness_by_threshold(preds: pl.DataFrame, meta: dict,
     for _ in range(BOOT_REPS):
         idx = rng.integers(0, n, n)
         lab_b = label[idx]
-        for ti, pred in enumerate(preds_at):
-            pred_b = pred[idx]
-            for col, (codes, levels) in pinned.items():
-                dp, tg, fg = _gaps(codes[idx], lab_b, pred_b, len(levels))
+        # gather once per (replicate, array): codes/pred depend only on idx,
+        # not on the (threshold, column) pair the inner loops iterate.
+        preds_b = [pred[idx] for pred in preds_at]
+        codes_b = {col: codes[idx] for col, (codes, _lv) in pinned.items()}
+        for ti, pred_b in enumerate(preds_b):
+            for col, (_codes, levels) in pinned.items():
+                dp, tg, fg = _gaps(codes_b[col], lab_b, pred_b, len(levels))
                 for name, val in (("demographic_parity_gap", dp),
                                   ("equalized_odds_tpr_gap", tg),
                                   ("equalized_odds_fpr_gap", fg)):
@@ -678,8 +685,7 @@ def _fairness_by_threshold(preds: pl.DataFrame, meta: dict,
             for name in ("demographic_parity_gap", "equalized_odds_tpr_gap",
                          "equalized_odds_fpr_gap"):
                 vals = samples.get((ti, col, name), [])
-                block["parity"][col][f"{name}_ci"] = (
-                    _pct(vals) if len(vals) >= BOOT_REPS // 2 else None)
+                block["parity"][col][f"{name}_ci"] = pct(vals, BOOT_REPS)
     return per_threshold
 
 
@@ -695,32 +701,6 @@ def _level_rates(label: np.ndarray, pred: np.ndarray) -> dict:
     }
 
 
-def _gaps(codes: np.ndarray, label: np.ndarray, pred: np.ndarray,
-          n_levels: int) -> tuple[float | None, float | None, float | None]:
-    """(demographic parity, equalized-odds TPR, equalized-odds FPR) gaps.
-
-    Returns all-None if a pinned level is empty in this (re)sample — the caller
-    discards the replicate rather than comparing a shrunken set of groups.
-    """
-    pos_rates, tprs, fprs = [], [], []
-    for k in range(n_levels):
-        m = codes == k
-        if not m.any():
-            return None, None, None
-        lab_k, pred_k = label[m], pred[m]
-        pos_rates.append(float(pred_k.mean()))
-        if (lab_k == 1).any():
-            tprs.append(float(pred_k[lab_k == 1].mean()))
-        if (lab_k == 0).any():
-            fprs.append(float(pred_k[lab_k == 0].mean()))
-    if len(pos_rates) < 2:
-        return None, None, None
-    dp = max(pos_rates) - min(pos_rates)
-    tg = max(tprs) - min(tprs) if len(tprs) >= 2 else None
-    fg = max(fprs) - min(fprs) if len(fprs) >= 2 else None
-    return dp, tg, fg
-
-
-def _pct(vals: list[float]) -> list[float]:
-    lo, hi = np.percentile(vals, [2.5, 97.5])
-    return [round(float(lo), 4), round(float(hi), 4)]
+# parity-gap arithmetic is single-sourced in fairness.py (gap_triplet) — the
+# per-threshold sweep here and fairness.json must agree by construction.
+_gaps = gap_triplet

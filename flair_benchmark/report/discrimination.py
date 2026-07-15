@@ -21,8 +21,20 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
+from flair_benchmark.report._basis import action_mask, alarm_mask
 from flair_benchmark.report._ci import bootstrap_ci
+from flair_benchmark.report._confusion import (
+    confusion_counts,
+    confusion_metric,
+    mk_stat,
+    r1,
+)
 from flair_benchmark.report._suppress import suppress
+
+# Backward-compatible private aliases (other report modules import these).
+_confusion_metric = confusion_metric
+_mk_stat = mk_stat
+_r1 = r1
 
 MAX_POINTS = 500
 GRID_FPR = np.round(np.arange(0.0, 1.0001, 0.01), 2)   # fixed, site-invariant
@@ -89,7 +101,10 @@ def _roc_points(y_true: np.ndarray, y_prob: np.ndarray) -> tuple[dict, dict]:
     tpr_at_grid = np.interp(GRID_FPR, fpr, tpr)
     dfpr, dtpr, dthr = _downsample3(fpr, tpr, thr, MAX_POINTS)
     curve = {
-        "fpr": _r(dfpr), "tpr": _r(dtpr), "thresholds": _r(dthr),
+        # _r_finite: sklearn >= 1.3 puts np.inf first in roc_curve thresholds;
+        # json.dumps would emit the bare token `Infinity`, which is not valid
+        # JSON (RFC 8259) and breaks strict parsers (JS JSON.parse) downstream.
+        "fpr": _r(dfpr), "tpr": _r(dtpr), "thresholds": _r_finite(dthr),
         "grid_fpr": _r(GRID_FPR), "tpr_at_grid": _r(tpr_at_grid),
     }
     metrics = {"auroc": None if auroc is None else round(float(auroc), 4),
@@ -118,7 +133,8 @@ def _pr_points(y_true: np.ndarray, y_prob: np.ndarray,
 
 
 def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
-                     t: float | None = None) -> dict:
+                     t: float | None = None,
+                     extra_stats: dict | None = None) -> dict:
     """Confusion-derived metrics at a threshold (label space).
 
     ``t`` defaults to the task's clinical threshold (META `clinical_threshold`).
@@ -132,6 +148,11 @@ def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
 
     Each rate carries a 95% bootstrap CI; confusion counts pass through
     suppress() for PHI safety.
+
+    ``extra_stats`` ({name: stat_fn}) piggyback on the SAME bootstrap loop
+    (one resample stream for everything); their CIs come back under the
+    ``"_extra_ci"`` key for the caller to pop — they are NOT published here,
+    so this block's JSON shape never changes.
     """
     if t is None:
         t = meta.get("clinical_threshold")
@@ -139,22 +160,20 @@ def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
     if t is None:
         return {"reason": "no clinical_threshold in META"}
 
-    pred = y_prob >= t
+    pred = alarm_mask(y_prob, t)
     n = len(y_true)
     n_flag = int(pred.sum())
-    tp = int((pred & (y_true == 1)).sum())
-    fp = n_flag - tp
-    fn = int((~pred & (y_true == 1)).sum())
-    tn = n - n_flag - fn
+    tp, fp, fn, tn = confusion_counts(y_true, pred)
 
-    fns = {"sensitivity": _mk_stat(t, "sensitivity"),
-           "specificity": _mk_stat(t, "specificity"),
-           "ppv": _mk_stat(t, "ppv"), "npv": _mk_stat(t, "npv"),
-           "f1": _mk_stat(t, "f1")}
+    fns = {k: mk_stat(t, k)
+           for k in ("sensitivity", "specificity", "ppv", "npv", "f1")}
+    fns.update(extra_stats or {})
     ci = bootstrap_ci(y_true, y_prob, fns)
-    point = {k: _confusion_metric(tp, fp, fn, tn, k)
+    point = {k: confusion_metric(tp, fp, fn, tn, k)
              for k in ("sensitivity", "specificity", "ppv", "npv", "f1")}
+    extra_ci = ({k: ci[k] for k in extra_stats} if extra_stats else None)
     return {
+        **({"_extra_ci": extra_ci} if extra_ci is not None else {}),
         "threshold": t,
         "direction": direction,
         # sens/spec/PPV/NPV/F1 are reported in risk-classifier convention
@@ -180,7 +199,7 @@ def _action_block(y_true: np.ndarray, y_prob: np.ndarray, t: float,
     else p >= t. Reports how many are acted on and the observed event rate in
     each arm — the numbers that flip with direction (unlike sens/spec above).
     """
-    acted = (y_prob < t) if direction == "below" else (y_prob >= t)
+    acted = action_mask(y_prob, t, direction)
     n = len(y_true)
     n_act = int(acted.sum())
     ev_act = float(y_true[acted].mean()) if n_act else None
@@ -193,33 +212,6 @@ def _action_block(y_true: np.ndarray, y_prob: np.ndarray, t: float,
         "event_rate_in_acted": None if ev_act is None else round(ev_act, 4),
         "event_rate_in_not_acted": None if ev_not is None else round(ev_not, 4),
     }
-
-
-def _confusion_metric(tp: int, fp: int, fn: int, tn: int, name: str) -> float | None:
-    if name == "sensitivity":
-        return tp / (tp + fn) if (tp + fn) else None
-    if name == "specificity":
-        return tn / (tn + fp) if (tn + fp) else None
-    if name == "ppv":
-        return tp / (tp + fp) if (tp + fp) else None
-    if name == "npv":
-        return tn / (tn + fn) if (tn + fn) else None
-    if name == "f1":
-        return 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) else None
-    return None
-
-
-def _mk_stat(t: float, name: str):
-    """Bootstrap stat_fn: recompute one confusion metric at threshold t."""
-    def _fn(yt: np.ndarray, yp: np.ndarray) -> float | None:
-        pred = yp >= t
-        n_flag = int(pred.sum())
-        tp = int((pred & (yt == 1)).sum())
-        fp = n_flag - tp
-        fn = int((~pred & (yt == 1)).sum())
-        tn = len(yt) - n_flag - fn
-        return _confusion_metric(tp, fp, fn, tn, name)
-    return _fn
 
 
 def _multiclass_curves(test: pl.DataFrame, label_col: str,
@@ -247,7 +239,8 @@ def _multiclass_curves(test: pl.DataFrame, label_col: str,
             continue
         fpr, tpr, thr = roc_curve(y_bin, y_prob_c)
         fpr, tpr, thr = _downsample3(fpr, tpr, thr, MAX_POINTS)
-        per_class[name] = {"fpr": _r(fpr), "tpr": _r(tpr), "thresholds": _r(thr)}
+        per_class[name] = {"fpr": _r(fpr), "tpr": _r(tpr),
+                           "thresholds": _r_finite(thr)}
     return {"class_order": display,
             "confusion_matrix": cm.tolist(),
             "per_class_roc": per_class}
@@ -279,5 +272,7 @@ def _r(xs) -> list:
     return [round(float(x), 6) for x in xs]
 
 
-def _r1(x) -> float | None:
-    return None if x is None else round(float(x), 4)
+def _r_finite(xs) -> list:
+    """Like _r, but non-finite values (the inf ROC threshold sentinel) → None,
+    so every exported array is strict-JSON serializable."""
+    return [round(float(x), 6) if np.isfinite(x) else None for x in xs]

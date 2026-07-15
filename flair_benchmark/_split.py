@@ -23,11 +23,24 @@ before splitting (current year not fully ETL'd). MIMIC is exempt (de-identified 
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date
 
 import polars as pl
 
 from flair_benchmark._constants import DATA_CUTOFF
+
+
+def _stable_digest(group_id: str) -> str:
+    """Version-stable shuffle key: sha256 of the group id string.
+
+    NOT ``pl.Expr.hash`` — polars documents its hash as unstable across
+    releases, so a polars upgrade would silently re-deal the MIMIC train/test
+    split (a model trained pre-upgrade would be scored on a test set containing
+    its own training stays). sha256 of the id string is identical forever, on
+    every machine and every library version.
+    """
+    return hashlib.sha256(str(group_id).encode("utf-8")).hexdigest()
 
 
 def assign_split(cohort: pl.DataFrame, site: str,
@@ -88,10 +101,14 @@ def _random_split_by_group(cohort: pl.DataFrame, split_col: str,
     """Assign 'train'/'test' once per ``split_col`` group at RANDOM (block-grain).
 
     Used for MIMIC, whose admission dates are de-identified/shifted so temporal order
-    carries no meaning. Order is a deterministic hash of the group id (``seed=0``), so
-    the split is random-looking yet reproducible across runs and machines; the first
-    ``train_ratio`` of the hash-ordered groups are 'train'. Falls back to a per-row
-    hash split only if ``split_col`` is absent.
+    carries no meaning. Order is the sha256 digest of the group id (see
+    ``_stable_digest`` — polars' own ``.hash`` is version-unstable), so the split
+    is random-looking yet reproducible across runs, machines AND library
+    versions; the first ``train_ratio`` of the digest-ordered groups are 'train'.
+    Falls back to a per-row split only if ``split_col`` is absent.
+
+    Split-version note: builds before 2026-07 ordered by ``pl.Expr.hash(seed=0)``;
+    this deal supersedes them.
     """
     if split_col not in cohort.columns:
         # No block key (rare): deterministic per-row split by row order.
@@ -103,8 +120,10 @@ def _random_split_by_group(cohort: pl.DataFrame, split_col: str,
         ).drop("_row_num")
 
     groups = (
-        cohort.group_by(split_col)
-        .agg(pl.col(split_col).first().hash(seed=0).alias("_h"))
+        cohort.select(pl.col(split_col).unique())
+        .with_columns(
+            pl.col(split_col).cast(pl.Utf8)
+            .map_elements(_stable_digest, return_dtype=pl.Utf8).alias("_h"))
         .sort(["_h", split_col])
         .with_row_index("_gi")
     )

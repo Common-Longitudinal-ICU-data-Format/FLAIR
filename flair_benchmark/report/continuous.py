@@ -36,7 +36,7 @@ from __future__ import annotations
 import polars as pl
 
 from flair_benchmark.report.kpi import build_kpi
-from flair_benchmark.report.landmark import build_landmark_report
+from flair_benchmark.report.landmark import build_landmark_report, partition_windows
 from flair_benchmark.report.leadtime import build_leadtime
 from flair_benchmark.report.operating_points import build_operating_points
 from flair_benchmark.report.peak import build_peak_report
@@ -49,8 +49,9 @@ def build_continuous_report(preds: pl.DataFrame, meta: dict,
                             n_landmarks: int | None = None) -> dict[str, dict]:
     """Peak + landmark + leadtime + operating_points in one payload dict."""
     peak = build_peak_report(preds, meta)
-    lm = build_landmark_report(preds, meta, n_landmarks)
-    leadtime = build_leadtime(preds, meta, n_landmarks)
+    parts = partition_windows(preds)   # ONE pass shared by landmark + leadtime
+    lm = build_landmark_report(preds, meta, n_landmarks, parts=parts)
+    leadtime = build_leadtime(preds, meta, n_landmarks, parts=parts)
     operating_points = build_operating_points(preds, meta)
     return {
         "discrimination": {"peak": peak["discrimination"],
@@ -62,5 +63,6 @@ def build_continuous_report(preds: pl.DataFrame, meta: dict,
         "fairness": {"peak": peak["fairness"], "landmarks": lm["fairness"]},
         "leadtime": leadtime,
         "operating_points": operating_points,
-        "kpi": build_kpi(peak, lm, leadtime, operating_points),
+        "kpi": build_kpi(peak, lm, leadtime, operating_points,
+                         preds=preds, meta=meta),
     }

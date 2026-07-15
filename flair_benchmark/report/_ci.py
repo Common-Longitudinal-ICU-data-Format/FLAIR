@@ -7,6 +7,22 @@ Resampling unit: rows. In the episodic report every row IS one stay, so a row
 bootstrap is already a stay-clustered (patient-level) bootstrap — the honest unit
 for ICU benchmark CIs. Do not reuse this on a row-pooled continuous task, where
 rows are correlated within a stay and a row bootstrap would understate the CI.
+
+CALLER CONTRACT: the frame you hand this must have a DETERMINISTIC row order.
+
+The seed fixes the resample *indices*, not the *patients* they land on. A polars
+``group_by`` returns rows in a nondeterministic order, so a continuous task that
+collapses to one-row-per-stay via ``group_by`` and then bootstraps was drawing the
+same indices into a differently-ordered frame on every run — i.e. resampling a
+different set of patients each time. The point estimates (AUROC, PPV, …) are
+order-invariant and looked perfectly stable, which is exactly what made this hard
+to see: only the CIs moved, and the fixed seed made them *look* reproducible.
+
+Every collapse feeding a bootstrap therefore ends in ``.sort(<stay id>)`` — see
+``peak._collapse_to_peak``, ``operating_points._agg_at``, ``leadtime._first_alert``.
+Sorting on the stay id (rather than ``maintain_order=True``) also makes the CIs
+independent of the row order a site happened to write its preds parquet in: same
+data ⇒ same intervals, across sites and across runs.
 """
 
 from __future__ import annotations
@@ -63,3 +79,15 @@ def bootstrap_ci(
             lo, hi = np.percentile(vals, [2.5, 97.5])
             out[name] = [round(float(lo), 4), round(float(hi), 4)]
     return out
+
+
+def scalar_ci(values: np.ndarray, stat=np.median) -> list[float] | None:
+    """Percentile bootstrap CI of one scalar statistic of a 1-D sample.
+
+    Resamples ``values`` (rows = stays in every report call site) through the
+    same engine as :func:`bootstrap_ci`, so the method — one resample stream,
+    fixed seed, (2.5, 97.5) percentiles, reps//2 validity floor — matches the
+    rest of the report. Default statistic: the median.
+    """
+    return bootstrap_ci(
+        values, values, {"stat": lambda a, _b: float(stat(a))})["stat"]

@@ -55,7 +55,6 @@ META = {
     "temporal_pattern": "episode",
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
-    "clinical_action": "extubate",
     # clinical_threshold, clinical_direction, report_mode — single-sourced
     **TASK_POLICY["task3_extubation_failure_24h"],
     "label_column": "label_extubation_failure_24h",
@@ -152,7 +151,11 @@ def build(clif_config: str, train_end: str | None,
     df = df.with_columns([
         died_in_window.alias("_died"),
         reintubated_in_window.alias("_reintub"),
-        pl.coalesce(["death_dttm", "discharge_dttm"]).alias("_obs_end"),
+        # Observability ends at the EARLIER of death and discharge. death_dttm is
+        # patient-level and can post-date discharge (registry deaths months out);
+        # coalesce(death, discharge) would let such a death mark a stay discharged
+        # alive <24h post-extubation as fully observed, defeating exclusion 9.
+        pl.min_horizontal("death_dttm", "discharge_dttm").alias("_obs_end"),
     ]).with_columns(
         pl.col("_reintub")
         .cast(pl.Int32)

@@ -173,7 +173,7 @@ def _render_roc_pr(disc: dict, _save, plt, prefix: str = "",
 
 
 def _render_dca(dca: dict, _save, plt) -> None:
-    """dca.png — the net-benefit curve, ON ITS OWN AXIS, with its verdict stated.
+    """dca.png — the net-benefit curve, ON ITS OWN AXIS (verdict text lives in dca.json).
 
     Everything here comes from dca.json and nothing from the scorecard. That is the
     whole point: a "below" task's curve lives on the COMPLEMENT axis (task3's x is
@@ -212,13 +212,6 @@ def _render_dca(dca: dict, _save, plt) -> None:
                     if ci and ci[0] is not None else None)
             ax.errorbar([ct], [nb], yerr=yerr, fmt="o", color="red",
                         capsize=3, ms=5)
-
-    if verdict.get("beats"):
-        # state the conclusion instead of leaving three lines to be compared by eye.
-        ok = verdict.get("clinically_useful")
-        ax.text(0.5, -0.30, f"At the shipped policy: {verdict['beats']}",
-                transform=ax.transAxes, ha="center", va="top", fontsize=7.5,
-                color="#1f6f3f" if ok else "firebrick", wrap=True)
 
     prev = dca.get("prevalence") or 0.0
     # sentence-case the first letter ONLY — .capitalize() would lowercase the rest
@@ -279,8 +272,7 @@ _SCORECARD_PANELS = [
 _SCORECARD_TABLE = [("sensitivity", "sens"), ("specificity", "spec"),
                     ("ppv", "PPV"), ("npv", "NPV"), ("f1", "F1"),
                     ("fpr", "FPR"), ("nne", "NNE"), ("flag_rate", "alert")]
-_DECISION_TABLE = [("net_benefit", "net ben"), ("net_benefit_treat_all", "vs all"),
-                   ("clinically_useful", "useful?")]
+_DECISION_TABLE = [("net_benefit", "net ben"), ("net_benefit_treat_all", "vs all")]
 
 
 def _render_scorecard(ops: dict | None, _save, plt) -> None:

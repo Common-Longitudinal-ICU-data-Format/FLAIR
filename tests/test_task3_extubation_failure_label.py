@@ -106,3 +106,86 @@ def test_t3_labels_reintubation_only_and_drops_death_only(monkeypatch):
     }
     assert "e_death" not in labels
     assert "e_censor" not in labels
+
+
+def test_t3_post_discharge_death_does_not_defeat_censoring(monkeypatch):
+    """A registry death months AFTER discharge must not mark an early-discharge
+    stay as fully observed.
+
+    death_dttm is patient-level and can post-date discharge. With
+    coalesce(death, discharge) as the observation end, a stay discharged alive
+    6h post-extubation with a death two months later slipped past the
+    ambiguous-censoring exclusion and was kept as a NEGATIVE, even though
+    reintubation was unobservable after discharge. min_horizontal fixes it.
+    """
+    join_ids = ["e_latedeath", "e_observed"]
+    hosp_ids = [f"h_{j}" for j in join_ids]
+
+    cohort = pl.DataFrame(
+        {"hospitalization_id": hosp_ids, "hospitalization_join_id": join_ids}
+    )
+    attrs = pl.DataFrame(
+        {
+            "hospitalization_join_id": join_ids,
+            "hospitalization_id": hosp_ids,
+            "patient_id": [f"p_{j}" for j in join_ids],
+            # e_latedeath: discharged alive 6h post-extubation, dies 2 months on.
+            # e_observed: same late death, but discharged well after the window.
+            "death_dttm": [_dt(28, 0), _dt(28, 0)],
+            "discharge_dttm": [_dt(1, 16), _dt(5, 10)],
+            "age_at_admission": [65, 66],
+            "sex_category": ["female", "male"],
+            "race_category": ["unknown"] * 2,
+            "ethnicity_category": ["unknown"] * 2,
+        },
+        schema={
+            "hospitalization_join_id": pl.Utf8,
+            "hospitalization_id": pl.Utf8,
+            "patient_id": pl.Utf8,
+            "death_dttm": pl.Datetime,
+            "discharge_dttm": pl.Datetime,
+            "age_at_admission": pl.Int64,
+            "sex_category": pl.Utf8,
+            "race_category": pl.Utf8,
+            "ethnicity_category": pl.Utf8,
+        },
+    )
+    idx = pl.DataFrame(
+        {"hospitalization_id": hosp_ids, "hospitalization_join_id": join_ids}
+    )
+    resp = pl.DataFrame(
+        {
+            "hospitalization_id": hosp_ids,
+            "hospitalization_join_id": join_ids,
+            "device_category": ["nasal cannula"] * 2,
+            "recorded_dttm": [_dt(1, 10)] * 2,
+        }
+    )
+    episodes = pl.DataFrame(
+        [
+            {
+                "hospitalization_id": j,
+                "episode_index": 1,
+                "episode_start_dttm": _dt(1, 8),
+                "episode_end_dttm": _dt(1, 10),
+                "is_pre_existing_trach": False,
+            }
+            for j in join_ids
+        ]
+    )
+
+    monkeypatch.setattr(t3, "read_clif_config", lambda _: {"site": "test"})
+    monkeypatch.setattr(t3, "base_icu_cohort", lambda _: (cohort, pl.DataFrame()))
+    monkeypatch.setattr(t3, "load_or_build_encounter_index", lambda *_: idx)
+    monkeypatch.setattr(t3, "load_respiratory_support", lambda *_a, **_k: resp)
+    monkeypatch.setattr(t3, "detect_imv_episodes", lambda _: episodes)
+    monkeypatch.setattr(t3, "encounter_attributes", lambda *_: attrs)
+
+    out = t3.build("unused.json", train_end="2020-01-01", test_start="2020-01-02")
+    kept = set(out["hospitalization_join_id"].to_list())
+
+    assert "e_latedeath" not in kept, (
+        "stay discharged alive <24h post-extubation must be dropped even when a "
+        "post-discharge death_dttm exists"
+    )
+    assert "e_observed" in kept

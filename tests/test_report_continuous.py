@@ -644,3 +644,53 @@ def test_above_direction_dca_standard():
     assert dca["direction"] == "above"
     assert "standard" in dca["basis"]
     assert dca["metrics"]["clinical_threshold"] == 0.20
+
+
+# ------------------------------------------------------- bootstrap reproducibility
+
+
+def test_continuous_bootstrap_cis_are_reproducible():
+    """The seed must pin the PATIENTS resampled, not just the row indices.
+
+    polars `group_by` returns rows in a nondeterministic order. Every continuous
+    section collapses to one-row-per-stay through a group_by and then bootstraps by
+    row INDEX, so before `.sort(block)` the same seed landed on a DIFFERENT set of
+    patients on every run: identical data produced different CIs, and a site could
+    not reproduce its own upload.
+
+    This was invisible without a test like this one, because every point estimate
+    (AUROC, PPV, ...) is order-invariant and looked perfectly stable -- only the CIs
+    moved, and the fixed seed made them *look* deterministic.
+    """
+    df = make_synth_continuous()
+
+    peak_a = build_peak_report(df, META)["discrimination"]["metrics"]
+    peak_b = build_peak_report(df, META)["discrimination"]["metrics"]
+    assert peak_a == peak_b, "peak bootstrap CIs are not reproducible"
+
+    op_a = build_operating_points(df, META)["by_threshold"]
+    op_b = build_operating_points(df, META)["by_threshold"]
+    assert op_a == op_b, "operating-points bootstrap CIs are not reproducible"
+
+    lt_a = build_leadtime(df, META)
+    lt_b = build_leadtime(df, META)
+    assert lt_a == lt_b, "leadtime bootstrap CIs are not reproducible"
+
+    # and the guard is not vacuous: a CI must actually be present to be compared.
+    assert peak_a["auroc_ci"] is not None
+
+
+def test_continuous_cis_survive_a_reshuffled_preds_file():
+    """Same data, different row order in the parquet => the SAME intervals.
+
+    This is why the collapse sorts on the stay id rather than using
+    maintain_order=True: two sites whose preds files happen to be written in
+    different row orders must still publish identical CIs.
+    """
+    df = make_synth_continuous()
+    shuffled = df.sample(fraction=1.0, shuffle=True, seed=7)
+
+    assert (build_peak_report(df, META)["discrimination"]["metrics"]
+            == build_peak_report(shuffled, META)["discrimination"]["metrics"])
+    assert (build_operating_points(df, META)["by_threshold"]
+            == build_operating_points(shuffled, META)["by_threshold"])

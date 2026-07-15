@@ -27,7 +27,7 @@ from typing import Optional
 
 import polars as pl
 
-from flair_benchmark._clif import load_adt, load_hospitalization, pd_to_pl
+from flair_benchmark._clif import load_adt, load_hospitalization
 
 JOIN_ID = "hospitalization_join_id"
 
@@ -107,12 +107,24 @@ def load_or_build_encounter_index(cfg: dict, time_interval: int = 6,
         cfg = {**cfg, "cache_directory": cache_dir}
     path = _cache_path(cfg, time_interval)
     if path.exists():
-        return pl.read_parquet(path)
+        # process-level memo: one task build calls this several times
+        # (base cohort, encounter attributes, per-table attach), and the
+        # index parquet can be large — read it once per (path, mtime).
+        key = (str(path), path.stat().st_mtime_ns)
+        cached = _INDEX_MEMO.get(key)
+        if cached is None:
+            cached = pl.read_parquet(path)
+            _INDEX_MEMO.clear()          # one live index per process is plenty
+            _INDEX_MEMO[key] = cached
+        return cached
 
     idx = build_encounter_index(cfg, time_interval)
     path.parent.mkdir(parents=True, exist_ok=True)
     idx.write_parquet(path)
     return idx
+
+
+_INDEX_MEMO: dict[tuple[str, int], pl.DataFrame] = {}
 
 
 def attach_join_id(df: pl.DataFrame, idx: pl.DataFrame) -> pl.DataFrame:

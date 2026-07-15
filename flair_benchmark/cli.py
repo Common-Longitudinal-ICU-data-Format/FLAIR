@@ -5,11 +5,14 @@ Commands:
   flair build-report <preds.pq>   --task <task_name>  --out ./report/
   flair list-tasks
 
-The predictions parquet for `build-report` MUST contain (strict schema):
-  - hospitalization_id, split, <label_column>
-  - binary tasks:      y_pred, y_prob (recommended)
-  - multiclass tasks:  y_pred, class_probs_<class>
+The predictions parquet for `build-report` MUST contain (strict schema, enforced
+by report._validate_preds_schema):
+  - hospitalization_join_id, prediction_id, split, <label_column>
+  - binary tasks:      y_prob (REQUIRED; y_pred derived at 0.5 when absent)
+  - multiclass tasks:  y_pred (+ class_probs_<class> for per-class curves)
   - regression tasks:  y_pred_value
+hospitalization_id may be carried for audit traceability but is NOT the
+report/evaluation unit.
 
 Cohorts from `load-task` carry hospitalization_join_id (the stitched-encounter
 key — one block can span several hospitalizations, see flair_benchmark._stitch)
@@ -109,9 +112,6 @@ def build_report_cmd(
              "leadtime + an operating_points section (per-threshold confusion "
              "matrix + optional intervention sub-analyses)). Inferred from META "
              "when omitted."),
-    episodic: bool = typer.Option(
-        False, "--episodic",
-        help="Deprecated alias for --mode episodic (one prediction per stay)."),
     cohort: Optional[str] = typer.Option(
         None, "--cohort",
         help="Task cohort parquet (from load-task). Joins demographics for "
@@ -126,7 +126,7 @@ def build_report_cmd(
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
-    paths = build_report(preds, task_module, out, episodic=episodic,
+    paths = build_report(preds, task_module, out,
                          mode=mode, cohort_path=cohort, viz=viz)
     for kind, path in paths.items():
         typer.echo(f"  {kind:24s} → {path}")
