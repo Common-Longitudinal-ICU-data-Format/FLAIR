@@ -31,10 +31,14 @@ from flair_benchmark.report.episodic import build_episodic_report
 
 __all__ = ["build_report"]
 
-# 2: episodic hoists every threshold-dependent metric into operating_points.json
-#    (swept over the clinical threshold ± 0.05 / ± 0.10), leaving discrimination,
-#    dca and fairness threshold-free. 1: the original four-pillar shape.
-REPORT_SCHEMA = 2
+# 3: operating_points.json is a fixed 99-point universal sweep (0.01..0.99) with
+#    the clinical policy flagged as one is_clinical row, data-driven threshold
+#    locators, encounter-level alert burden + operating budget (continuous), and
+#    treatment sub-rates + a named-threshold median lead-time; the leadtime
+#    sensitivity curve and risk trajectory are dropped. 2: episodic hoists every
+#    threshold-dependent metric into operating_points.json (clinical ± 0.05/0.10).
+#    1: the original four-pillar shape.
+REPORT_SCHEMA = 3
 
 
 def _blas_single_thread():

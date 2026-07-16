@@ -185,7 +185,7 @@ def test_peak_injects_nne():
 def test_landmark_shape_and_one_row_per_stay():
     df = make_synth_continuous()
     rep = build_landmark_report(df, META)
-    assert set(rep) == {"discrimination", "calibration", "dca", "fairness"}
+    assert set(rep) == {"discrimination", "calibration", "fairness"}
     for pillar in rep.values():
         assert len(pillar) == META["landmark_horizon"]
 
@@ -204,12 +204,12 @@ def test_landmark_horizon_from_meta_and_override():
     # explicit override beats META
     rep = build_landmark_report(df, META, n_landmarks=3)
     assert len(rep["discrimination"]) == 3
-    # META without landmark_horizon -> clear error
+    # META without landmark_horizon -> clear error for the landmark report.
+    # (build_leadtime no longer sizes a grid — it emits only the first-alert number
+    # — so it does NOT require landmark_horizon anymore.)
     meta = {k: v for k, v in META.items() if k != "landmark_horizon"}
     with pytest.raises(ValueError, match="landmark_horizon"):
         build_landmark_report(df, meta)
-    with pytest.raises(ValueError, match="landmark_horizon"):
-        build_leadtime(df, meta)
 
 
 def test_landmark_day_unit_tagged():
@@ -290,10 +290,13 @@ def test_landmark_forward_semantics():
 # ----------------------------------------------------------------- leadtime
 
 
-def test_leadtime_curve_and_median():
+def test_leadtime_median_first_alert():
+    # the day/hour-level sensitivity CURVE and risk TRAJECTORY were removed — the
+    # operating-point analysis is encounter-level only (design doc §9). Only the
+    # first-alert NUMBER survives.
     df = make_synth_continuous()
     lt = build_leadtime(df, META)
-    assert len(lt["curve"]) == META["landmark_horizon"]
+    assert "curve" not in lt and "trajectory" not in lt
     assert lt["metadata"]["window_unit"] == "hour"
     m = lt["metrics"]
     assert 0.0 <= m["pct_caught"] <= 1.0
@@ -302,24 +305,6 @@ def test_leadtime_curve_and_median():
     if m["median_first_alert_hospitalization_time"] is not None:
         assert m["median_first_alert_hospitalization_time"] >= 1
         assert len(m["median_first_alert_hospitalization_time_ci"]) == 2
-    # curve points are tagged 1..horizon
-    assert lt["curve"][0]["hospitalization_time"] == 1
-    assert lt["curve"][-1]["hospitalization_time"] == META["landmark_horizon"]
-
-
-def test_leadtime_risk_trajectory_by_outcome():
-    df = make_synth_continuous()
-    traj = build_leadtime(df, META)["trajectory"]
-    assert len(traj) == META["landmark_horizon"]
-    shallow = [it for it in traj
-               if not it.get("suppressed")
-               and it["mean_prob_positive"] is not None
-               and it["mean_prob_negative"] is not None]
-    assert shallow  # at least some landmarks have both arms populated
-    for it in shallow:
-        # positive-outcome stays carry higher predicted risk than negatives
-        assert it["mean_prob_positive"] > it["mean_prob_negative"]
-        assert "n" in it and "n_positive" in it and "n_negative" in it
 
 
 # ---------------------------------------------------- operating points
@@ -333,37 +318,52 @@ def _clinical_entry(op):
 def test_operating_points():
     op = build_operating_points(make_alert_frame(), META_IV)
 
-    # three thresholds analyzed: clinical (0.20) and +/- 0.05
-    assert op["metadata"]["thresholds"] == [0.15, 0.20, 0.25]
-    assert len(op["by_threshold"]) == 3
+    # the universal 99-point sweep; the clinical policy is one flagged row
+    assert len(op["by_threshold"]) == 99
+    assert op["metadata"]["surface"] == "peak"
+    assert op["metadata"]["unit_of_analysis"] == "encounter (peak)"
+    assert sum(1 for e in op["by_threshold"] if e["is_clinical"]) == 1
 
     e = _clinical_entry(op)
-    c = e["confusion"]
+    c, m = e["confusion"], e["metrics"]
+    # confusion is FULL 2x2 counts only; the rates live in `metrics`.
+    assert set(c) == {"n", "tp", "fp", "fn", "tn"}
     # positives (20) all fire; 20 of 40 negatives fire -> FP 20, TN 20
-    assert c["sensitivity"] == pytest.approx(1.0)
-    assert c["specificity"] == pytest.approx(0.5)
-    assert c["fpr"] == pytest.approx(1 - c["specificity"])       # true FPR
-    assert c["ppv"] == pytest.approx(0.5)
-    assert c["nne"] == pytest.approx(round(1.0 / c["ppv"], 1))   # NNE = 1/PPV
+    assert m["sensitivity"] == pytest.approx(1.0)
+    assert m["specificity"] == pytest.approx(0.5)
+    assert m["fpr"] == pytest.approx(1 - m["specificity"])       # true FPR
+    assert m["ppv"] == pytest.approx(0.5)
+    assert m["nne"] == pytest.approx(round(1.0 / m["ppv"], 1))   # NNE = 1/PPV
     assert c["tp"] == 20 and c["fp"] == 20 and c["tn"] == 20     # >=10, not suppressed
     for k in ("sensitivity_ci", "specificity_ci", "fpr_ci", "ppv_ci"):
-        assert len(c[k]) == 2
+        assert len(m[k]) == 2
 
-    sub = e["sub_analyses"]
-    # Sub-1: 20 positives, all fired; fired hr3, abx hr5 -> 2h before treatment
-    pos = sub["label_positive"]
-    assert pos["n_stays"] == 20 and pos["n_fired"] == 20 and pos["pct_fired"] == 1.0
-    assert pos["hours_before_treatment"]["median"] == pytest.approx(2.0)
-    # Sub-2: 20 treated negatives, 10 fired at hr2 (abx hr4) -> 2h before tx.
-    # Same sign convention as Sub-1 (positive = fired before treatment).
-    negt = sub["label_negative_treated"]
-    assert negt["n"] == 20 and negt["n_fired"] == 10 and negt["pct_fired"] == 0.5
-    assert negt["hours_before_treatment"]["median"] == pytest.approx(2.0)
-    # Sub-3: 20 untreated negatives, 10 misfire -> rate 0.5, NO timing keys
-    negu = sub["label_negative_untreated"]
-    assert negu["n"] == 20 and negu["n_misfired"] == 10
-    assert negu["misfire_rate"] == pytest.approx(0.5)
-    assert "delta_hours" not in negu and "hours_before_treatment" not in negu
+    # encounter-level alert burden: all 40 negatives-or-positives
+    # ever alert here (peak >= t), PPV 0.5 -> false-alarm 0.5, NNE 2.
+    ab = e["alert_burden"]
+    assert ab["ppv"] == pytest.approx(0.5)
+    assert ab["false_alarm_fraction"] == pytest.approx(0.5)
+    assert ab["nne"] == pytest.approx(2.0)
+    assert ab["n_stays"] == 60
+
+    # sub_rates: ALARM COMPOSITION — each arm's share of all firing stays, sum==1.
+    # 40 stays fire (20 pos + 10 treated-neg + 10 untreated); shares 0.5/0.25/0.25.
+    sub = e["sub_rates"]
+    assert sub["positive_share"] == pytest.approx(0.5)
+    assert sub["treated_negative_share"] == pytest.approx(0.25)
+    assert sub["untreated_misfire_share"] == pytest.approx(0.25)
+    assert (sub["positive_share"] + sub["treated_negative_share"]
+            + sub["untreated_misfire_share"]) == pytest.approx(1.0)
+    assert sub["n_alarms"] == 40
+
+    # median lead-time is a single NUMBER at the named thresholds, POSITIVE arm only.
+    clin_t = next(x for x in op["intervention_timing"] if x["is_clinical"])
+    assert clin_t["median_hours_before_treatment_positive"] == pytest.approx(2.0)
+    assert "median_hours_before_treatment_treated_negative" not in clin_t
+    # no distribution anywhere in the payload
+    blob = json.dumps(op, default=str)
+    for banned in ("histogram", "hours_before_treatment\":", "p25", "p75"):
+        assert banned not in blob
 
     off = op["intervention_offsets"]
     assert off["n"] == 40 and off["window_unit"] == "hour"
@@ -371,35 +371,38 @@ def test_operating_points():
     assert off["mean_hospitalization_time"] == pytest.approx(5.5)
 
 
-def test_operating_points_per_threshold_differs():
-    # firing is threshold-based, so the sub-analysis fire counts move with t.
-    # all alert rows use y_prob 0.9, non-alert 0.05, so thresholds 0.15/0.20/0.25
-    # give identical firing here -- but the confusion counts are still emitted
-    # once per threshold (3 entries), proving the per-threshold structure.
+def test_operating_points_is_a_full_universal_sweep():
+    # every threshold 0.01..0.99 carries confusion + metrics + burden + sub_rates.
     op = build_operating_points(make_alert_frame(), META_IV)
-    assert [e["threshold"] for e in op["by_threshold"]] == [0.15, 0.20, 0.25]
+    thr = [e["threshold"] for e in op["by_threshold"]]
+    assert thr[0] == 0.01 and thr[-1] == 0.99
     for e in op["by_threshold"]:
-        assert set(e) >= {"threshold", "confusion", "sub_analyses"}
+        assert set(e) >= {"threshold", "is_clinical", "confusion", "metrics",
+                          "alert_burden", "sub_rates"}
+    # operating-budget view: sensitivity at fixed encounter workloads
+    budgets = op["operating_budget"]
+    assert [b["target_flag_rate"] for b in budgets] == [0.05, 0.10, 0.20]
 
 
 def test_operating_points_small_arm_suppressed():
-    # drop most treated negatives -> that sub-arm falls under the n<10 floor
+    # keep only h20 of the treated-negative arm -> that arm falls under the n<10 floor
     df = make_alert_frame().filter(
         ~pl.col("hospitalization_join_id").is_in([f"h{i}" for i in range(21, 40)]))
-    sub = _clinical_entry(build_operating_points(df, META_IV))["sub_analyses"]
-    assert sub["label_negative_treated"]["suppressed"] is True
-    assert sub["label_negative_treated"]["n"] == "<10"
+    sub = _clinical_entry(build_operating_points(df, META_IV))["sub_rates"]
+    assert sub["treated_negative_share"] is None        # arm < MIN_CELL_COUNT
+    assert sub["untreated_misfire_share"] is not None    # untreated arm still full
 
 
 def test_operating_points_no_intervention():
-    # confusion matrix is MANDATORY; sub-analyses are omitted without a config.
+    # confusion matrix + alert burden are MANDATORY; sub-analyses omitted w/o a config.
     op = build_operating_points(make_synth_continuous(), META)
-    assert len(op["by_threshold"]) == 3
+    assert len(op["by_threshold"]) == 99
     for e in op["by_threshold"]:
-        assert "confusion" in e
-        assert "sub_analyses" not in e
+        assert "confusion" in e and "alert_burden" in e
+        assert "sub_rates" not in e
     assert "no intervention" in op["metadata"]["sub_analyses_reason"]
     assert op["intervention_offsets"] is None
+    assert op["intervention_timing"] == []
 
 
 def test_operating_points_generic_display():
@@ -414,12 +417,14 @@ def test_operating_points_generic_display():
 
 
 def test_operating_points_direction_below():
-    # with direction=below the alert fires on LOW risk: the never-fire stays
-    # (y_prob 0.05 < 0.20) now alert -> untreated negatives all misfire.
+    # with direction=below the action fires on LOW risk: every untreated-negative
+    # stay's min risk (0.05) is < 0.20, so they all misfire.
     op = build_operating_points(make_alert_frame(),
                                 {**META_IV, "clinical_direction": "below"})
-    sub = _clinical_entry(op)["sub_analyses"]
-    assert sub["label_negative_untreated"]["misfire_rate"] == pytest.approx(1.0)
+    # below-basis fires every stay (all 60 have a low window), so of 60 alarms the
+    # 20 untreated-negatives are one third of the composition.
+    sub = _clinical_entry(op)["sub_rates"]
+    assert sub["untreated_misfire_share"] == pytest.approx(1 / 3, abs=1e-4)
 
 
 # ----------------------------------------------------------------- end-to-end
@@ -435,8 +440,9 @@ def test_build_report_continuous_end_to_end(tmp_path):
     paths = build_report(str(preds_path), _fake_task(), str(tmp_path / "ct"),
                          viz=False)
     kinds = {k for k in paths if not k.endswith("_png")}
-    assert kinds == {"discrimination", "calibration", "dca", "fairness",
+    assert kinds == {"discrimination", "calibration", "fairness",
                      "leadtime", "operating_points", "kpi"}
+    assert "dca" not in kinds   # DCA is episodic-only; not emitted in continuous
 
     disc = json.loads(paths["discrimination"].read_text())
     assert disc["metadata"]["report_mode"] == "continuous"
@@ -448,11 +454,12 @@ def test_build_report_continuous_end_to_end(tmp_path):
     assert "peak-calibration trap" in cal["metadata"]["peak_omitted_reason"]
     assert len(cal["landmarks"]) == META["landmark_horizon"]
 
-    # operating points: confusion matrix present (mandatory), no sub-analyses
+    # operating points: 99-point sweep, confusion + burden present, no sub-analyses
     op = json.loads(paths["operating_points"].read_text())
-    assert len(op["by_threshold"]) == 3
+    assert len(op["by_threshold"]) == 99
     assert "confusion" in op["by_threshold"][0]
-    assert "sub_analyses" not in op["by_threshold"][0]
+    assert "alert_burden" in op["by_threshold"][0]
+    assert "sub_rates" not in op["by_threshold"][0]
     assert "no intervention" in op["metadata"]["sub_analyses_reason"]
 
 
@@ -477,12 +484,11 @@ def test_build_report_intervention_end_to_end(tmp_path):
                          str(tmp_path / "iv"), viz=False)
     op = json.loads(paths["operating_points"].read_text())
     clinical = next(e for e in op["by_threshold"] if e["threshold"] == 0.20)
-    sub = clinical["sub_analyses"]
-    assert sub["label_positive"]["pct_fired"] == 1.0
+    assert clinical["sub_rates"]["positive_share"] == pytest.approx(0.5)
     assert op["intervention_offsets"]["mean_hospitalization_time"] == pytest.approx(5.5)
     kpi = json.loads(paths["kpi"].read_text())
     assert kpi["operating_points"]["sub_analyses"][
-        "median_hours_before_treatment_treated_negative"] == pytest.approx(2.0)
+        "median_hours_before_treatment_positive"] == pytest.approx(2.0)
 
 
 def test_continuous_viz_pngs(tmp_path):
@@ -498,11 +504,14 @@ def test_continuous_viz_pngs(tmp_path):
     assert "peak_roc_pr.png" in pngs
     assert "peak_fairness_auroc.png" in pngs
     assert "landmark_auc_by_hospital_time.png" in pngs
-    assert "landmark_risk_trajectory.png" in pngs
     assert "landmark_reliability.png" in pngs
-    assert "sensitivity_by_hospital_time.png" in pngs
+    assert "alert_burden.png" in pngs                    # new encounter-burden twin axis
+    assert "data_driven_thresholds.png" in pngs          # new locator strip
     assert "operating_points_confusion.png" in pngs
     assert "operating_points_subanalyses.png" in pngs
+    # removed day-level panels must NOT appear
+    assert "sensitivity_by_hospital_time.png" not in pngs
+    assert "landmark_risk_trajectory.png" not in pngs
     # episodic-only PNGs must not leak into the continuous bundle
     assert "calibration.png" not in pngs and "dca.png" not in pngs
     assert all(p.exists() for k, p in paths.items() if k.endswith("_png"))
@@ -510,11 +519,12 @@ def test_continuous_viz_pngs(tmp_path):
 
 def test_continuous_composer_sections():
     rep = build_continuous_report(make_synth_continuous(), META)
-    assert set(rep) == {"discrimination", "calibration", "dca", "fairness",
+    assert set(rep) == {"discrimination", "calibration", "fairness",
                         "leadtime", "operating_points", "kpi"}
+    assert "dca" not in rep   # DCA is episodic-only; not emitted in continuous
     assert "peak" in rep["discrimination"] and "landmarks" in rep["discrimination"]
     assert "peak" in rep["fairness"] and "landmarks" in rep["fairness"]
-    assert "peak" not in rep["calibration"] and "peak" not in rep["dca"]
+    assert "peak" not in rep["calibration"]
     assert "by_threshold" in rep["operating_points"]
 
 
@@ -541,6 +551,10 @@ def test_kpi_scoreboard():
     assert 0.5 <= kpi["pooled_dynamic_auroc"] <= 1.0
     lo, hi = kpi["pooled_dynamic_auroc_ci"]
     assert lo <= kpi["pooled_dynamic_auroc"] <= hi
+    # the pool spans the FULL stay, not the display horizon. Here they coincide:
+    # every window past the >=10 floor is a deep long-stay-only window (n<10), so
+    # the full-stay pool == the displayed scored set (hand-computed above).
+    assert kpi["metadata"]["pooled_auroc_scope"] == "full_stay"
 
     # peak block mirrors the peak section (incl. NNE)
     peak_op = rep["discrimination"]["peak"]["metrics"]["operating_point"]
@@ -558,8 +572,75 @@ def test_kpi_scoreboard():
     # intervention config its sub-analyses summary is None.
     assert kpi["operating_points"] is not None
     assert kpi["operating_points"]["sub_analyses"] is None
-    assert len(kpi["operating_points"]["fpr_by_threshold"]) == 3
+    assert len(kpi["operating_points"]["fpr_by_threshold"]) == 99
     assert kpi["metadata"]["horizon"] == META["landmark_horizon"]
+
+
+def test_pooled_dynamic_auroc_spans_full_stay():
+    """Pooled dynamic AUROC pools over the FULL stay, not the display horizon.
+
+    Every stay runs to 6 windows (risk set 60 >= the 10 floor at every window),
+    with WEAK discrimination in the first 3 windows and STRONG discrimination in
+    windows 4-6. landmark_horizon = 3, so the displayed landmark curve stops at
+    window 3 — but the pooled AUROC must include the strong deep windows, so it
+    exceeds (and differs from) the horizon-3-capped pool.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    horizon, n_stays, n_win = 3, 60, 6
+    meta = {**META, "landmark_horizon": horizon}
+    rng = np.random.default_rng(3)
+    rows = []
+    for i in range(n_stays):
+        positive = bool(rng.random() < 0.4)
+        sign = 1.0 if positive else -1.0
+        for w in range(n_win):
+            center = (0.15 if w < horizon else 1.5) * sign   # weak vs strong sep
+            prob = 1.0 / (1.0 + np.exp(-(center + float(rng.normal()))))
+            rows.append({
+                "patient_id": f"p{i}", "hospitalization_join_id": f"h{i}",
+                "hospitalization_id": f"h{i}",
+                "prediction_dttm": BASE + timedelta(hours=w),
+                "label": int(positive), "split": "test",
+                "age_at_admission": int(rng.integers(18, 95)),
+                "sex_category": "Female" if rng.random() < 0.5 else "Male",
+                "race_category": "White", "ethnicity_category": "Non-Hispanic",
+                "y_prob": float(prob), "y_pred": int(prob >= 0.5),
+            })
+    cols = ["hospitalization_id", "hospitalization_join_id", "prediction_dttm",
+            "label", "split", "age_at_admission", "sex_category",
+            "race_category", "ethnicity_category", "y_prob", "y_pred"]
+    df = finalize_cohort(pl.DataFrame(rows), cols, meta)
+
+    rep = build_continuous_report(df, meta)
+    kpi = rep["kpi"]
+
+    # display capped at the horizon; the pool spans all 6 windows (full stay)
+    assert len(rep["discrimination"]["landmarks"]) == horizon
+    assert kpi["metadata"]["pooled_auroc_scope"] == "full_stay"
+    assert kpi["metadata"]["pooled_auroc_n_windows"] == n_win > horizon
+
+    # hand-compute the pair-weighted pool over any window set, straight from preds
+    def pool(window_set) -> float | None:
+        num = den = 0.0
+        for t in window_set:
+            sl = df.filter(pl.col("window_number") == t)
+            y = sl["label"].to_numpy().astype(int)
+            n, cases = len(y), int(y.sum())
+            if n < 10 or cases in (0, n):
+                continue
+            auc = round(float(roc_auc_score(y, sl["y_prob"].to_numpy())), 4)
+            w = cases * (n - cases)
+            num += auc * w
+            den += w
+        return num / den if den else None
+
+    full = pool(range(1, n_win + 1))
+    capped = pool(range(1, horizon + 1))
+    assert kpi["pooled_dynamic_auroc"] == pytest.approx(full, abs=1e-4)
+    assert abs(full - capped) > 0.02      # deep windows materially change the pool
+    lo, hi = kpi["pooled_dynamic_auroc_ci"]
+    assert lo <= kpi["pooled_dynamic_auroc"] <= hi
 
 
 def test_kpi_operating_points_with_intervention():
@@ -567,11 +648,12 @@ def test_kpi_operating_points_with_intervention():
     op = rep["kpi"]["operating_points"]
     assert op["clinical_threshold"] == 0.20
     assert op["fpr"] == pytest.approx(0.5)          # clinical-threshold true FPR
+    assert op["alert_burden"]["nne"] == pytest.approx(2.0)   # encounter-level headline
     sub = op["sub_analyses"]
-    assert sub["pct_positive_fired"] == 1.0
+    assert sub["positive_share"] == pytest.approx(0.5)
     assert sub["median_hours_before_treatment_positive"] == pytest.approx(2.0)
-    assert sub["median_hours_before_treatment_treated_negative"] == pytest.approx(2.0)
-    assert sub["misfire_rate_untreated"] == pytest.approx(0.5)
+    assert "median_hours_before_treatment_treated_negative" not in sub
+    assert sub["untreated_misfire_share"] == pytest.approx(0.25)
     # forward view over ALL windows of ever-positive stays: alerts start at
     # window 4 of 10 -> median first-alert hospitalization time = 4
     assert rep["kpi"]["leadtime"]["median_first_alert_hospitalization_time"] == pytest.approx(4)

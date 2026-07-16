@@ -80,6 +80,15 @@ def _validate_taxonomy(task_name: str, meta: dict) -> None:
                 f"Task {task_name!r}: META['clinical_threshold'] must be a float "
                 f"in (0, 1); got {t!r}."
             )
+        # The operating-point sweep is a fixed 0.01-step grid (report/_sweep.py),
+        # and the clinical policy is one flagged row inside it. A threshold off the
+        # grid would have no is_clinical row — reject it here so the invariant holds
+        # by construction (all shipped thresholds are multiples of 0.01).
+        if round(t * 100) != round(t * 100, 6):
+            raise ValueError(
+                f"Task {task_name!r}: META['clinical_threshold'] = {t!r} must be a "
+                f"multiple of 0.01 so it lands on the operating-point sweep grid."
+            )
         if meta.get("clinical_direction") not in ("above", "below"):
             raise ValueError(
                 f"Task {task_name!r}: META['clinical_direction'] must be "

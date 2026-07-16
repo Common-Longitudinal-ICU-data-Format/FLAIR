@@ -62,3 +62,19 @@ TASK_POLICY: dict[str, dict] = {
 }
 
 REPORT_MODES = {"episodic", "continuous"}
+
+# Defaults for the data-driven threshold-locator menu + operating-budget view
+# (report/operating_points.py, report/_locators.py — design doc §3.2, §4.3). Each
+# is overridable per task by adding the same key to that task's TASK_POLICY entry;
+# the values actually used are recorded in operating_points.json's metadata so a
+# reader knows what was asked for. cost_ratio ships at 1 (cost-based then reduces
+# toward the prevalence-weighted point) until clinicians state a real ratio.
+SELECTION_DEFAULTS: dict = {
+    "sens_target": 0.90,           # rule 6:  max specificity s.t. sensitivity >= this
+    "spec_target": 0.90,           # rule 6b: max sensitivity s.t. specificity >= this
+    "ppv_target": 0.30,            # rule 8:  smallest threshold clearing this PPV
+    "alert_rate_target": 0.10,     # rule 9:  flag ~this fraction of the cohort
+    "alert_rate_targets": (0.05, 0.10, 0.20),   # operating_budget: equal-workload grid
+    "f_beta": 1,                   # rule 5:  F-beta (1 = F1)
+    "cost_ratio": 1,               # rule 7:  C_FP / C_FN
+}

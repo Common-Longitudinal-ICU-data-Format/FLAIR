@@ -31,12 +31,9 @@ from flair_benchmark.report.calibration import build_calibration
 from flair_benchmark.report.dca import build_dca
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import build_fairness
-from flair_benchmark.report.operating_points import (
-    _DELTAS,
-    _EPISODIC_OFFSETS,
-    build_episodic_operating_points,
-    threshold_grid,
-)
+from flair_benchmark.report._sweep import SWEEP_GRID
+from flair_benchmark.report._locators import _CI_KEYS, _attach_ci, locate_band
+from flair_benchmark.report.operating_points import build_episodic_operating_points
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 META = {
@@ -266,57 +263,30 @@ def test_fairness_overall_without_demographics():
 # ------------------------------------------------- operating-points scorecard
 
 
-def test_threshold_grid_rounds_drops_and_dedupes():
-    """0.15-0.10 is 0.049999999999999996; an unrounded grid never compares equal."""
-    grid, dropped = threshold_grid(0.15)
-    assert [t for t, _o in grid] == [0.05, 0.10, 0.15, 0.20, 0.25]
-    assert [o for _t, o in grid] == [-0.10, -0.05, 0.0, 0.05, 0.10]
-    assert dropped == []
+def test_sweep_grid_is_fixed_and_open_interval():
+    """The universal sweep is a fixed 0.01-step grid in the OPEN interval (0, 1).
 
-    # near the top of the range, +0.05 and +0.10 would be 1.0 and 1.05. Both are
-    # dropped, not clamped -- clamping would emit 1.0 TWICE (and t=1 flags nobody,
-    # while DCA's t/(1-t) odds diverge there).
-    grid, dropped = threshold_grid(0.95)
-    assert [t for t, _o in grid] == [0.85, 0.90, 0.95]
-    assert [d["offset"] for d in dropped] == [0.05, 0.10]
-    assert all("outside" in d["reason"] for d in dropped)
-
-    # near the bottom, -0.10 lands on 0.0, which would flag everyone.
-    grid, dropped = threshold_grid(0.10)
-    assert [t for t, _o in grid] == [0.05, 0.10, 0.15, 0.20]
-    assert [d["offset"] for d in dropped] == [-0.10]
-
-    # continuous passes its own (narrower) offsets through the SAME primitive.
-    grid, dropped = threshold_grid(0.95, (-0.05, 0.0, 0.05))
-    assert [t for t, _o in grid] == [0.90, 0.95]
-    assert [d["offset"] for d in dropped] == [0.05]
-    # and the rounding holds: 0.95 - 0.05 is 0.8999999999999999 in float.
-    assert grid[0][0] == 0.9
+    At t=0, `y_prob >= 0` flags everyone; at t=1 it flags nobody, PPV is undefined,
+    and DCA's t/(1-t) odds diverge. The fixed 0.01..0.99 grid never emits either.
+    """
+    assert len(SWEEP_GRID) == 99
+    assert SWEEP_GRID[0] == 0.01 and SWEEP_GRID[-1] == 0.99
+    assert all(0.0 < float(t) < 1.0 for t in SWEEP_GRID)
+    # consecutive step is exactly 0.01 (rounded, no float drift)
+    assert all(round(float(b - a), 2) == 0.01
+               for a, b in zip(SWEEP_GRID[:-1], SWEEP_GRID[1:]))
 
 
 @pytest.mark.parametrize("task_name", sorted(TASK_POLICY))
-def test_no_task_ever_emits_a_threshold_of_zero_or_one(task_name):
-    """A threshold must live in the OPEN interval (0, 1) -- in BOTH report modes.
+def test_every_clinical_threshold_lands_on_the_sweep_grid(task_name):
+    """The shipped policy must be exactly one row of the fixed grid (is_clinical).
 
-    At t=0, `y_prob >= 0` flags everyone; at t=1 it flags nobody (only a probability
-    of exactly 1.0 would fire), PPV is undefined, and DCA's t/(1-t) odds diverge.
-    `tasks._validate_taxonomy` already enforces 0 < clinical_threshold < 1 on the
-    policy itself; this pins the DERIVED +/- grid to the same invariant, so a future
-    task at t0=0.97 cannot silently reintroduce the degenerate row task1 shipped.
+    A threshold off the 0.01 grid would have no is_clinical row; every shipped
+    threshold is a multiple of 0.01, and tasks._validate_taxonomy now enforces it.
     """
-    policy = TASK_POLICY[task_name]
-    t0 = policy["clinical_threshold"]
-    offsets = (_EPISODIC_OFFSETS if policy["report_mode"] == "episodic"
-               else _DELTAS)
-    grid, dropped = threshold_grid(t0, offsets)
-
-    assert grid, f"{task_name}: the clinical threshold itself must always survive"
-    for t, _o in grid:
-        assert 0.0 < t < 1.0, f"{task_name}: emitted an unusable threshold {t}"
-    # the clinical point (offset 0.0) can never be dropped.
-    assert round(float(t0), 4) in [t for t, _o in grid]
-    # nothing is swallowed: every requested offset is either kept or reported.
-    assert len(grid) + len(dropped) == len(offsets)
+    t0 = TASK_POLICY[task_name]["clinical_threshold"]
+    on_grid = [t for t in SWEEP_GRID if abs(float(t) - round(t0, 2)) < 1e-9]
+    assert len(on_grid) == 1, f"{task_name}: clinical threshold {t0} is off the grid"
 
 
 def test_scorecard_clinical_entry_matches_the_old_operating_point():
@@ -334,7 +304,6 @@ def test_scorecard_clinical_entry_matches_the_old_operating_point():
     assert clinical["threshold"] == op["threshold"] == 0.20
     for k in ("tp", "fp", "fn", "tn"):
         assert clinical["confusion"][k] == op[k]
-    assert clinical["confusion"]["n_flagged"] == op["n_flagged"]
     for k in ("sensitivity", "specificity", "ppv", "npv", "f1", "flag_rate"):
         assert clinical["metrics"][k] == op[k]
         if f"{k}_ci" in op:
@@ -342,6 +311,87 @@ def test_scorecard_clinical_entry_matches_the_old_operating_point():
     # the decision block absorbs the old action block verbatim (and adds the DCA half)
     for k, v in op["action"].items():
         assert clinical["decision"][k] == v
+
+
+def test_data_driven_thresholds_carry_selection_aware_ci():
+    """Every locator gains a CI; the fitted rules' is selection-aware, clinical's is fixed.
+
+    A data-driven cutpoint is chosen ON this data, so its honest interval must include
+    the wobble of the cutpoint itself (threshold_ci) and the re-selection variance in
+    its rates. The shipped clinical policy is not fitted, so it reuses the plain
+    fixed-threshold by_threshold band and carries no threshold_ci.
+    """
+    df = make_synth(n_stays=1200, seed=7)
+    card = build_episodic_operating_points(df, META)
+    ddt = card["data_driven_thresholds"]
+    assert "data_driven_ci" in card["metadata"]
+
+    fitted = [loc for loc in ddt
+              if loc["rule"] != "clinical" and loc.get("threshold") is not None]
+    assert fitted, "expected at least one fitted rule"
+    for loc in fitted:
+        tci = loc["threshold_ci"]
+        if tci is not None:                       # None only if the rule was too unstable
+            lo, hi = tci
+            assert lo <= hi
+            assert lo <= loc["threshold"] <= hi   # the CI brackets the point cutpoint
+        ma = loc["metrics_at"]
+        for k in _CI_KEYS:
+            assert f"{k}_ci" in ma
+        assert "nne_ci" in ma
+        assert "flag_rate_ci" not in ma           # flag_rate stays point-only
+
+    # clinical entry: fixed band == the by_threshold row at the clinical index, no threshold_ci
+    clinical = next(loc for loc in ddt if loc["rule"] == "clinical")
+    assert clinical["threshold_ci"] is None
+    ci_idx = card["metadata"]["clinical_index"]
+    band_row = card["by_threshold"][ci_idx]["metrics"]
+    for k in _CI_KEYS:
+        assert clinical["metrics_at"][f"{k}_ci"] == band_row[f"{k}_ci"]
+
+    # selection-aware width >= the fixed band at the same threshold (honest: wider or equal)
+    yj = next(loc for loc in fitted if loc["rule"] == "youden_j")
+    idx = int(round(yj["threshold"] * 100)) - 1
+    fixed = card["by_threshold"][idx]["metrics"]["sensitivity_ci"]
+    sel = yj["metrics_at"]["sensitivity_ci"]
+    if fixed is not None and sel is not None:
+        assert (sel[1] - sel[0]) >= (fixed[1] - fixed[0]) - 1e-9
+
+
+def test_locate_band_is_deterministic_and_covers_every_rule():
+    """Shared BOOT_SEED -> byte-identical bands on rerun, one entry per rule."""
+    df = make_synth(n_stays=800, seed=2)
+    label = (df["label"].to_numpy() > 0).astype(int)
+    prob = df["y_prob"].to_numpy().astype(float)
+    from flair_benchmark.report.discrimination import _auroc
+    auc = _auroc(label, prob)
+    a = locate_band(label, prob, SWEEP_GRID, auc, dict(TASK_POLICY.get(META["name"], {})))
+    b = locate_band(label, prob, SWEEP_GRID, auc, dict(TASK_POLICY.get(META["name"], {})))
+    assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
+    for rule in ("youden_j", "f_beta_max", "ppv_target", "alert_rate_target"):
+        assert rule in a
+        assert set(a[rule]) == {"threshold", *_CI_KEYS}
+    # empty input -> all-None band, never a crash
+    empty = locate_band(np.array([]), np.array([]), SWEEP_GRID, None, {})
+    assert empty["youden_j"] == {"threshold": None, **{c: None for c in _CI_KEYS}}
+
+
+def test_locator_ci_suppressed_below_min_cell_count():
+    """A cutpoint flagging < MIN_CELL_COUNT stays yields a disclosive precision -> null."""
+    entry = {"metrics_at": {"ppv": 0.5, "nne": 2.0}}
+    ci_map = {c: [0.1, 0.9] for c in _CI_KEYS}
+    tp = np.zeros(10, dtype=int); fp = np.zeros(10, dtype=int)
+    tp[5] = 3                                     # tp+fp at row 5 = 3 < 10
+    _attach_ci(entry, 5, ci_map, [0.3, 0.4], (tp, fp))
+    ma = entry["metrics_at"]
+    assert entry["threshold_ci"] == [0.3, 0.4]
+    assert ma["sensitivity_ci"] == [0.1, 0.9]     # non-precision rates keep their CI
+    assert ma["ppv_ci"] is None and ma["nne_ci"] is None
+
+    entry2 = {"metrics_at": {"ppv": 0.5, "nne": 2.0}}
+    tp[5] = 40                                     # now well above the floor
+    _attach_ci(entry2, 5, ci_map, [0.3, 0.4], (tp, fp))
+    assert entry2["metrics_at"]["ppv_ci"] == [0.1, 0.9]
 
 
 def test_scorecard_uses_alarm_convention_for_a_below_task():
@@ -368,7 +418,8 @@ def test_scorecard_uses_alarm_convention_for_a_below_task():
     dec = clinical["decision"]
     assert dec["acts_on"] == "y_prob < threshold"
     n = clinical["confusion"]["n"]
-    assert dec["n_acted"] == n - clinical["confusion"]["n_flagged"]
+    n_fired = clinical["confusion"]["tp"] + clinical["confusion"]["fp"]
+    assert dec["n_acted"] == n - n_fired
     assert above["decision"]["acts_on"] == "y_prob >= threshold"
     # ...and its net benefit is read on the COMPLEMENT axis: 0.20 -> 0.80.
     assert dec["dca_threshold"] == 0.80
@@ -392,7 +443,10 @@ def test_scorecard_net_benefit_matches_the_dca_curve():
         for e in build_episodic_operating_points(df, meta)["by_threshold"]:
             dec = e["decision"]
             i = min(range(len(thr)), key=lambda j: abs(thr[j] - dec["dca_threshold"]))
-            assert dec["net_benefit"] == nb_model[i], direction
+            # sparse tails null net benefit on their own arm (n_acted < 10); where it
+            # IS defined it must be the SAME number as dca.json's curve.
+            if dec["net_benefit"] is not None and nb_model[i] is not None:
+                assert dec["net_benefit"] == nb_model[i], (direction, e["threshold"])
             assert dec["net_benefit_treat_all"] == nb_all[i], direction
             if e["is_clinical"]:
                 v = dca["metrics"]["verdict"]
@@ -402,13 +456,11 @@ def test_scorecard_net_benefit_matches_the_dca_curve():
 
 def test_scorecard_suppresses_a_threshold_that_flags_almost_nobody():
     df = make_synth(n_stays=400, seed=5)
-    # push the grid to the far right: almost no stay scores above 0.9
+    # the far-right tail of the full sweep flags almost nobody (t -> 0.99).
     card = build_episodic_operating_points(df, {**META, "clinical_threshold": 0.85})
-    sparse = [e for e in card["by_threshold"]
-              if e["confusion"]["n_flagged"] < 10]
-    assert sparse, "expected at least one near-empty threshold at this grid"
+    sparse = [e for e in card["by_threshold"] if e.get("suppressed")]
+    assert sparse, "expected at least one near-empty threshold on the sweep tail"
     for e in sparse:
-        assert e["suppressed"] is True
         # a PPV from <10 flagged stays is unstable and disclosive
         assert e["metrics"]["ppv"] is None
         assert isinstance(e["confusion"]["tp"], str)   # "<10"

@@ -98,7 +98,7 @@ def test_continuous_confusion_is_alarm_basis_on_below_task():
     12 here), never 'the model said safe AND the event happened'."""
     op = build_operating_points(_below_frame(), BELOW)
     clinical = next(e for e in op["by_threshold"] if e["is_clinical"])
-    assert clinical["confusion"]["sensitivity"] == 1.0     # 12/12 ever-alarmed
+    assert clinical["metrics"]["sensitivity"] == 1.0     # 12/12 ever-alarmed
     # action-basis scoring would have booked 4/12 = 0.3333 here
 
 
@@ -111,20 +111,21 @@ def test_continuous_sub_analyses_stay_action_basis_on_below_task():
                                       "display": "treatment"}}
     op = build_operating_points(df, meta)
     clinical = next(e for e in op["by_threshold"] if e["is_clinical"])
-    pos = clinical["sub_analyses"]["label_positive"]
-    assert pos["pct_fired"] == pytest.approx(4 / 12, abs=1e-4)
+    # sub_rates is now an alarm-COMPOSITION share: only positive stays exist, so of
+    # the (4) stays that fire on the action basis, 100% are the positive arm.
+    # (The 4-of-12 action-basis count itself is asserted in
+    # test_leadtime_first_alert_is_action_basis on this same frame.)
+    assert clinical["sub_rates"]["positive_share"] == pytest.approx(1.0)
+    assert clinical["sub_rates"]["untreated_misfire_share"] is None   # empty arm
 
 
-def test_leadtime_bases_are_consistent_and_declared():
-    """curve = alarm basis; first-alert/pct_caught = action basis — and the
-    payload says so."""
+def test_leadtime_first_alert_is_action_basis():
+    """The day-level sensitivity curve was removed; the first-alert NUMBER stays,
+    and it is scored on the action basis (fire on LOW risk for a 'below' task)."""
     lt = build_leadtime(_below_frame(), BELOW)
-    w2 = next(pt for pt in lt["curve"] if pt["hospitalization_time"] == 2)
-    # alarm basis at window 2: 8 of 12 rows are still >= 0.15
-    assert w2["sensitivity"] == pytest.approx(8 / 12, abs=1e-4)
+    assert "curve" not in lt and "trajectory" not in lt
     # action basis: 4 of 12 stays ever fired (dropped below t)
     assert lt["metrics"]["pct_caught"] == pytest.approx(4 / 12, abs=1e-4)
-    assert "alarm" in lt["metadata"]["curve_basis"]
     assert "action" in lt["metadata"]["first_alert_basis"]
 
 

@@ -16,10 +16,11 @@ Nothing anchors on the event or outcome: the slice at day t is exactly the
 cohort a deployed model would score on day t.
 
 Each slice has (at most) one row per stay — the day-t prediction — so it is an
-"episodic" cohort and runs through the four pillars (`_landmark_pillars`), with
+"episodic" cohort and runs through the three pillars (`_landmark_pillars`), with
 the threshold-dependent blocks kept inline. Stacking the slices gives skill,
-calibration, net benefit and fairness AS A FUNCTION OF HOSPITALIZATION TIME (the
-time-varying / dynamic AUC view).
+calibration and fairness AS A FUNCTION OF HOSPITALIZATION TIME (the time-varying
+/ dynamic AUC view). Net benefit / DCA is deliberately not among them — it is an
+episodic-only view (the same peak trap that keeps calibration off the peak).
 
 Why this is honest: one row per stay per landmark means report/_ci.py's row
 bootstrap is again a patient-level bootstrap (unlike row-pooling all windows).
@@ -45,7 +46,6 @@ import polars as pl
 
 from flair_benchmark.report._suppress import MIN_CELL_COUNT
 from flair_benchmark.report.calibration import build_calibration
-from flair_benchmark.report.dca import build_dca
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import build_fairness
 
@@ -71,7 +71,6 @@ except Exception:                                # pragma: no cover - always pre
 PILLAR_BUILDERS = {
     "discrimination": build_discrimination,
     "calibration": build_calibration,
-    "dca": build_dca,
     "fairness": build_fairness,
 }
 
@@ -79,10 +78,10 @@ PILLAR_BUILDERS = {
 def _landmark_pillars(sl: pl.DataFrame, meta: dict) -> dict[str, dict]:
     """The four pillars for ONE landmark slice, threshold blocks INCLUDED.
 
-    Landmarks keep the operating point, the DCA clinical marker and the fairness
-    parity gaps inline, because the point of the landmark report is to show how
-    the decision behaves as a function of hospitalization time — and kpi.py reads
-    those per-landmark numbers.
+    Landmarks keep the operating point and the fairness parity gaps inline,
+    because the point of the landmark report is to show how the decision behaves
+    as a function of hospitalization time — and kpi.py reads those per-landmark
+    numbers.
 
     The EPISODIC report deliberately does NOT compose the pillars this way: it
     hoists every threshold-dependent number into operating_points.json (swept over

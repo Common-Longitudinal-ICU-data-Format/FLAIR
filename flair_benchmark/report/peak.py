@@ -4,7 +4,7 @@ Collapse a continuous (multi-row-per-stay) task to ONE row per stay using the
 peak predicted risk over the stay — `y_prob = max`, label = "ever positive"
 (`max`) — then score it exactly like an episodic report. This answers the
 stay-level screening question: "did this stay ever alarm vs ever have the
-event?", the number sepsis papers (Wong 2021, Kamran 2024) headline.
+event?", the number sepsis screening papers (Wong 2021) headline.
 
 Only two pillars are emitted:
   discrimination : ranking + operating point (+ NNE, the number-needed-to-evaluate)

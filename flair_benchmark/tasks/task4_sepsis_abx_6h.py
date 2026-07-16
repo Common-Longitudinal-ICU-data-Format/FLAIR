@@ -7,13 +7,12 @@ Clinical question:
   surveillance definition within the next 6 hours?
 
 Reference:
-  Kamran F, Tjandra D, Heiler A, Virzi J, Singh K, King JE, Valley TS, Wiens J.
-  Evaluation of sepsis prediction models before onset of treatment.
-  NEJM AI 1(3), 2024. DOI: 10.1056/AIoa2300032.
+  CDC Adult Sepsis Event (ASE) surveillance definition (composite with CMS
+  SEP-1); label onset = the first time the definition is met.
 
 Rationale:
-  Kamran 2024 labels sepsis with a composite of the CDC surveillance
-  (Adult Sepsis Event) and CMS SEP-1 definitions, and defines onset as the
+  We label sepsis with a composite of the CDC surveillance
+  (Adult Sepsis Event) and CMS SEP-1 definitions, and define onset as the
   first time at which that definition is met. We adopt the CDC ASE arm via
   clifpy's reference implementation (clifpy.utils.ase.compute_ase) and take
   t_zero as the ASE onset timestamp: the earliest contributing ASE criterion
@@ -44,7 +43,7 @@ Anchors (per stitched encounter):
                 death_dttm is patient-level so it is a min term, never a
                 coalesce over discharge (t_zero = +inf if never septic)
 
-Cohort (hospital-wide, Kamran 2024):
+Cohort (hospital-wide):
   1. Adult hospitalizations (age >= 18) with valid admission/discharge dttm.
   2. EXCLUDE hospitalizations with any ADT stay on psychiatric or
      rehabilitation unit.
@@ -93,7 +92,7 @@ GRID_STEP_HOURS = 1
 
 # ASE onset column from clifpy.utils.ase.compute_ase. The "_w_lactate" arm
 # includes lactate >= 2.0 mmol/L as an organ-dysfunction criterion, bringing
-# the CDC ASE definition closer to the CMS SEP-1 arm Kamran 2024 also uses.
+# the CDC ASE definition closer to the CMS SEP-1 arm.
 ASE_ONSET_COL = "ase_onset_w_lactate_dttm"
 ASE_INCLUDE_LACTATE = True
 EXCLUDE_LOCATION_CATEGORIES = ["psychiatric", "rehabilitation"]
@@ -127,7 +126,7 @@ META = {
     "prediction_window": [0, LABEL_HORIZON_HOURS],
     "window_unit": "hour",  # window_number increments one row per hour
     "cohort_description": (
-        "Hospital-wide adult cohort (Kamran 2024); psych/rehab units excluded; "
+        "Hospital-wide adult cohort; psych/rehab units excluded; "
         "already-septic-at-entry excluded; must have at least one vital sign. "
         "Label anchored on CDC Adult Sepsis Event onset (clifpy compute_ase)."
     ),
@@ -156,7 +155,7 @@ OUTPUT_COLS = [
 
 def _hospital_wide_cohort(cfg: dict, min_age: int = 18) -> pl.DataFrame:
     """Adult hospital-wide cohort (no ICU filter). Mirrors base_icu_cohort
-    but drops the ADT-based ICU narrowing — Kamran 2024 evaluates the model
+    but drops the ADT-based ICU narrowing — the model is evaluated
     hospital-wide, since ward-onset sepsis is where prediction lead time
     has the most clinical value."""
     hosp = load_hospitalization(

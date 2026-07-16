@@ -24,8 +24,12 @@
 > removed because its risk sets can only be formed after the outcome is
 > known. The bundle also ships a `kpi.json` scoreboard headlined by the
 > Heagerty & Zheng-style pooled dynamic AUROC plus peak NNE, calibration at
-> hospitalization time 1, and lead-time / alert-timing KPIs. The mode names
-> "peak" and "landmark" below describe those sections.
+> hospitalization time 1, and lead-time / alert-timing KPIs. The pooled dynamic
+> AUROC pools over the FULL stay — every forward window whose risk set still
+> holds >= MIN_CELL_COUNT stays — and is DECOUPLED from the landmark DISPLAY
+> horizon: the displayed landmark curve stops at `landmark_horizon` (a show-only
+> view), but the headline describes the whole stay. The mode names "peak" and
+> "landmark" below describe those sections.
 
 This note explains what `flair build-report` should do for two task shapes:
 

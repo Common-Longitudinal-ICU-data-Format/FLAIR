@@ -19,7 +19,8 @@ order-invariant and looked perfectly stable, which is exactly what made this har
 to see: only the CIs moved, and the fixed seed made them *look* reproducible.
 
 Every collapse feeding a bootstrap therefore ends in ``.sort(<stay id>)`` — see
-``peak._collapse_to_peak``, ``operating_points._agg_at``, ``leadtime._first_alert``.
+``peak._collapse_to_peak``, ``operating_points._collapse_stays``,
+``leadtime._median_first_alert``.
 Sorting on the stay id (rather than ``maintain_order=True``) also makes the CIs
 independent of the row order a site happened to write its preds parquet in: same
 data ⇒ same intervals, across sites and across runs.

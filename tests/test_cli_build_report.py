@@ -76,9 +76,11 @@ def test_cli_continuous_mode(tmp_path):
         "--mode", "continuous",
     ])
     assert result.exit_code == 0, result.output
-    assert {p.stem for p in out_dir.glob("*.json")} >= {
-        "discrimination", "calibration", "dca", "fairness", "leadtime",
+    json_stems = {p.stem for p in out_dir.glob("*.json")}
+    assert json_stems >= {
+        "discrimination", "calibration", "fairness", "leadtime",
         "operating_points", "kpi"}
+    assert "dca" not in json_stems   # DCA is episodic-only; no dca.json in continuous
     disc = json.loads((out_dir / "discrimination.json").read_text())
     assert disc["metadata"]["report_mode"] == "continuous"
     assert "peak" in disc
@@ -86,26 +88,18 @@ def test_cli_continuous_mode(tmp_path):
     # synthetic stay lengths are suppressed stubs but still emitted.
     assert len(disc["landmarks"]) == 30
     assert disc["landmarks"][0]["hospitalization_time"] == 1
-    # operating points: task1's clinical threshold is 0.95, so the +0.05 arm lands on
-    # 1.0 — not a threshold (it flags nobody, has no PPV, and DCA's t/(1-t) odds
-    # diverge). It is DROPPED, not clamped, leaving TWO points: 0.90 and 0.95.
-    # Confusion is mandatory; no sub-analyses (task1 declares no intervention).
+    # operating points: task1's clinical threshold is 0.95, which lands on exactly
+    # one row of the fixed 99-point sweep (is_clinical). No offset arithmetic, no
+    # dropped offsets. Confusion + burden mandatory; no sub-rates (no intervention).
     op = json.loads((out_dir / "operating_points.json").read_text())
-    assert op["metadata"]["thresholds"] == [0.9, 0.95]
-    assert op["metadata"]["dropped_offsets"] == [
-        {"offset": 0.05, "threshold": 1.0,
-         "reason": "outside the open interval (0, 1)"}]
-    assert len(op["by_threshold"]) == 2
-    assert "sub_analyses" not in op["by_threshold"][0]
-    # the row we threshold at is the row we publish: 0.95 - 0.05 is
-    # 0.8999999999999999 in float, and must not leak out as such.
-    assert op["by_threshold"][0]["threshold"] == 0.9
-    assert [e["is_clinical"] for e in op["by_threshold"]] == [False, True]
+    assert "dropped_offsets" not in op["metadata"] and "thresholds" not in op["metadata"]
+    assert len(op["by_threshold"]) == 99
+    assert "sub_rates" not in op["by_threshold"][0]
+    clinical = [e for e in op["by_threshold"] if e["is_clinical"]]
+    assert len(clinical) == 1 and clinical[0]["threshold"] == 0.95
     kpi = json.loads((out_dir / "kpi.json").read_text())
     assert kpi["pooled_dynamic_auroc"] is not None
-    # the degenerate point must not survive into the KPI headline either.
-    fprs = kpi["operating_points"]["fpr_by_threshold"]
-    assert [e["threshold"] for e in fprs] == [0.9, 0.95]
+    assert len(kpi["operating_points"]["fpr_by_threshold"]) == 99
     assert kpi["operating_points"]["clinical_threshold"] == 0.95
 
 
@@ -145,20 +139,21 @@ def test_discrimination_values(report_dir):
 def test_operating_points_scorecard(report_dir):
     op = _load(report_dir, "operating_points")
     md = op["metadata"]
-    # task5: clinical 0.20, direction "above" -> a full five-point grid.
-    assert md["thresholds"] == [0.10, 0.15, 0.20, 0.25, 0.30]
-    assert md["offsets"] == [-0.10, -0.05, 0.0, 0.05, 0.10]
-    assert md["clinical_index"] == 2
-    assert md["dropped_offsets"] == []
+    # task5: clinical 0.20 lands on grid row 19 of the fixed 99-point sweep.
+    assert md["grid"] == {"min": 0.01, "max": 0.99, "step": 0.01, "n": 99}
+    assert md["clinical_index"] == 19
+    assert "dropped_offsets" not in md and "offsets" not in md
 
     rows = op["by_threshold"]
-    assert len(rows) == 5
+    assert len(rows) == 99
     clinical = [e for e in rows if e["is_clinical"]]
     assert len(clinical) == 1 and clinical[0]["threshold"] == 0.20
 
     for e in rows:
         c, m = e["confusion"], e["metrics"]
-        assert c["tp"] + c["fp"] + c["fn"] + c["tn"] == 800
+        # counts can be suppressed to "<10" at the sparse tails; n is always the
+        # full cohort size.
+        assert c["n"] == 800
         assert 0.0 <= m["flag_rate"] <= 1.0
         for k in ("sensitivity", "specificity", "ppv", "npv", "f1", "fpr"):
             v, ci = m[k], m.get(f"{k}_ci")
@@ -184,8 +179,10 @@ def test_operating_points_decision_is_direction_aware(report_dir):
     for e in op["by_threshold"]:
         dec = e["decision"]
         assert dec["acts_on"] == "y_prob >= threshold"
-        # the acted arm IS the flagged arm when the action fires on HIGH risk
-        assert dec["n_acted"] == e["confusion"]["n_flagged"]
+        # the acted arm IS the flagged arm (tp+fp) when the action fires on HIGH risk
+        c = e["confusion"]
+        if all(isinstance(c[k], int) for k in ("tp", "fp")) and isinstance(dec["n_acted"], int):
+            assert dec["n_acted"] == c["tp"] + c["fp"]
         # ...and the decision curve's axis is the label axis, untransformed
         assert dec["dca_threshold"] == e["threshold"]
 
@@ -246,7 +243,10 @@ def test_net_benefit_has_one_definition_across_the_bundle(report_dir):
         dec = e["decision"]
         x = dec["dca_threshold"]
         i = min(range(len(thr)), key=lambda j: abs(thr[j] - x))
-        assert dec["net_benefit"] == nb_model[i], f"NB drifted at t={e['threshold']}"
+        # sparse tails null net benefit on their own arm; where BOTH are defined the
+        # scorecard and dca.json must be the SAME number.
+        if dec["net_benefit"] is not None and nb_model[i] is not None:
+            assert dec["net_benefit"] == nb_model[i], f"NB drifted at t={e['threshold']}"
         assert dec["net_benefit_treat_all"] == nb_all[i]
         if e["is_clinical"]:
             v = dca["metrics"]["verdict"]

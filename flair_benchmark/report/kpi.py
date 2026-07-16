@@ -5,18 +5,22 @@ section dicts (peak / landmark / leadtime) — pure aggregation, no access to th
 predictions, so the scoreboard can never disagree with the per-section JSONs.
 
   pooled_dynamic_auroc : Heagerty & Zheng (2005) style time-varying AUC — the
-        per-landmark (incident/dynamic) AUCs pooled into one global concordance
-        with Mann-Whitney pair weights. Within landmark t the identity
+        per-window (incident/dynamic) AUCs pooled into one global concordance
+        with Mann-Whitney pair weights. Within window t the identity
         concordant pairs = AUC(t) * cases_t * controls_t gives
 
             AUC_pooled = sum_t AUC(t) * w_t / sum_t w_t ,  w_t = cases_t * controls_t
 
-        with cases_t = n_t * prevalence_t. The CI is a STAY-LEVEL pooled
-        bootstrap: one stay-resample per replicate, every scored landmark's AUC
-        and pair weight recomputed on that resample, pooled, percentile
-        (2.5, 97.5) over replicates — honest to the within-stay correlation
-        across landmarks. (Same formula the FLAIR paper pipeline uses;
-        single-sourced here so papers can read kpi.json.)
+        with cases_t = n_t * prevalence_t. It pools over the FULL STAY — every
+        forward window whose risk set still holds >= MIN_CELL_COUNT stays — NOT
+        the capped landmark DISPLAY horizon (7d/30d): the displayed landmark
+        curve is a show-only view, while this headline describes the whole stay.
+        Deep/sparse windows fall below the floor and drop out (near-zero pair
+        weight anyway). The CI is a STAY-LEVEL pooled bootstrap: one stay-resample
+        per replicate, every window's AUC and pair weight recomputed on that
+        resample, pooled, percentile (2.5, 97.5) over replicates — honest to the
+        within-stay correlation across windows. (Same formula the FLAIR paper
+        pipeline uses; single-sourced here so papers can read kpi.json.)
   peak         : stay-peak screening headline (AUROC/AUPRC, operating point,
                  NNE = 1/PPV — alarms per true case).
   calibration  : calibration at the earliest SCORED hospitalization time
@@ -37,13 +41,16 @@ import numpy as np
 import polars as pl
 
 from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED
+from flair_benchmark.report._suppress import MIN_CELL_COUNT
 
 _METHOD_NOTE = ("pooled dynamic AUC per Heagerty & Zheng 2005 (incident/dynamic"
-                " concordance, pair-weighted across FORWARD landmark risk sets"
-                " — patients still at risk at each hospitalization day/hour);"
-                " landmarking per van Houwelingen. Pooled CI is a stay-level"
-                " pooled bootstrap (one stay resample per replicate; all"
-                " landmark AUCs + pair weights recomputed per replicate).")
+                " concordance, pair-weighted across ALL FORWARD windows of the"
+                " full stay — patients still at risk at each hospitalization"
+                " day/hour, risk set >= MIN_CELL_COUNT; NOT capped at the display"
+                " landmark horizon); landmarking per van Houwelingen. Pooled CI"
+                " is a stay-level pooled bootstrap (one stay resample per"
+                " replicate; all window AUCs + pair weights recomputed per"
+                " replicate).")
 
 
 def build_kpi(peak: dict[str, dict], landmarks: dict[str, list[dict]],
@@ -63,11 +70,22 @@ def build_kpi(peak: dict[str, dict], landmarks: dict[str, list[dict]],
         "method": _METHOD_NOTE,
     }}
 
-    pooled = _pooled_dynamic_auroc(disc_lms)
-    out["pooled_dynamic_auroc"] = pooled[0]
-    out["pooled_dynamic_auroc_ci"] = (
-        _pooled_auroc_stay_bootstrap_ci(preds, meta, disc_lms)
-        if preds is not None and meta is not None else None)
+    # The pooled dynamic AUROC describes the FULL STAY, not the capped display
+    # horizon: pool over every forward window with >= MIN_CELL_COUNT at risk,
+    # recomputed from preds. Fall back to the (capped) displayed landmarks only
+    # when preds/meta are absent (a pure-aggregation unit call).
+    if preds is not None and meta is not None:
+        pool = _full_stay_pool_windows(preds, meta)
+        out["metadata"]["pooled_auroc_scope"] = "full_stay"
+        out["metadata"]["pooled_auroc_n_windows"] = len(pool)
+        out["pooled_dynamic_auroc"] = _pooled_dynamic_auroc(pool)[0]
+        out["pooled_dynamic_auroc_ci"] = _pooled_auroc_stay_bootstrap_ci(
+            preds, meta, pool)
+    else:
+        out["metadata"]["pooled_auroc_scope"] = "display_horizon"
+        out["metadata"]["pooled_auroc_n_windows"] = len(_scored(disc_lms))
+        out["pooled_dynamic_auroc"] = _pooled_dynamic_auroc(disc_lms)[0]
+        out["pooled_dynamic_auroc_ci"] = None
     out["peak"] = _peak_block(peak.get("discrimination", {}))
     out["calibration"] = _calibration_block(landmarks.get("calibration", []))
     out["leadtime"] = _leadtime_block(leadtime)
@@ -80,6 +98,49 @@ def _scored(entries: list[dict]) -> list[dict]:
     return [e for e in entries
             if not e.get("suppressed") and not e.get("undefined")
             and e.get("metrics")]
+
+
+def _full_stay_pool_windows(preds: pl.DataFrame, meta: dict) -> list[dict]:
+    """Per-window discrimination over the FULL STAY, for the pooled dynamic AUROC.
+
+    The displayed landmark curve is capped at META['landmark_horizon'] (7d/30d) —
+    a show-only view. The pooled dynamic AUROC, however, must describe the whole
+    stay, so it pools over EVERY forward window (hospitalization_time == window_
+    number) whose risk set still holds >= MIN_CELL_COUNT stays and both label
+    classes — not just the first ``horizon`` windows. Deep/sparse windows fall
+    below the floor and drop out (they would carry near-zero Mann-Whitney pair
+    weight anyway).
+
+    Each entry mirrors a scored landmark discrimination entry
+    ({hospitalization_time, metrics:{auroc}, prevalence, n}) so the pooled point
+    estimate and the stay-bootstrap CI consume it unchanged. AUROC/prevalence use
+    discrimination.py's exact conventions (roc_auc_score rounded 4dp, prevalence
+    rounded 6dp), so within the display horizon these windows are bit-identical to
+    the landmark curve — the pool only EXTENDS past it.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    label_col = meta["label_column"]
+    parts = preds.partition_by("window_number", as_dict=True, maintain_order=True)
+    out: list[dict] = []
+    for key, sl in parts.items():
+        t = key[0] if isinstance(key, tuple) else key
+        n = sl.height
+        if n < MIN_CELL_COUNT:
+            continue
+        y = sl[label_col].to_numpy().astype(int)
+        cases = int(y.sum())
+        if cases == 0 or cases == n:          # single class -> AUROC undefined
+            continue
+        p = sl["y_prob"].to_numpy().astype(float)
+        out.append({
+            "hospitalization_time": int(t),
+            "metrics": {"auroc": round(float(roc_auc_score(y, p)), 4)},
+            "prevalence": round(cases / n, 6),
+            "n": n,
+        })
+    out.sort(key=lambda e: e["hospitalization_time"])
+    return out
 
 
 def _pooled_dynamic_auroc(entries: list[dict]) -> tuple[float | None,
@@ -226,45 +287,60 @@ def _leadtime_block(leadtime: dict) -> dict | None:
 
 
 def _operating_points_block(op: dict) -> dict | None:
-    """Clinical-threshold confusion headline + FPR sweep + sub-analysis highlights.
+    """Clinical-threshold headline + FPR sweep + encounter burden + sub-analysis.
 
-    Reads the built operating_points section. `sub_analyses` is None for tasks
-    without an intervention/treatment column.
+    Reads the built (continuous, peak-surface) operating_points section. The
+    clinical row is flagged, never positional: exactly one is_clinical row exists
+    in any non-empty sweep (tasks._validate_taxonomy guarantees the policy lands on
+    the grid). ``alert_burden`` is the encounter-level headline; ``sub_analyses``
+    is None for tasks without an intervention/treatment column.
     """
     by_thr = op.get("by_threshold") or []
     if not by_thr:
         return None
     t0 = (op.get("metadata") or {}).get("clinical_threshold")
-    # The clinical row is flagged, never positional: the 0.0 offset can never be
-    # dropped from the grid (tasks._validate_taxonomy guarantees
-    # 0 < clinical_threshold < 1), so exactly one is_clinical row exists in any
-    # non-empty sweep. Fail loudly if that invariant ever breaks — a silent
-    # positional fallback would publish the wrong row's headline numbers.
-    clinical = next(e for e in by_thr if e.get("is_clinical"))
-    conf = clinical.get("confusion") or {}
+    clinical = next((e for e in by_thr if e.get("is_clinical")), None)
+    if clinical is None:
+        return None
+    m = clinical.get("metrics") or {}
     block = {
         "clinical_threshold": t0,
-        "sensitivity": conf.get("sensitivity"),
-        "specificity": conf.get("specificity"),
-        "fpr": conf.get("fpr"),
-        "ppv": conf.get("ppv"),
-        "nne": conf.get("nne"), "nne_ci": conf.get("nne_ci"),
+        "sensitivity": m.get("sensitivity"),
+        "specificity": m.get("specificity"),
+        "fpr": m.get("fpr"),
+        "ppv": m.get("ppv"),
+        "nne": m.get("nne"), "nne_ci": m.get("nne_ci"),
         "fpr_by_threshold": [{"threshold": e.get("threshold"),
-                              "fpr": (e.get("confusion") or {}).get("fpr")}
+                              "fpr": (e.get("metrics") or {}).get("fpr")}
                              for e in by_thr],
+        "alert_burden": clinical.get("alert_burden"),
+        "selected_thresholds": _selected_digest(
+            op.get("data_driven_thresholds") or []),
         "sub_analyses": None,
     }
-    sub = clinical.get("sub_analyses")
-    if sub:
-        pos = sub.get("label_positive") or {}
-        negt = sub.get("label_negative_treated") or {}
-        negu = sub.get("label_negative_untreated") or {}
+    sub = clinical.get("sub_rates")
+    timing = op.get("intervention_timing") or []
+    if sub or timing:
+        clin_timing = next((x for x in timing if x.get("is_clinical")), {}) or {}
         block["sub_analyses"] = {
-            "pct_positive_fired": pos.get("pct_fired"),
+            "positive_share": (sub or {}).get("positive_share"),
+            "treated_negative_share": (sub or {}).get("treated_negative_share"),
+            "untreated_misfire_share": (sub or {}).get("untreated_misfire_share"),
+            "n_alarms": (sub or {}).get("n_alarms"),
             "median_hours_before_treatment_positive":
-                (pos.get("hours_before_treatment") or {}).get("median"),
-            "median_hours_before_treatment_treated_negative":
-                (negt.get("hours_before_treatment") or {}).get("median"),
-            "misfire_rate_untreated": negu.get("misfire_rate"),
+                clin_timing.get("median_hours_before_treatment_positive"),
         }
     return block
+
+
+def _selected_digest(locators: list[dict]) -> dict:
+    """Compact scoreboard digest: where Youden & F1 land (design doc §10 Q5)."""
+    out: dict = {}
+    for rule in ("youden_j", "f_beta_max"):
+        loc = next((locator for locator in locators
+                    if locator.get("rule") == rule), None)
+        if loc and loc.get("threshold") is not None:
+            ma = loc.get("metrics_at") or {}
+            out[rule] = {"threshold": loc.get("threshold"),
+                         "sensitivity": ma.get("sensitivity"), "ppv": ma.get("ppv")}
+    return out

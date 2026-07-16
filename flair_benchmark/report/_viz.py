@@ -9,11 +9,11 @@ interactive plots. Requires the optional extra:
 Two entry points, one per report mode:
   render_sanity_pngs     : episodic bundle (roc_pr / calibration / dca / fairness).
   render_continuous_pngs : continuous bundle — peak section (peak_roc_pr,
-                           peak_fairness_auroc), per-landmark curves on a
-                           unit-aware lead-time axis (days for tasks 1/2, hours
-                           for task 4), leadtime sensitivity with the red
-                           mean±SD intervention line, and the operating-points
-                           section (confusion matrix + optional sub-analyses).
+                           peak_fairness_auroc), per-landmark AUC/calibration
+                           curves on a unit-aware axis (days for tasks 1/2, hours
+                           for task 4), and the operating-points section (99-point
+                           alert-burden twin axis, data-driven locator strip,
+                           named-threshold confusion + optional treatment sub-rates).
 """
 
 from __future__ import annotations
@@ -64,6 +64,37 @@ def _ci_label(name: str, val, ci) -> str:
     if ci and ci[0] is not None and ci[1] is not None:
         return f"{name}={val:g} [{ci[0]:g}–{ci[1]:g}]"
     return f"{name}={val:g}"
+
+
+# The universal sweep publishes 99 thresholds; the figures cannot mark all of
+# them (dots retrace the ROC, 99 confusion panels / table columns are unreadable).
+# So the picked SET of data-driven locators is what gets drawn — the rest live only
+# in operating_points.json. Keep this small (design doc §6, Q6).
+_NAMED_LOCATORS = ("youden_j", "f_beta_max", "closest_01")
+_LOC_LABEL = {"youden_j": "Youden", "f_beta_max": "F1", "closest_01": "closest01",
+              "concordance_cz": "CZ", "index_of_union": "IU",
+              "sensitivity_target": "sens*", "specificity_target": "spec*",
+              "cost_based": "cost", "ppv_target": "PPV*",
+              "alert_rate_target": "rate*", "max_accuracy": "maxAcc",
+              "clinical": "clinical"}
+_VLINE_COLORS = {"youden_j": "#6a51a3", "f_beta_max": "#2ca25f",
+                 "closest_01": "#d95f0e"}
+_XTICKS = [i / 10 for i in range(11)]
+
+
+def _row_nearest(rows: list[dict], t: float) -> dict:
+    """The by_threshold row whose threshold is closest to t."""
+    return min(rows, key=lambda e: abs(e["threshold"] - t))
+
+
+def _locator_vlines(locators: list[dict]) -> list[tuple]:
+    """(label, threshold, color) for the small named locator set drawn as vlines."""
+    out = []
+    for loc in locators:
+        if loc.get("rule") in _NAMED_LOCATORS and loc.get("threshold") is not None:
+            out.append((_LOC_LABEL.get(loc["rule"], loc["rule"]), loc["threshold"],
+                        _VLINE_COLORS.get(loc["rule"], "#888888")))
+    return out
 
 
 def render_sanity_pngs(reports: dict[str, dict], out_dir: Path) -> list[Path]:
@@ -228,32 +259,36 @@ def _render_dca(dca: dict, _save, plt) -> None:
 
 
 def _mark_grid_on_roc(ax, ops: dict) -> None:
-    """Plot every scorecard threshold on the ROC; the clinical one carries its CIs.
+    """Mark the clinical operating point + the named data-driven locators on the ROC.
 
-    Showing the whole grid is the point of the episodic scorecard: it makes the
-    cost of moving the policy legible (how much sensitivity you buy per point of
-    specificity you give up) instead of asserting one operating point.
+    The ROC line already traces the full 99-point sweep, so plotting all 99 as dots
+    just retraces it. Only the NAMED points are marked — where each rule STANDS on
+    the curve — with the clinical point carrying its sens / FPR 95% CI error bars.
     """
-    pts = [(e["metrics"].get("fpr"), e["metrics"].get("sensitivity"),
-            e.get("threshold"), e.get("is_clinical"), e["metrics"])
-           for e in ops.get("by_threshold", []) if e.get("metrics")]
-    pts = [p for p in pts if p[0] is not None and p[1] is not None]
-    if not pts:
-        return
-    off = [(x, y) for x, y, _t, clin, _m in pts if not clin]
-    if off:
-        ax.plot(*zip(*off), "o", color="#5b86a6", ms=4, alpha=0.8,
-                label="threshold grid (±0.05, ±0.10)")
-    for x, y, t, clin, m in pts:
-        if not clin:
-            ax.annotate(f"{t:g}", (x, y), textcoords="offset points",
-                        xytext=(4, -7), fontsize=6.5, color="#33566b")
+    locs = [loc for loc in ops.get("data_driven_thresholds", [])
+            if loc.get("rule") in _NAMED_LOCATORS and loc.get("threshold") is not None]
+    plotted = False
+    for loc in locs:
+        ma = loc.get("metrics_at") or {}
+        x, y = ma.get("fpr"), ma.get("sensitivity")
+        if x is None or y is None:
             continue
-        sci, spci = m.get("sensitivity_ci"), m.get("fpr_ci")
-        yerr = [[y - sci[0]], [sci[1] - y]] if sci else None
-        xerr = [[x - spci[0]], [spci[1] - x]] if spci else None
-        ax.errorbar([x], [y], yerr=yerr, xerr=xerr, fmt="o", color="red",
-                    capsize=3, ms=5, label=f"clinical @ {t:g}")
+        ax.plot([x], [y], "o", color="#5b86a6", ms=5, alpha=0.85,
+                label="data-driven thresholds" if not plotted else None)
+        plotted = True
+        ax.annotate(f"{_LOC_LABEL.get(loc['rule'], loc['rule'])} {loc['threshold']:g}",
+                    (x, y), textcoords="offset points", xytext=(4, -7),
+                    fontsize=6.5, color="#33566b")
+    clin = next((e for e in ops.get("by_threshold", []) if e.get("is_clinical")), None)
+    if clin:
+        m = clin.get("metrics") or {}
+        x, y = m.get("fpr"), m.get("sensitivity")
+        if x is not None and y is not None:
+            sci, spci = m.get("sensitivity_ci"), m.get("fpr_ci")
+            yerr = [[y - sci[0]], [sci[1] - y]] if sci and sci[0] is not None else None
+            xerr = [[x - spci[0]], [spci[1] - x]] if spci and spci[0] is not None else None
+            ax.errorbar([x], [y], yerr=yerr, xerr=xerr, fmt="o", color="red",
+                        capsize=3, ms=5, label=f"clinical @ {clin.get('threshold'):g}")
     ax.legend(loc="lower right", fontsize=8)
 
 
@@ -275,41 +310,68 @@ _SCORECARD_TABLE = [("sensitivity", "sens"), ("specificity", "spec"),
 _DECISION_TABLE = [("net_benefit", "net ben"), ("net_benefit_treat_all", "vs all")]
 
 
-def _render_scorecard(ops: dict | None, _save, plt) -> None:
-    """operating_points.png — every KPI against the threshold grid, + a value table.
+def _named_columns(rows: list[dict], clinical, locators: list[dict]) -> list[tuple]:
+    """(column label, by_threshold row) for clinical + each located cutpoint.
 
-    One panel per KPI with its 95% CI band, the clinical threshold marked, and the
-    exact numbers tabulated underneath. This is the picture the JSON is for: what
-    the decision costs at, and either side of, the shipped policy.
+    A 99-column value table is unreadable, so the table shows only the named
+    thresholds — the shipped policy plus where each data-driven rule lands (§6.1).
+    """
+    cols: list[tuple] = []
+    seen: set[float] = set()
+    if clinical is not None:
+        cols.append((f"clin\n{clinical:g}", _row_nearest(rows, clinical)))
+        seen.add(round(clinical, 2))
+    for loc in locators:
+        if loc.get("rule") == "clinical" or loc.get("threshold") is None:
+            continue
+        t = round(float(loc["threshold"]), 2)
+        if t in seen:
+            continue
+        seen.add(t)
+        cols.append((f"{_LOC_LABEL.get(loc['rule'], loc['rule'])}\n{t:g}",
+                     _row_nearest(rows, t)))
+    return cols
+
+
+def _render_scorecard(ops: dict | None, _save, plt) -> None:
+    """operating_points.png — every KPI as a trend over the 99-point sweep + a table.
+
+    One trend panel per KPI (line + 95% CI band) with the clinical threshold and the
+    named data-driven locators marked; the exact numbers at the named thresholds are
+    tabulated underneath. This is the picture the JSON is for: the whole shape of the
+    trade-off, and where each rule would stand on it.
     """
     rows = [e for e in (ops or {}).get("by_threshold", []) if e.get("metrics")]
     if not rows:
         return
     thr = [e["threshold"] for e in rows]
     clinical = next((e["threshold"] for e in rows if e.get("is_clinical")), None)
+    locators = (ops or {}).get("data_driven_thresholds", [])
+    vlines = _locator_vlines(locators)
+    named = _named_columns(rows, clinical, locators)
 
     n_panels = len(_SCORECARD_PANELS) + 1        # + the decision (net-benefit) panel
     table_rows = _SCORECARD_TABLE + _DECISION_TABLE
     ncol = 4
     nrow = -(-n_panels // ncol)
-    fig = plt.figure(figsize=(3.2 * ncol, 2.5 * nrow + 0.3 * len(table_rows) + 1))
+    fig = plt.figure(figsize=(3.2 * ncol, 2.5 * nrow + 0.32 * len(table_rows) + 1))
     # the value table is a real subplot spanning the bottom row, not a floating
     # add_axes — _make_saver runs tight_layout(), which would shove a free axes.
     gs = fig.add_gridspec(nrow + 1, ncol, hspace=0.5, wspace=0.3,
                           left=0.06, right=0.98, top=0.90, bottom=0.04,
-                          height_ratios=[*([2.4] * nrow), 0.3 * len(table_rows)])
+                          height_ratios=[*([2.4] * nrow), 0.32 * len(table_rows)])
     for i, (key, title, ci_key) in enumerate(_SCORECARD_PANELS):
         ax = fig.add_subplot(gs[i // ncol, i % ncol])
-        _panel(ax, thr, [e["metrics"] for e in rows], key, ci_key, clinical)
+        _panel(ax, thr, [e["metrics"] for e in rows], key, ci_key, clinical, vlines)
         ax.set_title(title, fontsize=9)
 
-    # The decision panel is the one that answers "should we act here at all", so it
-    # carries the treat-all line: without it a rising net-benefit curve looks like
-    # good news even when doing it to everyone would score higher.
+    # The decision panel answers "should we act here at all", so it carries the
+    # treat-all line: without it a rising net-benefit curve looks like good news even
+    # when doing it to everyone would score higher.
     i = len(_SCORECARD_PANELS)
     ax = fig.add_subplot(gs[i // ncol, i % ncol])
     dec = [e.get("decision", {}) for e in rows]
-    _panel(ax, thr, dec, "net_benefit", "net_benefit_ci", clinical)
+    _panel(ax, thr, dec, "net_benefit", "net_benefit_ci", clinical, vlines)
     ref = [(t, d.get("net_benefit_treat_all")) for t, d in zip(thr, dec)]
     ref = [(t, v) for t, v in ref if v is not None]
     if ref:
@@ -319,38 +381,38 @@ def _render_scorecard(ops: dict | None, _save, plt) -> None:
 
     tax = fig.add_subplot(gs[nrow, :])
     tax.axis("off")
-    cells = ([[_fmt(e["metrics"].get(k)) for e in rows]
+    cells = ([[_fmt((r["metrics"] or {}).get(k)) for _lbl, r in named]
               for k, _lbl in _SCORECARD_TABLE]
-             + [[_fmt(e.get("decision", {}).get(k)) for e in rows]
+             + [[_fmt((r.get("decision") or {}).get(k)) for _lbl, r in named]
                 for k, _lbl in _DECISION_TABLE])
     table = tax.table(
         cellText=cells,
         rowLabels=[lbl for _k, lbl in table_rows],
-        colLabels=[f"[{t:g}]" if t == clinical else f"{t:g}" for t in thr],
+        colLabels=[lbl for lbl, _r in named],
         cellLoc="center", loc="center", bbox=[0.0, 0.0, 1.0, 1.0])
     table.auto_set_font_size(False)
     table.set_fontsize(7.5)
-    if clinical in thr:
-        c = thr.index(clinical)
-        for r in range(len(table_rows) + 1):
-            table[r, c].set_facecolor("#d6e6f2")   # the shipped policy
+    for c, (_lbl, r) in enumerate(named):
+        if r.get("is_clinical"):
+            for rr in range(len(table_rows) + 1):
+                table[rr, c].set_facecolor("#d6e6f2")   # the shipped policy
 
     md = ops.get("metadata") or {}
-    note = (f"clinical threshold {clinical:g}" if clinical is not None
+    note = (f"clinical {clinical:g}" if clinical is not None
             else "no clinical threshold on the grid")
-    fig.suptitle(f"Operating-points scorecard — {note} "
-                 f"(direction: {md.get('clinical_direction', 'above')}); "
-                 f"highlighted column is the shipped policy", fontsize=10)
+    fig.suptitle(f"Operating-points scorecard — trend over 99 thresholds ({note}, "
+                 f"direction: {md.get('clinical_direction', 'above')}); "
+                 f"table columns = clinical + data-driven locators", fontsize=10)
     _save(fig, "operating_points.png", tight=False)
 
 
 def _panel(ax, thr: list, blocks: list[dict], key: str, ci_key: str | None,
-           clinical) -> None:
-    """One KPI against the threshold grid: point line + CI band + policy marker."""
+           clinical, vlines: list[tuple] = ()) -> None:
+    """One KPI as a trend line over the sweep: line + CI band + policy/locator marks."""
     pairs = [(t, b.get(key)) for t, b in zip(thr, blocks)]
     pairs = [(t, v) for t, v in pairs if v is not None]
     if pairs:
-        ax.plot(*zip(*pairs), "o-", color="#5b86a6", ms=4)
+        ax.plot(*zip(*pairs), "-", color="#5b86a6", lw=1.3)
         if ci_key:
             band = [(t, b.get(ci_key)) for t, b in zip(thr, blocks)]
             band = [(t, c) for t, c in band
@@ -359,10 +421,13 @@ def _panel(ax, thr: list, blocks: list[dict], key: str, ci_key: str | None,
                 bt, bc = zip(*band)
                 ax.fill_between(bt, [c[0] for c in bc], [c[1] for c in bc],
                                 color="#5b86a6", alpha=0.18, lw=0)
+    for _lbl, t, color in vlines:
+        ax.axvline(t, color=color, lw=0.8, ls=":", alpha=0.85)
     if clinical is not None:
         ax.axvline(clinical, color="red", lw=1.0, ls="--")
     ax.tick_params(labelsize=7)
-    ax.set_xticks(thr)
+    ax.set_xticks(_XTICKS)                # sparse: 11 ticks, not all 99 thresholds
+    ax.set_xlim(0, 1)
 
 
 def _fmt(v) -> str:
@@ -398,22 +463,19 @@ def render_continuous_pngs(payloads: dict[str, dict], out_dir: Path) -> list[Pat
     predictions, i.e. still at risk and event-free):
       landmark_auc_by_hospital_time : AUROC +/- 95% CI per hospitalization time
                                       (the time-varying / dynamic AUC curve)
-      sensitivity_by_hospital_time  : detection sensitivity +/- 95% CI, with
-                                      the red mean±SD intervention line (from the
-                                      config `display`) when the task declares
-                                      an intervention/treatment column
       landmark_calibration          : calibration slope +/- 95% CI (drift)
       landmark_reliability          : reliability curves at 3 hospitalization
                                       times (earliest / mid / latest scored)
-      landmark_risk_trajectory      : mean predicted risk by eventual outcome
-    Operating points:
-      operating_points_confusion    : per-stay ALERT × LABEL 2×2 at the three
-                                      thresholds (clinical ± 0.05), TP emphasized
-      operating_points_subanalyses  : per-threshold sub-analyses (only for tasks
-                                      with an intervention/treatment column) —
-                                      rows = thresholds, cols = label-positive
-                                      hours-before-treatment / treated-negative Δ
-                                      / untreated misfire rate
+    Operating points (all on the peak surface, 99-point sweep):
+      alert_burden                  : encounter-level twin axis — detection
+                                      (sens/PPV) vs fraction of admissions alerting,
+                                      alarm-fatigue budget shaded
+      data_driven_thresholds        : where each selection rule lands vs the policy
+      operating_points_confusion    : ALERT × LABEL 2×2 at named thresholds
+                                      (clinical / Youden / F1), full 4-cell matrix
+      operating_points_subanalyses  : treatment fire-rate curves + named-threshold
+                                      median lead-time (only for a task with an
+                                      intervention/treatment column)
     Suppressed (n<10) or undefined landmarks are dropped from the curves
     (gaps) but still show as "<10" in the at-risk row.
     """
@@ -523,12 +585,6 @@ def render_continuous_pngs(payloads: dict[str, dict], out_dir: Path) -> list[Pat
               "landmark_auc_by_hospital_time.png",
               f"Time-varying AUC by hospitalization {unit or 'window'}",
               "AUROC", ylim=(0.4, 1.0), hline=0.5)
-    _lead_png(leadtime.get("curve", []),
-              lambda it: it.get("sensitivity"), lambda it: it.get("sensitivity_ci"),
-              "sensitivity_by_hospital_time.png",
-              f"Detection sensitivity by hospitalization {unit or 'window'}",
-              "sensitivity", ylim=(0.0, 1.0),
-              intervention=op.get("intervention_offsets"))
     _lead_png(pillars["calibration"], _m("slope"), _m("slope_ci"),
               "landmark_calibration.png",
               f"Calibration slope by hospitalization {unit or 'window'}",
@@ -536,25 +592,10 @@ def render_continuous_pngs(payloads: dict[str, dict], out_dir: Path) -> list[Pat
 
     _render_landmark_reliability(pillars["calibration"], _save, plt, unit)
 
-    # predicted risk trajectory by outcome: mean predicted prob for positive vs
-    # negative stays at each time-to-event (two lines) + shared at-risk row.
-    traj = leadtime.get("trajectory", [])
-    pts = [it for it in traj if not it.get("suppressed")]
-    if pts:
-        fig, ax = plt.subplots(figsize=(6, 4.4))
-        for key, color, lbl in (("mean_prob_positive", "#1f77b4", "positive (label=1)"),
-                                ("mean_prob_negative", "#ff7f0e", "negative (label=0)")):
-            xs = [it["hospitalization_time"] for it in pts if it.get(key) is not None]
-            ys = [it[key] for it in pts if it.get(key) is not None]
-            if not xs:
-                continue
-            ax.plot(xs, ys, "-o", color=color, ms=4, label=lbl)
-        ax.set(xlabel=xlabel, ylabel="Mean predicted probability",
-               title="Predicted risk trajectory by outcome", ylim=(0.0, 1.0))
-        _at_risk_row(ax, traj)
-        ax.legend(loc="best", fontsize=8)
-        _save(fig, "landmark_risk_trajectory.png")
-
+    # (the day/hour-level sensitivity curve and risk trajectory were removed — the
+    # operating-point analysis is encounter-level only, design doc §9.)
+    _render_alert_burden(op, _save, plt)
+    _render_data_driven(op, _save, plt)
     _render_operating_points(op, _save, plt)
     _render_operating_points_sub(op, _save, plt)
 
@@ -603,28 +644,45 @@ def _render_landmark_reliability(cal_items: list[dict], _save, plt,
     _save(fig, "landmark_reliability.png")
 
 
+def _confusion_named_rows(op: dict) -> list[tuple]:
+    """(label, by_threshold row) for clinical + Youden + F1 — the confusion panels."""
+    rows = op.get("by_threshold") or []
+    locs = op.get("data_driven_thresholds", [])
+    picks: list[tuple] = []
+    clin = next((e for e in rows if e.get("is_clinical")), None)
+    seen: set[float] = set()
+    if clin:
+        picks.append(("clinical", clin))
+        seen.add(round(clin["threshold"], 2))
+    for rule in ("youden_j", "f_beta_max"):
+        loc = next((x for x in locs
+                    if x.get("rule") == rule and x.get("threshold") is not None), None)
+        if loc:
+            t = round(float(loc["threshold"]), 2)
+            if t in seen:
+                continue
+            seen.add(t)
+            picks.append((_LOC_LABEL.get(rule, rule), _row_nearest(rows, t)))
+    return picks
+
+
 def _render_operating_points(op: dict, _save, plt) -> None:
-    """Per-stay ALERT × LABEL 2×2 per threshold (operating_points_confusion.png).
+    """ALERT × LABEL 2×2 at the named thresholds (operating_points_confusion.png).
 
-    One panel per threshold (clinical ± 0.05); the TP (fired & label-positive)
-    cell is emphasized, with sensitivity / specificity / FPR / PPV / NNE beneath.
-    Task-agnostic — no intervention config needed.
-
-    A task near the edge of (0, 1) gets FEWER than three panels: task1 sits at 0.95,
-    so its +0.05 arm is dropped rather than thresholded at an unusable 1.0. Say so on
-    the figure — otherwise a reader comparing task1's two panels against task2's three
-    is left to guess whether a panel failed to render.
+    99 panels would be absurd, so only the named set is drawn — clinical, Youden, F1
+    — each a full 2×2 (all four cells) with sensitivity / specificity / FPR / PPV /
+    NNE beneath. Task-agnostic — no intervention config needed.
     """
-    by_thr = op.get("by_threshold") or []
-    if not by_thr:
+    named = _confusion_named_rows(op)
+    if not named:
         return
-    n = len(by_thr)
+    n = len(named)
     fig, axes = plt.subplots(1, n, figsize=(4 * n, 3.8))
     if n == 1:
         axes = [axes]
-    for ax, e in zip(axes, by_thr):
+    for ax, (label, e) in zip(axes, named):
         c = e.get("confusion") or {}
-        # each quadrant is annotated with its confusion type AND count.
+        m = e.get("metrics") or {}
         cells = [[f"TP\n{c.get('tp')}", f"FN\n{c.get('fn')}"],
                  [f"FP\n{c.get('fp')}", f"TN\n{c.get('tn')}"]]
         tbl = ax.table(cellText=cells,
@@ -640,117 +698,169 @@ def _render_operating_points(op: dict, _save, plt) -> None:
         for cell in tbl.get_celld().values():   # taller rows so the 2-line cells fit
             cell.set_height(0.20)
         ax.axis("off")
-        stat = (f"sens {c.get('sensitivity')}  spec {c.get('specificity')}\n"
-                f"FPR {c.get('fpr')}  PPV {c.get('ppv')}  NNE {c.get('nne')}")
+        stat = (f"sens {m.get('sensitivity')}  spec {m.get('specificity')}\n"
+                f"FPR {m.get('fpr')}  PPV {m.get('ppv')}  NNE {m.get('nne')}")
         ax.text(0.5, 0.05, stat, transform=ax.transAxes, ha="center",
                 va="center", fontsize=8, family="monospace")
-        ax.set_title(f"t = {e.get('threshold')}   (n = {c.get('n')})", fontsize=10)
-    fig.suptitle("Per-stay operating points  (alert == 1  ×  label == 1)",
+        ax.set_title(f"{label}: t = {e.get('threshold')}   (n = {c.get('n')})",
+                     fontsize=10)
+    fig.suptitle("Operating points at named thresholds  (full alert × label 2×2)",
                  fontsize=11)
-    dropped = (op.get("metadata") or {}).get("dropped_offsets") or []
-    if dropped:
-        note = "; ".join(
-            f"{d.get('offset'):+g} dropped (threshold {d.get('threshold')}: "
-            f"{d.get('reason')})" for d in dropped)
-        fig.text(0.5, 0.02, note, ha="center", fontsize=8, color="#8a6d3b")
     _save(fig, "operating_points_confusion.png")
 
 
 def _render_operating_points_sub(op: dict, _save, plt) -> None:
-    """Per-threshold intervention sub-analyses (operating_points_subanalyses.png).
+    """Treatment sub-analysis (operating_points_subanalyses.png).
 
-    Rows = the thresholds; cols = label-positive alarm lead time / label-negative
-    treated alarm lead time / label-negative untreated misfires. Both lead-time
-    panels share ONE axis ("hours before treatment", positive = alarm earlier).
-    Rendered only when the task declares an intervention/treatment column (each
-    entry has `sub_analyses`). All labels use the config `display` — no task
-    specifics.
+    Fire-rate curves across the sweep — positive-arm fired, treated-negative fired,
+    untreated misfire — which decompose the false-alarm axis into "fired on a stay
+    that got treated anyway" vs "pure misfire on a never-treated stay". A single
+    median lead-time is annotated at the named thresholds (no distribution, no
+    histogram — design doc §4.4). Rendered only for a task with an intervention.
     """
-    by_thr = [e for e in (op.get("by_threshold") or []) if e.get("sub_analyses")]
-    if not by_thr:
+    rows = [e for e in (op.get("by_threshold") or []) if e.get("sub_rates")]
+    if not rows:
         return
     iv = (op.get("metadata") or {}).get("intervention") or {}
     display = iv.get("display") or iv.get("column") or "treatment"
-    nrows = len(by_thr)
-    fig, axes = plt.subplots(nrows, 3, figsize=(14, 3.4 * nrows), squeeze=False)
-    for r, e in enumerate(by_thr):
-        t = e.get("threshold")
-        sub = e["sub_analyses"]
-        _lead_hist(axes[r][0],
-                   (sub.get("label_positive") or {}).get("hours_before_treatment"),
-                   f"label == 1 & alert == 1   (t = {t})", display,
-                   (sub.get("label_positive") or {}))
-        _lead_hist(axes[r][1],
-                   (sub.get("label_negative_treated") or {}).get("hours_before_treatment"),
-                   f"label == 0 & {display} == 1 & alert == 1   (t = {t})", display,
-                   (sub.get("label_negative_treated") or {}))
-        _misfire_split(axes[r][2], sub.get("label_negative_untreated") or {},
-                       f"label == 0 & {display} == 0   (t = {t})")
-    fig.suptitle(f"Operating-point sub-analyses  (anchor: {display} start time)",
-                 fontsize=11)
+    clinical = next((e["threshold"] for e in rows if e.get("is_clinical")), None)
+
+    fig, ax = plt.subplots(figsize=(7.6, 4.6))
+    # each line = one patient subgroup (arm); y = that arm's SHARE of every stay that
+    # alarms at t (one shared denominator = all firing stays). The three arms partition
+    # every stay — event-positive, or event-negative split by whether the treatment was
+    # ever given — so the three shares sum to 1 (a "what is my alarm made of" read).
+    series = [("positive_share", "#1f77b4", "label=1 (event): share of alarms"),
+              ("treated_negative_share", "#2ca02c",
+               f"label=0 & treated ({display}): share of alarms"),
+              ("untreated_misfire_share", "#c25b5b",
+               "label=0 & untreated: share of alarms (misfire)")]
+    for key, color, lbl in series:
+        pts = [(e["threshold"], (e["sub_rates"] or {}).get(key)) for e in rows]
+        pts = [(t, v) for t, v in pts if v is not None]
+        if pts:
+            ax.plot(*zip(*pts), "-", color=color, lw=1.5, label=lbl)
+    if clinical is not None:
+        ax.axvline(clinical, color="red", ls="--", lw=1.0,
+                   label=f"clinical threshold {clinical:g}")
+
+    notes = []
+    for x in op.get("intervention_timing") or []:
+        mp = x.get("median_hours_before_treatment_positive")
+        if mp is not None:
+            notes.append(f"t={x['threshold']:g}: {mp:g} h"
+                         + ("  (clinical)" if x.get("is_clinical") else ""))
+    if notes:
+        # lower-left: all three arms fire near 1.0 on the left, so low-y is the empty
+        # quadrant — keeps this box clear of the upper-right legend.
+        ax.text(0.02, 0.02, f"median lead time before {display}\n" + "\n".join(notes[:6]),
+                transform=ax.transAxes, ha="left", va="bottom", fontsize=7,
+                family="monospace",
+                bbox=dict(boxstyle="round", fc="white", ec="0.7", alpha=0.9))
+    ax.set(xlabel="threshold  (peak risk ≥ threshold ⇒ the stay alerts)",
+           ylabel="share of alarms  (of all firing stays; 3 arms sum to 1)",
+           xlim=(0, 1), ylim=(0, 1.02),
+           title=f"Treatment sub-analysis — alarm composition by arm (anchor: {display})")
+    ax.set_xticks(_XTICKS)
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.95)
+    fig.text(0.5, -0.04,
+             "Each line is a patient subgroup (arm); y = share of ALL firing stays that "
+             "fall in this arm (the three arms sum to 1).\nGood model: blue high (most "
+             "alarms are real events) while red stays low (few pure misfires).",
+             ha="center", va="top", fontsize=7, color="0.35")
     _save(fig, "operating_points_subanalyses.png")
 
 
-def _lead_hist(ax, summary: dict | None, title: str, display: str,
-               arm: dict | None = None) -> None:
-    """Alarm lead-time histogram: hours BEFORE treatment (positive = earlier).
+def _render_alert_burden(op: dict, _save, plt) -> None:
+    """alert_burden.png — the two coupled axes, encounter-level (peak surface, §6.3).
 
-    Mass sits on the left (near t=0), so the stats are annotated at the upper
-    RIGHT and the treatment line is labelled inline — no legend box to collide
-    with the bars.
+    Left: detection (sensitivity, PPV) on the peak surface. Right: the encounter
+    alert-rate (fraction of admissions ever alerting) with the alarm-fatigue budget
+    shaded. NNE at the clinical threshold is annotated (its scale dwarfs a 0–1 axis,
+    so it is a number, not a co-plotted curve). No patient-day denominator.
     """
-    bins = (summary or {}).get("histogram") or []
-    if not summary or summary.get("suppressed") or not bins:
-        ax.text(0.5, 0.5, "suppressed / no data", ha="center", va="center",
-                transform=ax.transAxes, color="0.5")
-        ax.set(title=title, xticks=[], yticks=[])
+    rows = [e for e in (op.get("by_threshold") or []) if e.get("alert_burden")]
+    if not rows:
         return
-    ax.bar([b["lo"] for b in bins], [b["count"] for b in bins],
-           width=[b["hi"] - b["lo"] for b in bins], align="edge",
-           color="#5b86a6", edgecolor="white")
-    ax.axvline(0.0, color="red", lw=1.4)
-    # inline label on the treatment line (rotated), instead of a legend.
-    ax.annotate(f"{display} start (t = 0)", xy=(0, 1), xycoords=("data", "axes fraction"),
-                xytext=(3, -3), textcoords="offset points", rotation=90,
-                va="top", ha="left", color="red", fontsize=7.5)
-    arm = arm or {}
-    pct = arm.get("pct_fired")
-    fired = f"fired {round(pct * 100, 1)}%" if pct is not None else ""
-    stat = (f"median {summary.get('median')} h before {display}\n"
-            f"IQR [{summary.get('p25')}, {summary.get('p75')}] h   n = {summary.get('n')}"
-            + (f"\n{fired} of arm" if fired else ""))
-    ax.text(0.97, 0.97, stat, transform=ax.transAxes, ha="right", va="top",
-            fontsize=7.5, family="monospace",
-            bbox=dict(boxstyle="round", fc="white", ec="0.7", alpha=0.9))
-    ax.set(ylabel="stays that fired",
-           xlabel=f"hours before {display} (positive = alarm earlier)")
-    ax.set_title(title, fontsize=9)
+    clinical = next((e["threshold"] for e in rows if e.get("is_clinical")), None)
+
+    def series(key, src):
+        pts = [(e["threshold"], (e.get(src) or {}).get(key)) for e in rows]
+        return [(t, v) for t, v in pts if v is not None]
+
+    # collect legend handles EXPLICITLY — ax.get_lines() would also sweep up the
+    # unlabeled axvline/axhline reference lines as matplotlib "_child" entries.
+    handles = []
+    fig, axl = plt.subplots(figsize=(7.6, 4.6))
+    for key, color, lbl in (("sensitivity", "#1f77b4", "sensitivity"),
+                            ("ppv", "#2ca02c", "PPV")):
+        p = series(key, "metrics")
+        if p:
+            handles += axl.plot(*zip(*p), "-", color=color, lw=1.5, label=lbl)
+    axl.set(xlabel="threshold", ylabel="detection (sensitivity / PPV)",
+            xlim=(0, 1), ylim=(0, 1.02))
+    axl.set_xticks(_XTICKS)
+
+    axr = axl.twinx()
+    fa = series("frac_stays_alerting", "alert_burden")
+    if fa:
+        handles += axr.plot(*zip(*fa), "-", color="#c25b5b", lw=1.5,
+                            label="frac stays alerting")
+    axr.set(ylabel="fraction of admissions alerting", ylim=(0, 1.02))
+
+    targets = ((op.get("metadata") or {}).get("selection_params") or {}).get(
+        "alert_rate_targets") or []
+    if targets:
+        budget = max(targets)
+        handles.append(axr.axhline(budget, color="#c25b5b", ls="--", lw=0.8,
+                                   label=f"alert budget {budget:g}"))
+        axr.axhspan(budget, 1.02, color="#c25b5b", alpha=0.06)   # alarm-fatigue zone
+    clin_row = next((e for e in rows if e.get("is_clinical")), None)
+    if clin_row:
+        nne = (clin_row.get("alert_burden") or {}).get("nne")
+        if nne is not None:
+            axr.text(0.02, 0.02, f"NNE @ clinical = {nne:g} alerts / TP",
+                     transform=axr.transAxes, fontsize=7.5, family="monospace",
+                     bbox=dict(boxstyle="round", fc="white", ec="0.7", alpha=0.9))
+    if clinical is not None:
+        handles.append(axl.axvline(clinical, color="red", ls="--", lw=1.0,
+                                   label=f"clinical {clinical:g}"))
+    axl.legend(handles, [h.get_label() for h in handles],
+               loc="upper center", fontsize=7.5, ncol=3)
+    axl.set_title("Alert burden — encounter-level (peak surface)", fontsize=10)
+    _save(fig, "alert_burden.png")
 
 
-def _misfire_split(ax, arm: dict, title: str) -> None:
-    """Untreated-negative outcome split: misfired (false alarm) vs silent (correct).
-
-    Two side-by-side fraction bars summing to 1 (not a lone bar / stack); 95% CI
-    error bar on the misfired bar.
-    """
-    rate = arm.get("misfire_rate")
-    if rate is None:
-        ax.text(0.5, 0.5, "suppressed / no data", ha="center", va="center",
-                transform=ax.transAxes, color="0.5")
-        ax.set(title=title, xticks=[], yticks=[])
+def _render_data_driven(op: dict, _save, plt) -> None:
+    """data_driven_thresholds.png — where every rule lands vs the shipped policy (§6.5)."""
+    locs = [loc for loc in op.get("data_driven_thresholds", [])
+            if loc.get("threshold") is not None and loc.get("rule") != "clinical"]
+    if not locs:
         return
-    ci = arm.get("misfire_rate_ci")
-    yerr = [[rate - ci[0]], [ci[1] - rate]] if ci and ci[0] is not None else None
-    labels = ["alert == 1\n(misfired)", "alert == 0\n(silent)"]
-    heights = [rate, 1 - rate]
-    bars = ax.bar(labels, heights, color=["#c25b5b", "#8bbf9f"], width=0.6)
-    ax.errorbar([labels[0]], [rate], yerr=yerr, fmt="none", color="k", capsize=4)
-    # annotate each bar with its fraction (and count where known).
-    n_mis = arm.get("n_misfired")
-    notes = [f"{rate:.4f}" + (f"\n(n={n_mis})" if isinstance(n_mis, int) else ""),
-             f"{1 - rate:.4f}"]
-    for b, note in zip(bars, notes):
-        ax.text(b.get_x() + b.get_width() / 2, min(b.get_height() + 0.03, 0.95),
-                note, ha="center", va="bottom", fontsize=7.5, family="monospace")
-    ax.set(ylim=(0, 1.08), ylabel="fraction of untreated negatives")
-    ax.set_title(f"{title}   n = {arm.get('n')}", fontsize=9)
+    clinical = (op.get("metadata") or {}).get("clinical_threshold")
+    locs = sorted(locs, key=lambda loc: loc["threshold"])
+    fig, ax = plt.subplots(figsize=(7.6, max(3.0, 0.42 * len(locs))))
+    ys = list(range(len(locs)))
+    for y, loc in zip(ys, locs):
+        t = loc["threshold"]
+        ma = loc.get("metrics_at") or {}
+        ax.plot([0, t], [y, y], "-", color="#cccccc", lw=1.0, zorder=1)
+        tci = loc.get("threshold_ci")           # selection-aware cutpoint stability
+        if tci and tci[0] is not None and tci[1] is not None:
+            ax.plot(tci, [y, y], "-", color="#5b86a6", lw=3.0, alpha=0.35, zorder=2,
+                    solid_capstyle="round")
+        ax.plot([t], [y], "o", color="#5b86a6", ms=7, zorder=3)
+        deg = "  (degenerate)" if loc.get("degenerate") else ""
+        ax.annotate(f"{t:g}   sens {ma.get('sensitivity')}  ppv {ma.get('ppv')}{deg}",
+                    (t, y), textcoords="offset points", xytext=(9, 0),
+                    va="center", fontsize=7)
+    ax.set_yticks(ys)
+    ax.set_yticklabels([_LOC_LABEL.get(loc["rule"], loc["rule"]) for loc in locs],
+                       fontsize=8)
+    if clinical is not None:
+        ax.axvline(clinical, color="red", ls="--", lw=1.2,
+                   label=f"clinical {clinical:g}")
+        ax.legend(loc="lower right", fontsize=8)
+    ax.set(xlabel="threshold", xlim=(0, 1),
+           title="Where each rule lands vs the shipped policy")
+    _save(fig, "data_driven_thresholds.png")
