@@ -48,8 +48,8 @@ DATA_CUTOFF = date(2025, 12, 31)
 # extubate nobody). That complement event has no name derivable from the label, so
 # it is declared here. Omit for an "above" task: the DCA event IS the label event.
 TASK_POLICY: dict[str, dict] = {
-    "task1_icu_daily_mortality":    {"clinical_threshold": 0.95, "clinical_action": "withdraw life support", "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 30,
-                                     "dca_axis": {"event": "in-hospital mortality", "action": "withdraw life support"}},
+    "task1_icu_daily_mortality":    {"clinical_threshold": 0.95, "clinical_action": "order a palliative care consult", "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 30,
+                                     "dca_axis": {"event": "in-hospital mortality", "action": "order a palliative care consult"}},
     "task2_icu_daily_ltach":        {"clinical_threshold": 0.5, "clinical_action": "perform early tracheostomy", "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 30,
                                      "dca_axis": {"event": "LTACH discharge", "action": "perform early tracheostomy"}},
     "task3_extubation_failure_24h": {"clinical_threshold": 0.15, "clinical_action": "extubate", "clinical_direction": "below", "report_mode": "episodic",

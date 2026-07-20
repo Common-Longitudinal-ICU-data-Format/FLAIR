@@ -12,7 +12,7 @@ flair list-tasks
 
 | task | class | temporal pattern | prediction unit | type | threshold (dir) | clinical action |
 |---|---|---|---|---|---|---|
-| `task1_icu_daily_mortality` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.95 (above) | withdraw life support |
+| `task1_icu_daily_mortality` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.95 (above) | order a palliative care consult |
 | `task2_icu_daily_ltach` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.50 (above) | early tracheostomy |
 | `task3_extubation_failure_24h` | intervention | episode | one-per-stay | binary | 0.15 (below) | extubate |
 | `task4_sepsis_abx_6h` | intervention | continuous | one-per-window (hourly) | binary | 0.10 (above) | treat with antibiotics |
