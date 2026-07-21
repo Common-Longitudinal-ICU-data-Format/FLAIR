@@ -47,7 +47,7 @@ from flair_benchmark._readmission import compute_readmission_timing
 from flair_benchmark._split import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
 
-MIN_ICU_STAY_HOURS = 1
+MIN_ICU_STAY_HOURS = 24
 
 from flair_benchmark._constants import TASK_POLICY
 
@@ -68,19 +68,19 @@ META = {
         "Adults (age >= 18) with a first ICU stay, predicted at first-ICU "
         "discharge. Planned ICU -> Procedural -> ICU returns are merged (not "
         "readmissions). Excludes death during the first ICU stay, direct ICU "
-        "discharge, first ICU stay < 1h, and intermediate ER visits."
+        "discharge, first ICU stay < 24h, and intermediate ER visits."
     ),
     "inclusion_criteria": [
         "age_at_admission >= 18",
         "valid admission_dttm and discharge_dttm",
         "at least one ICU ADT record (first ICU stay defined)",
-        "first ICU stay >= 1 hour",
+        "first ICU stay >= 24 hours",
     ],
     "exclusion_criteria": [
         "no ICU ADT record",
         "death during the first ICU stay",
         "direct ICU discharge (last location is ICU)",
-        "first ICU stay < 1 hour",
+        "first ICU stay < 24 hours",
         "intermediate ER visit (ER after the first location)",
     ],
     "evaluation_metrics": ["auroc", "auprc", "accuracy", "precision", "recall",

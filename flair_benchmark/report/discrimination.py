@@ -143,8 +143,8 @@ def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
 
     ALARM CONVENTION: classifies y_prob >= t in BOTH directions, so sensitivity /
     specificity / PPV always mean "how well do we detect the event". The
-    direction-aware clinical decision (which flips for a `below` task like task3,
-    where the action fires on LOW risk) lives in the separate `action` block.
+    direction-aware clinical decision (which flips for a `below` task, where the
+    action fires on LOW risk) lives in the separate `action` block.
 
     Each rate carries a 95% bootstrap CI; confusion counts pass through
     suppress() for PHI safety.

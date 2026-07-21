@@ -288,7 +288,7 @@ FLAIR ships one fixed threshold per task, written down as clinical policy in `fl
 |----------------|------------------|------------------|------------------|
 | ICU daily mortality | 0.95 | above | act when the model is very sure |
 | ICU daily LTACH | 0.5 | above | act on more-likely-than-not |
-| Extubation failure 24h | 0.15 | below | extubate when failure risk is low |
+| Extubation failure 24h | 0.80 | above | perform a tracheostomy when failure risk is high |
 | Sepsis antibiotics 6h | 0.1 | above | alert early, tolerate false alarms |
 | ICU readmission | 0.2 | above | flag the top slice of risk |
 
@@ -338,9 +338,9 @@ Two rules the report follows, and states in its own output:
 
 **What "direction" does to all this**
 
-Two of FLAIR's tasks act on *low* risk. Extubation failure fires when risk is below 0.15 — extubate the patient. This does not change threshold selection at all. Sensitivity and specificity are always computed in the usual risk-classifier sense (predicted positive means the score is at or above the threshold, label means the event happened), so Youden, F1-max and top-left separate events from non-events regardless of which side the clinician acts on.
+A task can act on *low* risk (`clinical_direction: "below"`) — none of FLAIR's live tasks currently do, but the reporting supports it. Take a hypothetical "extubate when failure risk is below t" task: the action fires on the low-risk side. This does not change threshold selection at all. Sensitivity and specificity are always computed in the usual risk-classifier sense (predicted positive means the score is at or above the threshold, label means the event happened), so Youden, F1-max and top-left separate events from non-events regardless of which side the clinician acts on.
 
-Direction only changes who gets acted on. Each threshold therefore also reports an action view: how many patients were extubated, and what fraction of them failed.
+Direction only changes who gets acted on. Each threshold therefore also reports an action view: for above-tasks like extubation failure (perform a tracheostomy when failure risk ≥ 0.80), how many patients were trached and what fraction of them would have failed.
 
 **How this works in each mode**
 

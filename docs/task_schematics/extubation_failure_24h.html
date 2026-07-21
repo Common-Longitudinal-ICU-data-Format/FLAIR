@@ -52,7 +52,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     intubation/extubation spanning a re-admission boundary is one episode. Constants
     verified against code: <code>HORIZON_HOURS=24</code>,
     <code>INTUB_WINDOW_MIN_DEFAULT=15</code>, <code>EXTUB_WINDOW_MIN_DEFAULT=30</code>,
-    <code>TRACH_CLOSURE_TOLERANCE_MIN=1</code>.
+    <code>TRACH_CLOSURE_TOLERANCE_MIN=1</code>, <code>MIN_IMV_HOURS=6</code>.
   </div>
 
   <h2>Consensus-window IMV episode detection</h2>
@@ -126,6 +126,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     <li>Age at admission \(\ge 18\) with valid <code>admission_dttm</code> and <code>discharge_dttm</code>.</li>
     <li>\(\ge 1\) ICU ADT record.</li>
     <li>First IMV episode (<code>episode_index = 1</code>) has non-null <code>episode_end_dttm</code> (a confirmed extubation exists).</li>
+    <li>First IMV episode lasts \(\ge\) <code>MIN_IMV_HOURS = 6</code> hours (<code>episode_end_dttm − episode_start_dttm</code>): a brief peri-procedural intubation is not the weaning decision this task models. The 15/30-minute consensus windows below are artifact filters, not a cohort criterion.</li>
     <li><strong>Exclude</strong> pre-existing tracheostomy (<code>is_pre_existing_trach</code>).</li>
     <li><strong>Exclude</strong> first episode closed by a trach sentinel (±1 min tolerance via <code>TRACH_CLOSURE_TOLERANCE_MIN = 1</code>; <code>_drop_trach_closed</code>).</li>
     <li><strong>Exclude</strong> death within 24h post-extubation without reintubation (palliative extubation).</li>
@@ -172,7 +173,7 @@ flowchart TD
   cohort["adult ICU cohort<br/>(age ≥ 18; ≥ 1 ICU ADT)"]
   loadresp["load_respiratory_support"]
   detect["detect_imv_episodes<br/>consensus state machine<br/>IMV ≥ 15min start; non-IMV ≥ 30min close;<br/>trach sentinel closes &amp; halts"]
-  filter["episodes.filter(<br/>episode_index = 1 ∧ episode_end_dttm ≠ ∅<br/>∧ ¬is_pre_existing_trach)"]
+  filter["episodes.filter(<br/>episode_index = 1 ∧ episode_end_dttm ≠ ∅<br/>∧ duration ≥ 6h ∧ ¬is_pre_existing_trach)"]
   trach["_drop_trach_closed<br/>trach row within ±1min of episode_end"]
   pred["t_extub = first extubation<br/>= episode_end_dttm of episode₁"]
   reint["join reintubation<br/>= episode_start_dttm of episode₂ (left join)"]
@@ -213,6 +214,7 @@ flowchart TD
     <li><code>load_respiratory_support(cfg, hosp_ids)</code> returns all device-status rows for the cohort.</li>
     <li>Run <code>detect_imv_episodes(resp)</code> (consensus detector above).</li>
     <li>Filter to first episodes ending in a confirmed extubation: <code>episode_index = 1 ∧ episode_end_dttm ≠ ∅ ∧ ¬is_pre_existing_trach</code>.</li>
+    <li>Drop first episodes shorter than <code>MIN_IMV_HOURS = 6</code>: <code>episode_end_dttm − episode_start_dttm ≥ 6h</code>, equivalently \(t_{\text{extub}}^i - t_{\text{intub}}^i \ge 6\text{h}\).</li>
     <li>Drop trach-closed first episodes via <code>_drop_trach_closed</code>: any first episode whose <code>episode_end_dttm</code> coincides with a <code>trach collar</code> or <code>tracheostomy=true</code> row within ±1 minute (decannulation ≠ extubation).</li>
     <li>Extract second-episode starts as \(t_{\text{reint}}^i\) = <code>episode_start_dttm</code> where <code>episode_index = 2</code> (left join; null if none).</li>
     <li>Join encounter-level \(t_{\text{death}}^i\) and \(t_{\text{disch}}^i\).</li>

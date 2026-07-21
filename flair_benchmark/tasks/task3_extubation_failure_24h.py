@@ -15,7 +15,8 @@ _ventilation_episodes.detect_imv_episodes:
   - IMV start counts only if IMV persists >= 15 min
   - Extubation closes the episode only if non-IMV persists >= 30 min
   - A trach sentinel closes any open episode and stops further counting
-These windows filter transient mis-classified RespiratorySupport rows.
+These windows filter transient mis-classified RespiratorySupport rows. They are
+artifact filters, NOT a cohort criterion — the cohort floor is MIN_IMV_HOURS.
 
 Pipeline:
   1. base_icu_cohort()        — adult ICU cohort
@@ -23,6 +24,8 @@ Pipeline:
   3. detect_imv_episodes()    — confirmed (start, end) intervals
   4. restrict to episode_index == 1 with non-null episode_end_dttm,
      drop pre-existing trach
+  4b. drop episodes shorter than MIN_IMV_HOURS (episode_end - episode_start);
+     a brief peri-procedural intubation is not the weaning decision modelled
   5. drop trach-closed episodes (trach row within +/-1min of episode_end)
   6. reintubation_dttm = episode 2's episode_start_dttm (if any)
   7. label = reintubated_in_24h
@@ -45,6 +48,12 @@ from flair_benchmark.tasks._finalize import finalize_cohort
 
 HORIZON_HOURS = 24
 TRACH_CLOSURE_TOLERANCE_MIN = 1
+# Minimum duration of the first IMV episode: a brief peri-procedural intubation
+# is not the weaning decision this task models. 6h is a FLAIR choice, deliberately
+# more permissive than the published floors (12h Hernandez 2016 low-risk, 24h
+# Thille 2019 HIGH-WEAN and ExPreS 2021, 48h Frutos-Vivar 2006), which keeps the
+# cohort broad while still excluding same-day post-op extubations.
+MIN_IMV_HOURS = 6
 
 from flair_benchmark._constants import TASK_POLICY
 
@@ -61,13 +70,15 @@ META = {
     "positive_class": "reintubation_within_24h_post_extubation",
     "input_window_hours": None,
     "prediction_window": [0, HORIZON_HOURS],
-    "cohort_description": "Adults with a first confirmed IMV episode closed by "
-                          "extubation (not trach, not end-of-record); one row per "
-                          "hospitalization anchored at the first extubation_dttm",
+    "cohort_description": "Adults with a first confirmed IMV episode lasting "
+                          ">= 6h and closed by extubation (not trach, not "
+                          "end-of-record); one row per hospitalization anchored "
+                          "at the first extubation_dttm",
     "inclusion_criteria": [
         "age_at_admission >= 18",
         "at least one ICU ADT record",
         "first IMV episode (episode_index == 1) has non-null episode_end_dttm",
+        "first IMV episode duration >= 6 hours",
     ],
     "exclusion_criteria": [
         "pre-existing tracheostomy",
@@ -110,6 +121,10 @@ def build(clif_config: str, train_end: str | None,
         .filter(~pl.col("is_pre_existing_trach"))
         .filter(pl.col("episode_index") == 1)
         .filter(pl.col("episode_end_dttm").is_not_null())
+        .filter(
+            (pl.col("episode_end_dttm") - pl.col("episode_start_dttm"))
+            >= pl.duration(hours=MIN_IMV_HOURS)
+        )
         .select([
             "hospitalization_id",
             pl.col("episode_start_dttm").alias("first_intubation_dttm"),

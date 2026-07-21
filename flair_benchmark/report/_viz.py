@@ -207,8 +207,9 @@ def _render_dca(dca: dict, _save, plt) -> None:
     """dca.png — the net-benefit curve, ON ITS OWN AXIS (verdict text lives in dca.json).
 
     Everything here comes from dca.json and nothing from the scorecard. That is the
-    whole point: a "below" task's curve lives on the COMPLEMENT axis (task3's x is
-    the probability of successful extubation, so its 0.15 policy sits at x=0.85),
+    whole point: a "below" task's curve lives on the COMPLEMENT axis (its x is the
+    probability of the complement event, e.g. successful extubation, so a 0.15
+    failure policy sits at x=0.85),
     and borrowing the scorecard's alarm-basis number would plot a different quantity
     at the wrong place — a red dot floating off its own curve.
     """

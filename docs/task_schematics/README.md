@@ -42,7 +42,7 @@ These schematics mirror the constants and predicates in
   `H_i` as the stitched encounter.
 - **Constants** such as `HORIZON_HOURS`, `GRID_STEP_HOURS`, `LABEL_HORIZON_HOURS`,
   `INTUB_WINDOW_MIN_DEFAULT`, `EXTUB_WINDOW_MIN_DEFAULT`,
-  `TRACH_CLOSURE_TOLERANCE_MIN`, `MIN_ICU_STAY_HOURS`, and the `LOCATION_MAPPING`
+  `TRACH_CLOSURE_TOLERANCE_MIN`, `MIN_IMV_HOURS`, `MIN_ICU_STAY_HOURS`, and the `LOCATION_MAPPING`
   buckets appear with matching values in both the schematic and the module.
 - **`META.inclusion_criteria` / `META.exclusion_criteria`** read as English
   equivalents of each schematic's cohort bullets.

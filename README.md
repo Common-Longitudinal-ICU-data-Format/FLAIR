@@ -321,13 +321,17 @@ Depending on mode, the report directory can include JSON files for:
 - lead time
 - threshold or operating-point behavior
 
-For a task whose action fires on LOW risk (`clinical_direction: "below"`, e.g. T3
-"extubate when failure risk < 0.15"), the decision curve is built on the
-**complement**: its event is *successful extubation* and its x-axis is the
-probability of success a clinician would require before extubating — 0 (extubate
-everyone) to 1 (extubate nobody). The shipped policy 0.15 therefore appears at
-x = 0.85. `dca.json`'s `metadata.x_axis` names the axis and its `metrics.verdict`
-states whether the model beats acting on everyone / no one at that point.
+For a task whose action fires on LOW risk (`clinical_direction: "below"` — none of
+the live tasks today, but the report code supports it), the decision curve is built
+on the **complement** of the label: e.g. a task that predicts extubation *failure*
+but whose action is to *extubate* would act when failure risk is low, so its DCA
+event is *successful extubation* and its x-axis is the probability of success a
+clinician would require before extubating — 0 (extubate everyone) to 1 (extubate
+nobody), placing a policy of 0.15 at x = 0.85. For an `"above"` task (all live
+tasks, e.g. T3 "perform a tracheostomy when failure risk ≥ 0.80") the DCA event is
+the label event itself and the policy threshold appears directly on the x-axis.
+`dca.json`'s `metadata.x_axis` names the axis and its `metrics.verdict` states
+whether the model beats acting on everyone / no one at that point.
 
 When visualization support is installed, `--viz` writes local PNGs from the same
 JSON data. These PNGs are for site review; the portable artifact is the JSON

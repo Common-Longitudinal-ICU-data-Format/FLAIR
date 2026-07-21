@@ -91,7 +91,7 @@ Properties that make this the right primitive:
   so cross-site averaging of any curve (sensitivity vs threshold, PPV vs threshold,
   encounter alert-rate vs threshold) is a clean vertical average with no interpolation.
 - **The clinical threshold is always on the grid.** Every shipped policy threshold is
-  a multiple of 0.01 (`0.95, 0.50, 0.15, 0.10, 0.20`), so exactly one grid row gets
+  a multiple of 0.01 (`0.95, 0.50, 0.80, 0.10, 0.20`), so exactly one grid row gets
   `is_clinical = true`. Add a one-line validation to `_validate_taxonomy`:
   `clinical_threshold` must be a multiple of the grid step (already constrained to
   `0 < t < 1`). This is the **"clinical intrusion"** highlight — the policy shown as a
@@ -734,11 +734,11 @@ policy?).
 |---|---|---|---|---|
 | task1 ICU daily mortality | 0.95 | above | continuous (30-day, day) | Is 0.95 near any data-driven pick, or is the useful region far lower? Encounter alert-rate + NNE at 0.95 vs at Youden. No intervention → §4.4 absent. |
 | task2 ICU daily LTACH | 0.50 | above | continuous (30-day, day) | Youden vs the more-likely-than-not policy; encounter burden at 0.50. No intervention → §4.4 absent. |
-| task3 extubation failure 24h | 0.15 | **below** | episodic | Locators computed on risk (alarm) basis; action view = who gets extubated. Does 0.15 sit where the data separates fail/no-fail? |
+| task3 extubation failure 24h | 0.80 | **above** | episodic | Locators computed on risk (alarm) basis; action view = who gets a tracheostomy. Does 0.80 sit where the data separates fail/no-fail? |
 | task4 sepsis abx 6h | 0.10 | above | continuous (7-day, hour) | The headline case: Youden (prevalence-blind) vs F1/PPV-target (sees the ~2% prevalence). Encounter alert-rate + NNE across the sweep (frac admissions alerting; 1−PPV false-alarm) — the Kamran alarm-fatigue curve. **Only task with intervention** → §4.4 sub_rates + median lead-time apply. |
 | task5 ICU readmission | 0.20 | above | episodic | Where four rules land vs the top-20%-risk policy. |
 
-Note the clinical thresholds `{0.95, 0.50, 0.15, 0.10, 0.20}` are all multiples of
+Note the clinical thresholds `{0.95, 0.50, 0.80, 0.10, 0.20}` are all multiples of
 0.01 → all land exactly on the grid. The validation in §2.1 guards future edits.
 
 Two continuous-mode facts the table makes explicit: (a) **only task4 has an intervention

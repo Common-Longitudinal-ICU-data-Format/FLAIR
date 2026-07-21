@@ -9,23 +9,28 @@ Brute-force sweep over threshold probabilities t:
   nb_none  = 0                                        (treat no one)
 
 THE DECISION BASIS. A DCA describes the ACT, not the alarm — so the curve is
-always built on the frame the clinician is actually deciding in, which is the
-COMPLEMENT of the label for a ``clinical_direction: "below"`` task.
+always built on the frame the clinician is actually deciding in. For an
+``clinical_direction: "above"`` task (all live tasks) that frame IS the label:
+the event is the positive class, the score is p, and the clinical threshold t
+sits directly on the x-axis — e.g. task3 "perform a tracheostomy when extubation
+failure risk >= 0.80" puts the policy at x = 0.80 and `prevalence` = the failure
+rate.
 
-Task3 is the case in point. The model predicts extubation FAILURE, but the
-decision is whether to EXTUBATE, and it fires on LOW risk. So the DCA's event is
-"successful extubation" (= the label's complement), the predicted probability is
-1-p, and the x-axis is the probability of success a clinician would require
-before extubating:
+For a ``clinical_direction: "below"`` task the frame is the COMPLEMENT of the
+label. None is live today, but the mapping is supported. Example: a task that
+predicts extubation FAILURE but whose decision is whether to EXTUBATE fires on
+LOW risk, so the DCA's event is "successful extubation" (= the label's
+complement), the predicted probability is 1-p, and the x-axis is the probability
+of success a clinician would require before extubating:
 
     x = 0    not worried about failure at all, worried about the harms of
              continued intubation  →  extubate everyone
     x = 1    terrified of extubation failure  →  extubate nobody
 
-The task's clinical threshold t (on the FAILURE scale) therefore sits at 1-t on
-this axis: task3's 0.15 is x = 0.85 ("extubate when P(success) >= 85%"). Because
-the whole frame is complemented, `prevalence` here is P(success) = 0.954, NOT the
-failure rate — `metadata.prevalence_of` says so out loud.
+The clinical threshold t (on the FAILURE scale) then sits at 1-t on this axis (a
+policy of 0.15 → x = 0.85, "extubate when P(success) >= 85%"), and because the
+whole frame is complemented `prevalence` is P(success), NOT the failure rate —
+`metadata.prevalence_of` says which out loud.
 
 ``to_decision_basis`` / ``axis_threshold`` are the single source of that mapping;
 report/operating_points.py calls them too, so the scorecard's net benefit and this
@@ -187,8 +192,9 @@ def _axis_framing(meta: dict, direction: str, t_clin: float | None,
         "action": action,
         "x_axis": (f"threshold probability of {event} required to {action}"),
         "prevalence_of": event,
-        # where the shipped policy lands on THIS axis: task3's 0.15 (P failure) is
-        # 0.85 (P successful extubation).
+        # where the shipped policy lands on THIS axis: for a below task a 0.15
+        # (P failure) policy is 0.85 (P successful extubation); for an above task
+        # like task3 it is t itself (0.80).
         "clinical_threshold_on_axis": t_eval,
         "clinical_threshold_on_label_scale": t_clin,
     }

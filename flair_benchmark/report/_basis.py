@@ -20,10 +20,11 @@ by construction instead of by remembering to thread ``clinical_direction``:
                   backwards; the x-axis threshold maps to 1-t.
 
 BOUNDARY CONVENTION (p exactly == t): the action for a "below" task is STRICT
-(``p < t`` — task3 ships as "extubate when P(failure) < 0.15"), so on the
-complement basis the acted arm is ``P(success) > 1-t``, also strict. Above
-tasks act non-strictly (``p >= t``), matching the alarm convention and the
-standard DCA rule. ``net_benefit(..., strict=True)`` is how the complement
+(``p < t`` — e.g. "extubate when P(failure) < t"), so on the complement basis
+the acted arm is ``P(success) > 1-t``, also strict. Above tasks act non-strictly
+(``p >= t``), matching the alarm convention and the standard DCA rule — this is
+what all live tasks use, including task3 ("perform a tracheostomy when
+P(failure) >= 0.80"). ``net_benefit(..., strict=True)`` is how the complement
 basis expresses that; the curve and the scorecard both route through it, so
 they cannot disagree at the boundary.
 
@@ -76,7 +77,8 @@ def axis_threshold(t: float, direction: str) -> float:
     """Where a clinical threshold t (label scale) sits on the DECISION-CURVE axis.
 
     An "act on LOW risk" task decides on the complement, so its threshold maps to
-    1-t: task3's 0.15 (P failure) is 0.85 (P successful extubation).
+    1-t: e.g. an extubate-on-low-failure-risk task's 0.15 (P failure) is 0.85
+    (P successful extubation).
     """
     return round(1.0 - t, 6) if direction == "below" else t
 
@@ -85,9 +87,10 @@ def to_decision_basis(y_true: np.ndarray, y_prob: np.ndarray,
                       direction: str) -> tuple[np.ndarray, np.ndarray]:
     """Put (labels, probabilities) into the frame the clinician decides in.
 
-    For "below", complement both: the event becomes the label's complement (task3:
-    successful extubation) and the score becomes P(that event). Net benefit then
-    describes treating-the-low-risk — extubating — instead of reading backwards.
+    For "below", complement both: the event becomes the label's complement (e.g.
+    successful extubation for an extubate-on-low-risk task) and the score becomes
+    P(that event). Net benefit then describes treating-the-low-risk — extubating —
+    instead of reading backwards.
     """
     if direction == "below":
         return 1 - y_true, 1.0 - y_prob

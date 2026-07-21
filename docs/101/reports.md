@@ -120,8 +120,12 @@ alert×label view at clinical ± 0.05.
 
 ### Two bases, and why the scorecard keeps them apart
 
-A `clinical_direction: "below"` task (T3: extubate when failure risk < 0.15) has two
-different frames, and conflating them is how a decision curve gets read backwards:
+A `clinical_direction: "below"` task — one whose action fires on LOW risk — has two
+different frames, and conflating them is how a decision curve gets read backwards.
+No live task is "below" today (T3 is now "above": *perform a tracheostomy* when
+failure risk ≥ 0.80), but the report code supports it and the distinction is why the
+scorecard keeps the two bases apart. Take a hypothetical task that predicts
+extubation *failure* but whose action is to *extubate* (act on low risk):
 
 - **Alarm basis** (`y_prob >= t`, both directions) — `confusion` + `metrics`. The
   *alarm* is always high risk, so sensitivity/PPV always mean "how well do we detect
@@ -129,11 +133,13 @@ different frames, and conflating them is how a decision curve gets read backward
   TP = "extubated AND failed": a disaster booked as a true positive, with a
   sensitivity that rises as the model gets worse.
 - **Decision basis** — the `decision` block and all of `dca.json`. This is the frame
-  the clinician decides in. For T3 the event is *successful extubation*, the score is
-  `1-p`, and the x-axis is the probability of success required before extubating: 0 =
-  "unworried about failure, worried about the harms of continued intubation → extubate
-  everyone", 1 = "terrified of failure → extubate nobody". The shipped policy 0.15
-  therefore sits at **x = 0.85** (`decision.dca_threshold`, `metadata.clinical_threshold_on_axis`).
+  the clinician decides in. For that below task the event is *successful extubation*,
+  the score is `1-p`, and the x-axis is the probability of success required before
+  extubating: 0 = "unworried about failure, worried about the harms of continued
+  intubation → extubate everyone", 1 = "terrified of failure → extubate nobody", so a
+  policy of 0.15 would sit at **x = 0.85**. For an "above" task like T3 the score is
+  `p` and the policy sits directly on the x-axis (0.80) —
+  `decision.dca_threshold`, `metadata.clinical_threshold_on_axis`.
 
 `decision.net_benefit` is *the same number* as `dca.json`'s curve at
 `dca_threshold` — both go through `dca.to_decision_basis` / `dca.axis_threshold`, so

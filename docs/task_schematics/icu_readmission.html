@@ -46,7 +46,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     <strong>stitched-encounter grain</strong>: <code>compute_readmission_timing</code>
     runs across the whole stitched encounter's ADT stream, so a true re-admission
     that the stitcher merged is read as one continuous location history. Constant
-    verified against code: <code>MIN_ICU_STAY_HOURS = 1</code>.
+    verified against code: <code>MIN_ICU_STAY_HOURS = 24</code>.
   </div>
 
   <h2>FLAIR operational definition</h2>
@@ -92,7 +92,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     <li><strong>Exclude</strong> hospitalizations with no ICU data — realized as an inner join with the timing table.</li>
     <li><strong>Exclude</strong> death during the first ICU stay (<code>death_dttm</code> ∈ \([t^{\text{ICU}_1,\text{start}}_i, t^{\text{ICU}_1,\text{end}}_i]\)): the readmission outcome is undefined.</li>
     <li><strong>Exclude</strong> direct ICU discharge (the last merged location is ICU): no opportunity to readmit.</li>
-    <li><strong>Exclude</strong> a first ICU stay shorter than <code>MIN_ICU_STAY_HOURS = 1</code> hour.</li>
+    <li><strong>Exclude</strong> a first ICU stay shorter than <code>MIN_ICU_STAY_HOURS = 24</code> hours: too brief to have produced the ICU-discharge decision the prediction is anchored on.</li>
     <li><strong>Exclude</strong> an intermediate ER visit (an ER location after the first location), which confounds the planned/unplanned distinction.</li>
   </ul>
 
