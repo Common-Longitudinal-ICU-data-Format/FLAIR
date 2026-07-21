@@ -55,8 +55,6 @@ TRACH_CLOSURE_TOLERANCE_MIN = 1
 # cohort broad while still excluding same-day post-op extubations.
 MIN_IMV_HOURS = 6
 
-from flair_benchmark._constants import TASK_POLICY
-
 META = {
     "name": "task3_extubation_failure_24h",
     "display_name": "Extubation failure within 24h (one-per-stay)",
@@ -64,8 +62,13 @@ META = {
     "temporal_pattern": "episode",
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
-    # clinical_threshold, clinical_direction, report_mode — single-sourced
-    **TASK_POLICY["task3_extubation_failure_24h"],
+    # Clinical policy — this task owns it; value-validated in tasks/__init__.py.
+    "clinical_threshold": 0.80,
+    "clinical_action": "perform a tracheostomy",
+    "clinical_direction": "above",
+    "report_mode": "episodic",
+    "dca_axis": {"event": "extubation failure",
+                 "action": "perform a tracheostomy"},
     "label_column": "label_extubation_failure_24h",
     "positive_class": "reintubation_within_24h_post_extubation",
     "input_window_hours": None,

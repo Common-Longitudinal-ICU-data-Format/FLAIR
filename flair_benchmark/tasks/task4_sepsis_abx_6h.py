@@ -109,8 +109,6 @@ EXCLUDE_LOCATION_CATEGORIES = ["psychiatric", "rehabilitation"]
 # never-septic stays.
 ABX_MED_GROUP = "cms_sepsis_qualifying_antibiotics"
 
-from flair_benchmark._constants import TASK_POLICY
-
 META = {
     "name": "task4_sepsis_abx_6h",
     "display_name": "Sepsis (CDC ASE onset) within 6h",
@@ -118,8 +116,15 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
-    # clinical_threshold, clinical_direction, report_mode — single-sourced
-    **TASK_POLICY["task4_sepsis_abx_6h"],
+    # Clinical policy — this task owns it; value-validated in tasks/__init__.py.
+    "clinical_threshold": 0.1,
+    "clinical_action": "treat with antibiotics",
+    "clinical_direction": "above",
+    "report_mode": "continuous",
+    "landmark_horizon": 168,
+    "intervention": {"column": "first_abx_dttm", "display": "treatment"},
+    "dca_axis": {"event": "sepsis onset within 6h",
+                 "action": "treat with antibiotics"},
     "label_column": "label_sepsis_6h",
     "positive_class": "ase_onset_within_6h",
     "input_window_hours": None,

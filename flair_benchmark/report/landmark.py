@@ -144,8 +144,8 @@ def resolve_n_landmarks(meta: dict, n_landmarks: int | None) -> int:
     """Explicit override wins; otherwise the task's META['landmark_horizon'].
 
     The horizon is a landmark COUNT in the task's window_unit (30 days for the
-    daily tasks, 168 hours for hourly sepsis) — it lives in TASK_POLICY /
-    META, never hardcoded here.
+    daily tasks, 168 hours for hourly sepsis) — it lives in the task's META,
+    never hardcoded here.
     """
     if n_landmarks is not None:
         return n_landmarks

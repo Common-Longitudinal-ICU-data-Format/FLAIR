@@ -1,18 +1,18 @@
-"""Single source of truth: package version + per-task clinical policy.
+"""Package version + genuinely shared, task-independent constants.
 
 Pure data — imports nothing from the package, so it is safe to import from
 ``__init__``, the task modules, the report code, and the baseline without any
 circular-import risk.
 
-Edit THIS file to:
-  - bump the PyPI version (``__version__``; root pyproject reads it dynamically), or
-  - change a task's operating threshold, clinical direction, or recommended
-    report mode (``TASK_POLICY``).
+Per-task clinical policy (threshold, action, direction, report mode, dca_axis,
+…) does NOT live here — each task owns it inline in its own ``META`` (see
+``tasks/taskN_*.py``), value-validated in ``tasks/__init__.py`` and folded into
+the audit hash (``_hash.py``). This file holds only what several tasks (or the
+whole benchmark) share.
 
-Everything else derives from here. The values in ``TASK_POLICY`` are spread into
-each task's ``META`` at import time (see ``tasks/taskN_*.py``) and folded into the
-audit hash (see ``_hash.py``), so a change here is captured by the cross-site
-``task_script_sha256`` audit.
+Edit THIS file to bump the PyPI version (``__version__``; root pyproject reads it
+dynamically), move the global data cutoff, or change the shared selection
+defaults.
 """
 
 from __future__ import annotations
@@ -28,48 +28,14 @@ __version__ = "0.0.1"
 # admission dates are de-identified/shifted (a real-date cap would empty the cohort).
 DATA_CUTOFF = date(2025, 12, 31)
 
-# Per-task clinical policy. report_mode is the task's scoring unit
-# (episodic | continuous). Continuous tasks additionally declare:
-#   landmark_horizon : how many landmarks (in the task's window_unit) the
-#                      landmark/leadtime sections evaluate — 30 days for the
-#                      daily tasks, 168 hours (7 days) for hourly sepsis.
-#   intervention     : (optional) the cohort column holding the per-stay
-#                      clinical-action timestamp, for the alert-vs-intervention
-#                      timing analysis. When set, that column MUST be present in
-#                      the cohort/preds at report time.
-#
-# dca_axis (optional) names the decision curve's axis in clinical language. For an
-# "above" task the DCA event IS the label event and the action fires on HIGH risk,
-# so dca_axis is only a display convenience (a clean name for `event`/`action`
-# instead of the raw `positive_class`). Every live task is currently "above".
-#
-# A `clinical_direction: "below"` task (none live today, but the report code still
-# supports it) acts on LOW risk, so its decision curve is built on the COMPLEMENT
-# of the label. Example: a model that predicts extubation FAILURE but whose
-# decision is whether to EXTUBATE acts when failure risk is low; its DCA event is
-# the complement "successful extubation", x-axis = probability of success required
-# before extubating (0 = extubate everyone, 1 = extubate nobody). That complement
-# event has no name derivable from the label, so a "below" task MUST declare
-# dca_axis to name it.
-TASK_POLICY: dict[str, dict] = {
-    "task1_icu_daily_mortality":    {"clinical_threshold": 0.95, "clinical_action": "order a palliative care consult", "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 30,
-                                     "dca_axis": {"event": "in-hospital mortality", "action": "order a palliative care consult"}},
-    "task2_icu_daily_ltach":        {"clinical_threshold": 0.5, "clinical_action": "perform early tracheostomy", "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 30,
-                                     "dca_axis": {"event": "LTACH discharge", "action": "perform early tracheostomy"}},
-    "task3_extubation_failure_24h": {"clinical_threshold": 0.80, "clinical_action": "perform a tracheostomy", "clinical_direction": "above", "report_mode": "episodic",
-                                     "dca_axis": {"event": "extubation failure", "action": "perform a tracheostomy"}},
-    "task4_sepsis_abx_6h":          {"clinical_threshold": 0.1, "clinical_action": "treat with antibiotics", "clinical_direction": "above", "report_mode": "continuous", "landmark_horizon": 168,
-                                     "intervention": {"column": "first_abx_dttm", "display": "treatment"},
-                                     "dca_axis": {"event": "sepsis onset within 6h", "action": "treat with antibiotics"}},
-    "task5_icu_readmission":        {"clinical_threshold": 0.2, "clinical_action": "keep in ICU", "clinical_direction": "above", "report_mode": "episodic",
-                                     "dca_axis": {"event": "unplanned ICU readmission", "action": "keep in ICU"}},
-}
-
+# Scoring units a task's META may declare in ``report_mode``. The per-task policy
+# that picks one of these lives inline in each task's META (tasks/taskN_*.py);
+# tasks/__init__.py validates the choice against this set.
 REPORT_MODES = {"episodic", "continuous"}
 
 # Defaults for the data-driven threshold-locator menu + operating-budget view
 # (report/operating_points.py, report/_locators.py — design doc §3.2, §4.3). Each
-# is overridable per task by adding the same key to that task's TASK_POLICY entry;
+# is overridable per task by adding the same key to that task's META;
 # the values actually used are recorded in operating_points.json's metadata so a
 # reader knows what was asked for. cost_ratio ships at 1 (cost-based then reduces
 # toward the prevalence-weighted point) until clinicians state a real ratio.

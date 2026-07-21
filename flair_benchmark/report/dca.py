@@ -178,8 +178,9 @@ def _axis_framing(meta: dict, direction: str, t_clin: float | None,
 
     Without this a reader sees `prevalence: 0.954` on a task whose event rate is
     4.6% and reasonably concludes the report is broken. The event here is the
-    label's COMPLEMENT (task3: successful extubation), declared in TASK_POLICY's
-    `dca_axis` because no name for it is derivable from the label.
+    label's COMPLEMENT (for a hypothetical "below" task, e.g. successful
+    extubation), declared in the task's META `dca_axis` because no name for it is
+    derivable from the label.
     """
     axis = meta.get("dca_axis") or {}
     action = axis.get("action") or meta.get("clinical_action") or "treat"

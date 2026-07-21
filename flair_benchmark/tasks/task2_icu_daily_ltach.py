@@ -51,8 +51,6 @@ from flair_benchmark._encounter import build_icu_encounter_cohort
 from flair_benchmark._split import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
 
-from flair_benchmark._constants import TASK_POLICY
-
 META = {
     "name": "task2_icu_daily_ltach",
     "display_name": "ICU Daily LTACH Discharge (7AM, binary)",
@@ -60,8 +58,14 @@ META = {
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
-    # clinical_threshold, clinical_direction, report_mode — single-sourced
-    **TASK_POLICY["task2_icu_daily_ltach"],
+    # Clinical policy — this task owns it; value-validated in tasks/__init__.py.
+    "clinical_threshold": 0.5,
+    "clinical_action": "perform early tracheostomy",
+    "clinical_direction": "above",
+    "report_mode": "continuous",
+    "landmark_horizon": 30,
+    "dca_axis": {"event": "LTACH discharge",
+                 "action": "perform early tracheostomy"},
     "label_column": "label_ltach",
     "positive_class": "ltach_discharge",
     "input_window_hours": None,

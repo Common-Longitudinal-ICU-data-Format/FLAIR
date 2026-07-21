@@ -132,17 +132,21 @@ def test_leadtime_first_alert_is_action_basis():
 # ------------------------------------------------------------------- C9
 
 
-def test_meta_matches_task_policy_for_every_live_task():
-    from flair_benchmark._constants import TASK_POLICY
+def test_every_live_task_owns_its_clinical_policy_inline():
+    """Policy is no longer centralized in _constants.py — each task's META must
+    self-contain the full clinical policy (threshold, action, direction,
+    report_mode), value-validated by get_task."""
     from flair_benchmark.tasks import get_task, list_tasks
 
     for name in list_tasks():
-        meta = get_task(name).META            # get_task validates META==policy
-        policy = TASK_POLICY[name]
-        for key, val in policy.items():
-            assert meta.get(key) == val, (name, key)
-        # clinical_action is single-sourced from the policy
-        assert "clinical_action" in policy
+        meta = get_task(name).META
+        if meta.get("task_type") != "binary":
+            continue
+        for key in ("clinical_threshold", "clinical_action",
+                    "clinical_direction", "report_mode"):
+            assert key in meta, (name, key)
+        assert 0 < meta["clinical_threshold"] < 1, name
+        assert meta["clinical_direction"] in ("above", "below"), name
 
 
 def _kpi_frame(n_stays: int, seed: int = 3) -> tuple[pl.DataFrame, list[dict]]:
@@ -252,19 +256,27 @@ def test_read_clif_config_requires_site(tmp_path):
     assert read_clif_config(str(cfg))["site"] == "mimic"
 
 
-def test_validate_taxonomy_rejects_policy_drift():
-    from flair_benchmark._constants import TASK_POLICY
+def test_validate_taxonomy_rejects_bad_policy_values():
+    """With policy inline in META, the guard validates VALUES (not drift vs a
+    central dict): off-grid threshold, bad direction, and name/filename mismatch
+    all raise."""
     from flair_benchmark.tasks import _validate_taxonomy
 
     name = "task2_icu_daily_ltach"
     good = {"name": name, "task_type": "binary", "task_class": "outcome",
             "temporal_pattern": "continuous", "prediction_unit": "one-per-window",
-            **TASK_POLICY[name]}
+            "clinical_threshold": 0.5, "clinical_action": "perform early tracheostomy",
+            "clinical_direction": "above", "report_mode": "continuous",
+            "landmark_horizon": 30}
     _validate_taxonomy(name, good)                          # passes
 
-    drifted = {**good, "clinical_action": "early tracheostomy"}   # the old drift
-    with pytest.raises(ValueError, match="TASK_POLICY"):
-        _validate_taxonomy(name, drifted)
+    off_grid = {**good, "clinical_threshold": 0.505}        # not a 0.01 multiple
+    with pytest.raises(ValueError, match="multiple of 0.01"):
+        _validate_taxonomy(name, off_grid)
+
+    bad_dir = {**good, "clinical_direction": "sideways"}
+    with pytest.raises(ValueError, match="clinical_direction"):
+        _validate_taxonomy(name, bad_dir)
 
     wrong_name = {**good, "name": "task5_icu_readmission"}
     with pytest.raises(ValueError, match="module filename"):

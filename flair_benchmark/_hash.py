@@ -2,10 +2,10 @@
 
 Lets the central aggregator prove two sites ran the same task — both the label
 logic (the task .py source) AND the clinical policy it was evaluated under
-(threshold, direction, report mode), even though that policy now lives in the
-shared ``_constants.py`` rather than inline in the task file. The digest is the
-SHA-256 of the task source bytes concatenated with a canonical JSON of the
-audit-relevant resolved META, so a change to either side changes the hash.
+(threshold, direction, report mode), which lives inline in each task's ``META``.
+The digest is the SHA-256 of the task source bytes concatenated with a canonical
+JSON of the audit-relevant resolved META, so a change to either side changes the
+hash.
 """
 
 from __future__ import annotations

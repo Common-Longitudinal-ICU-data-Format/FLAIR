@@ -24,7 +24,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from flair_benchmark._constants import TASK_POLICY
+from flair_benchmark.tasks import get_task, list_tasks
 from flair_benchmark.report._calib import calibration_extended
 from flair_benchmark.report._ci import bootstrap_ci
 from flair_benchmark.report.calibration import build_calibration
@@ -277,14 +277,14 @@ def test_sweep_grid_is_fixed_and_open_interval():
                for a, b in zip(SWEEP_GRID[:-1], SWEEP_GRID[1:]))
 
 
-@pytest.mark.parametrize("task_name", sorted(TASK_POLICY))
+@pytest.mark.parametrize("task_name", sorted(list_tasks()))
 def test_every_clinical_threshold_lands_on_the_sweep_grid(task_name):
     """The shipped policy must be exactly one row of the fixed grid (is_clinical).
 
     A threshold off the 0.01 grid would have no is_clinical row; every shipped
     threshold is a multiple of 0.01, and tasks._validate_taxonomy now enforces it.
     """
-    t0 = TASK_POLICY[task_name]["clinical_threshold"]
+    t0 = get_task(task_name).META["clinical_threshold"]
     on_grid = [t for t in SWEEP_GRID if abs(float(t) - round(t0, 2)) < 1e-9]
     assert len(on_grid) == 1, f"{task_name}: clinical threshold {t0} is off the grid"
 
@@ -365,8 +365,8 @@ def test_locate_band_is_deterministic_and_covers_every_rule():
     prob = df["y_prob"].to_numpy().astype(float)
     from flair_benchmark.report.discrimination import _auroc
     auc = _auroc(label, prob)
-    a = locate_band(label, prob, SWEEP_GRID, auc, dict(TASK_POLICY.get(META["name"], {})))
-    b = locate_band(label, prob, SWEEP_GRID, auc, dict(TASK_POLICY.get(META["name"], {})))
+    a = locate_band(label, prob, SWEEP_GRID, auc, {})
+    b = locate_band(label, prob, SWEEP_GRID, auc, {})
     assert json.dumps(a, sort_keys=True) == json.dumps(b, sort_keys=True)
     for rule in ("youden_j", "f_beta_max", "ppv_target", "alert_rate_target"):
         assert rule in a
