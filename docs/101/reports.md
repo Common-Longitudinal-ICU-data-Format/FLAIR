@@ -9,7 +9,7 @@ uploads. The key choice is **`--mode`** — how a task's predictions are scored.
 
 ```bash
 flair build-report preds.parquet \
-  --task task1_icu_daily_mortality \
+  --task icu_daily_mortality \
   --out ./report/ \
   --cohort cohort.parquet \
   --split test \
@@ -39,8 +39,8 @@ evaluation key. Carry `window_number`, `prediction_dttm`, and demographics throu
 (or pass `--cohort` and they're joined in). `y_prob` must be a valid probability in
 `[0, 1]` with no nulls.
 
-**Intervention tasks:** when a task's META declares an `intervention` (T4:
-`first_abx_dttm`, the first CMS-qualifying antibiotic), that column is **required** —
+**Intervention tasks:** when a task's META declares an `intervention` (e.g.
+`first_abx_dttm`, a treatment timestamp), that column is **required** —
 it is generated at cohort-build time; carry it through your preds or pass `--cohort`.
 
 ## Choosing `--mode`
@@ -48,7 +48,7 @@ it is generated at cohort-build time; carry it through your preds or pass `--coh
 | mode | use for | pillars produced |
 |---|---|---|
 | **episodic** | one-per-stay tasks (T3, T5) | discrimination, calibration, dca, fairness + `operating_points` (the scorecard: every threshold-dependent metric, swept over the clinical threshold and ± 0.05 / ± 0.10) |
-| **continuous** | multi-row-per-stay tasks (T1, T2, T4) | ONE bundle: a **peak** section + the four pillars **per landmark** + `leadtime` + `operating_points` (a per-threshold confusion matrix, plus optional intervention sub-analyses) |
+| **continuous** | multi-row-per-stay tasks (T1, T2) | ONE bundle: a **peak** section + the four pillars **per landmark** + `leadtime` + `operating_points` (a per-threshold confusion matrix, plus optional intervention sub-analyses) |
 
 If you omit `--mode`, it's inferred from META's `temporal_pattern`
 (`episode` → `episodic`, `continuous` → `continuous`). The old `--mode peak` and
@@ -65,7 +65,7 @@ If you omit `--mode`, it's inferred from META's `temporal_pattern`
   so per-landmark `n` is a true Kaplan-Meier "No. at risk" count. This is the
   time-varying / dynamic AUC view (US-CRS eFigure-2 idiom). The horizon comes from
   **`META['landmark_horizon']`**, a count in the task's `window_unit`: **30 daily**
-  landmarks for T1/T2, **168 hourly** (7 days) for T4. Never hardcoded.
+  landmarks for T1/T2. Never hardcoded.
 - **kpi scoreboard** (`kpi.json`): the headline numbers — **pooled dynamic AUROC**
   (Heagerty & Zheng-style time-varying AUC, per-landmark AUCs pooled with
   cases×controls pair weights), peak AUROC/AUPRC/NNE + operating point, calibration at
@@ -84,9 +84,9 @@ If you omit `--mode`, it's inferred from META's `temporal_pattern`
     (fired = the stay ever crosses the threshold; label = ever-positive) →
     {TP, FP, FN, TN} + sensitivity / specificity / **true FPR = FP/(FP+TN)** /
     PPV / NPV / NNE / F1 / flag-rate, each with a 95% CI. Every continuous task
-    gets this (T1/T2/T4), no config needed.
+    gets this (T1/T2), no config needed.
   - **sub-analyses (optional)** — present only when the task declares a
-    treatment-time `intervention` column (T4 = `first_abx_dttm`, `display`
+    treatment-time `intervention` column (e.g. `first_abx_dttm`, `display`
     "treatment"). At each threshold, keyed on `(label, treatment, alert)`:
     - `label_positive`: how many positive stays fired + the *hours before
       treatment* the alarm first fired (positive = earlier);

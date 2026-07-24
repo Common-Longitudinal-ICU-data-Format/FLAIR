@@ -1,7 +1,8 @@
 <!doctype html>
 <!-- STALE: peak and landmark are no longer separate report modes — they ship
      together as sections of the single `continuous` report, with the landmark
-     horizon set by META['landmark_horizon'] (30 days T1/T2, 168 hours T4).
+     horizon set by META['landmark_horizon'] (30 days for the daily ICU tasks,
+     168 hours for a hypothetical hourly task).
      The toy calculations below still explain WHY both views exist. -->
 <html lang="en">
 <head>
@@ -203,11 +204,11 @@
 <div class="page">
   <div class="hero">
     <span class="tag">FLAIR evaluation</span>
-    <h1>Why Task 1/2 and Sepsis Need Different Continuous Evaluation</h1>
+    <h1>Why Daily and Hourly Continuous Tasks Need Different Evaluation</h1>
     <p class="lead">
-      Task 1 and Task 2 have many rows per stay, but every row shares one final outcome label.
-      Sepsis is different: every row asks its own next-hours question. This is why FLAIR needs
-      <code>peak</code> and <code>landmark</code>, and why sepsis needs a special landmark setup.
+      The daily ICU tasks have many rows per stay, but every row shares one final outcome label.
+      An hourly onset task is different: every row asks its own next-hours question. This is why FLAIR needs
+      <code>peak</code> and <code>landmark</code>, and why an hourly onset task needs a special landmark setup.
       The report unit is always <code>hospitalization_join_id</code>, the full stitched encounter.
     </p>
   </div>
@@ -216,7 +217,7 @@
     <h2>1. The Label Shape Is Different</h2>
     <div class="grid">
       <div class="card blue">
-        <span class="tag">Task 1 / Task 2</span>
+        <span class="tag">Daily tasks</span>
         <h3>One final stay label copied across rows</h3>
         <p>
           A stay has several daily rows. If the final outcome happened, every daily row gets the
@@ -225,13 +226,13 @@
         <p class="small">Question: did this stay eventually have the outcome?</p>
       </div>
       <div class="card green">
-        <span class="tag">Sepsis</span>
+        <span class="tag">Hourly task</span>
         <h3>Each row has its own horizon label</h3>
         <p>
-          Each hourly row asks a new question: will sepsis happen in the next 6 hours? A patient can
+          Each hourly row asks a new question: will the event happen in the next 6 hours? A patient can
           have many <code>0</code> rows, then some <code>1</code> rows near onset.
         </p>
-        <p class="small">Question: from this exact hour, is sepsis coming soon?</p>
+        <p class="small">Question: from this exact hour, is the event coming soon?</p>
       </div>
     </div>
 
@@ -246,13 +247,13 @@
       </thead>
       <tbody>
         <tr>
-          <td>Task 1 / Task 2</td>
+          <td>Daily tasks</td>
           <td>many daily rows</td>
           <td>same final outcome copied to each row</td>
           <td>death by discharge: <code>1, 1, 1</code></td>
         </tr>
         <tr>
-          <td>Sepsis</td>
+          <td>Hourly task</td>
           <td>many hourly rows</td>
           <td>new next-6-hours label at each hour</td>
           <td>far from onset then close: <code>0, 0, 1</code></td>
@@ -262,7 +263,7 @@
   </div>
 
   <div class="section">
-    <h2>2. Task 1 / Task 2 Calculation: Why Row-Pooling Is Wrong</h2>
+    <h2>2. Daily-Task Calculation: Why Row-Pooling Is Wrong</h2>
     <p>
       Setup: three ICU stays. Patient A dies. Patients B and C survive. The model predicts once per day.
     </p>
@@ -303,7 +304,7 @@
     </ol>
 
     <div class="callout">
-      <strong>Takeaway:</strong> for Task 1/2, every row has the same final stay label. If we score every row,
+      <strong>Takeaway:</strong> for the daily tasks, every row has the same final stay label. If we score every row,
       long stays dominate the result. We need a stay-level reduction.
     </div>
   </div>
@@ -362,7 +363,7 @@
   </div>
 
   <div class="section">
-    <h2>4. Task 1 / Task 2 Landmark Calculation: The Probability View</h2>
+    <h2>4. Daily-Task Landmark Calculation: The Probability View</h2>
     <p>
       Landmark mode freezes time relative to the stay endpoint. At each landmark, each stay contributes at most one row.
       That lets the report ask: at this lead time, is the risk number honest?
@@ -417,9 +418,9 @@
   </div>
 
   <div class="section">
-    <h2>5. Sepsis Calculation: Each Row Has Its Own Label</h2>
+    <h2>5. Hourly-Task Calculation: Each Row Has Its Own Label</h2>
     <p>
-      Setup: sepsis onset is at 14:00. The prediction horizon is 6 hours. A row is labeled <code>1</code>
+      Setup: event onset is at 14:00. The prediction horizon is 6 hours. A row is labeled <code>1</code>
       if onset happens within the next 6 hours from that row.
     </p>
 
@@ -434,22 +435,22 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td>06:00</td><td>sepsis by 12:00?</td><td>0.04</td><td>0</td><td>onset is 14:00, outside horizon</td></tr>
-        <tr><td>08:00</td><td>sepsis by 14:00?</td><td>0.18</td><td>1</td><td>onset is within 6 hours</td></tr>
-        <tr><td>10:00</td><td>sepsis by 16:00?</td><td>0.40</td><td>1</td><td>onset is within 6 hours</td></tr>
-        <tr><td>14:00</td><td>already septic</td><td>excluded</td><td>excluded</td><td>patient leaves risk set</td></tr>
+        <tr><td>06:00</td><td>onset by 12:00?</td><td>0.04</td><td>0</td><td>onset is 14:00, outside horizon</td></tr>
+        <tr><td>08:00</td><td>onset by 14:00?</td><td>0.18</td><td>1</td><td>onset is within 6 hours</td></tr>
+        <tr><td>10:00</td><td>onset by 16:00?</td><td>0.40</td><td>1</td><td>onset is within 6 hours</td></tr>
+        <tr><td>14:00</td><td>onset already occurred</td><td>excluded</td><td>excluded</td><td>patient leaves risk set</td></tr>
       </tbody>
     </table>
 
     <ol class="steps">
       <li>
-        <strong>At 06:00:</strong> sepsis is not within the next 6 hours, so the label is <code>0</code>.
+        <strong>At 06:00:</strong> onset is not within the next 6 hours, so the label is <code>0</code>.
       </li>
       <li>
-        <strong>At 08:00:</strong> sepsis occurs exactly by the end of the 6-hour window, so the label is <code>1</code>.
+        <strong>At 08:00:</strong> onset occurs exactly by the end of the 6-hour window, so the label is <code>1</code>.
       </li>
       <li>
-        <strong>At 10:00:</strong> sepsis is inside the next 6 hours, so the label is <code>1</code>.
+        <strong>At 10:00:</strong> onset is inside the next 6 hours, so the label is <code>1</code>.
       </li>
       <li>
         <strong>At or after onset/treatment:</strong> do not keep scoring as if the patient is still at risk.
@@ -458,15 +459,15 @@
     </ol>
 
     <div class="callout">
-      <strong>Takeaway:</strong> sepsis is not "one final label copied across all rows." It is a moving next-hours label.
-      That is why Task 1/2 endpoint landmarking cannot be copied directly onto sepsis.
+      <strong>Takeaway:</strong> an hourly onset task is not "one final label copied across all rows." It is a moving next-hours label.
+      That is why daily-task endpoint landmarking cannot be copied directly onto an hourly onset task.
     </div>
   </div>
 
   <div class="section">
-    <h2>6. Can We Use Landmarking on Sepsis?</h2>
+    <h2>6. Can We Use Landmarking on an Hourly Task?</h2>
     <p>
-      Yes, but not the same endpoint landmark used for Task 1/2. Sepsis needs a dynamic risk-set landmark.
+      Yes, but not the same endpoint landmark used for the daily tasks. An hourly onset task needs a dynamic risk-set landmark.
     </p>
 
     <table>
@@ -475,40 +476,40 @@
           <th>Landmark type</th>
           <th>Use for</th>
           <th>How it works</th>
-          <th>Can use for sepsis?</th>
+          <th>Can use for an hourly onset task?</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>Endpoint landmark</td>
-          <td>Task 1 / Task 2</td>
+          <td>Daily tasks</td>
           <td>line up rows by windows before the stay endpoint</td>
           <td>No, not directly</td>
         </tr>
         <tr>
           <td>Dynamic risk-set landmark</td>
-          <td>Sepsis / onset tasks</td>
+          <td>Hourly onset tasks</td>
           <td>at each hour, include only patients still admitted and event-free</td>
           <td>Yes</td>
         </tr>
       </tbody>
     </table>
 
-    <h3>Step-by-step sepsis dynamic landmark</h3>
+    <h3>Step-by-step hourly dynamic landmark</h3>
     <ol class="steps">
       <li>Pick a landmark time, such as 08:00.</li>
       <li>Keep only patients who are still admitted.</li>
-      <li>Remove patients who already had sepsis or already started treatment.</li>
+      <li>Remove patients who already had the event or already started treatment.</li>
       <li>For each remaining patient, take one risk score at 08:00.</li>
-      <li>Label each patient <code>1</code> if sepsis starts in the next 6 hours, else <code>0</code>.</li>
+      <li>Label each patient <code>1</code> if the event starts in the next 6 hours, else <code>0</code>.</li>
       <li>Compute AUROC, calibration, DCA, and fairness on that one-row-per-patient table.</li>
       <li>Repeat at 09:00, 10:00, and so on to get a curve.</li>
     </ol>
 
     <div class="card purple">
-      <h3>Why peak is still needed for sepsis</h3>
+      <h3>Why peak is still needed for an hourly task</h3>
       <p>
-        A real sepsis alert often asks: did the model ever cross the alert threshold before treatment?
+        A real deterioration alert often asks: did the model ever cross the alert threshold before treatment?
         That is a peak question. Dynamic landmark tells us whether risks are honest at specific hours.
         Peak tells us what the alert system would actually do over the whole encounter.
       </p>
@@ -528,13 +529,13 @@
       </thead>
       <tbody>
         <tr>
-          <td>Task 1 / Task 2</td>
+          <td>Daily tasks</td>
           <td>one final outcome copied across rows</td>
           <td>optional alarm view</td>
           <td>yes, endpoint landmark</td>
         </tr>
         <tr>
-          <td>Sepsis</td>
+          <td>Hourly task</td>
           <td>each row has its own next-hours binary label</td>
           <td>yes, for alert evaluation before treatment</td>
           <td>yes, but only dynamic risk-set landmark</td>
@@ -543,8 +544,8 @@
     </table>
 
     <div class="callout">
-      <strong>One sentence:</strong> Task 1/2 landmarking lines patients up before the stay endpoint;
-      sepsis landmarking lines patients up at a clock time while they are still at risk.
+      <strong>One sentence:</strong> daily-task landmarking lines patients up before the stay endpoint;
+      hourly-task landmarking lines patients up at a clock time while they are still at risk.
     </div>
   </div>
 </div>

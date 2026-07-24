@@ -159,6 +159,28 @@ def test_calibration_well_calibrated_with_ci():
     assert c["curves"]["smoothed"]["method"] == "linear_fit"
 
 
+def test_calibration_quantile_display_curve_is_additive():
+    """reliability_quantile is an additive equal-count DISPLAY curve; it must not
+    change the equal-width ECE/metrics."""
+    preds = make_synth(n_stays=3000, calibrated=True)
+    c = build_calibration(preds, META)
+    q = c["curves"]["reliability_quantile"]
+    assert q["binning"] == "quantile"
+    # equal-count bins cover every stay
+    assert sum(q["bin_counts"]) == preds.height
+    # bin_edges are monotonic non-decreasing (quantile edges, deduped)
+    edges = q["bin_edges"]
+    assert all(a <= b for a, b in zip(edges, edges[1:]))
+    # counts are ~equal (quantile), not the lopsided equal-width shape
+    counts = [x for x in q["bin_counts"] if x > 0]
+    assert max(counts) <= 3 * min(counts)
+    # ~10 surviving points (each equal-count bin clears the n>=10 suppression)
+    assert sum(t is not None for t in q["bin_true_prob"]) >= 8
+    # REGRESSION: ECE still derived from the equal-width reliability bins.
+    assert c["metrics"]["ece"] == c["curves"]["reliability"]["ece"]
+    assert len(c["curves"]["reliability"]["bin_counts"]) == 10
+
+
 def test_calibration_non_binary_reason():
     meta = {**META, "task_type": "regression"}
     c = build_calibration(make_synth(n_stays=50), meta)

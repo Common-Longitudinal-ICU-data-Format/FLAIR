@@ -45,7 +45,7 @@ section. It sweeps a **small grid centred on the clinical threshold**:
 `threshold_grid(t0, offsets)` rounds each `t0 + offset`, drops any that fall outside
 the open interval `(0,1)` or collide after rounding, and records the drops in
 `dropped_offsets`. This offset arithmetic is the source of most of the module's
-complexity (the `task1 @ 0.95 → +0.05 = 1.0` edge case, duplicate-after-rounding, etc).
+complexity (the `icu_daily_mortality @ 0.95 → +0.05 = 1.0` edge case, duplicate-after-rounding, etc).
 
 Two gaps:
 
@@ -103,7 +103,7 @@ Properties that make this the right primitive:
 Trade-off (accepted): 99 confusion matrices instead of 3–5. Mitigation in §2.3.
 
 ```
-        clinical intrusion (task1 mortality, t0 = 0.95)
+        clinical intrusion (icu_daily_mortality, t0 = 0.95)
                                                                  v
   t:  0.01  0.02  ...  0.10  ...  0.20  ...  0.50  ...  0.90  0.95  0.96 ... 0.99
       ┌────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬────┬════╪════┬────┬────┐
@@ -280,7 +280,7 @@ selection. Notation: `se` sensitivity, `sp` specificity, `p` prevalence, `PPV`, 
 Notes:
 
 - **#10 (max accuracy) is reported but flagged degenerate for rare events** — at
-  sepsis prevalence (~2%) it collapses toward "never alert." Kept so the reader sees
+  a low-prevalence task (~2%) it collapses toward "never alert." Kept so the reader sees
   *why* it is a bad ICU rule, not hidden.
 - **#7 cost-based** needs a cost ratio. Default `C_FP/C_FN = 1` (reduces toward the
   prevalence-weighted point) with an optional per-task `cost_ratio` in `TASK_POLICY`
@@ -391,14 +391,15 @@ separate per-timepoint machinery:
 - **`frac_stays_alerting`** = peak flag-rate = "one alert per hospitalization, fired the
   first time the score crosses `t`" (Kamran's alert model). The workload axis: what
   fraction of admissions generate an alert as `t` sweeps.
-- **`nne = 1/PPV`** = alarms per true case — the honest alarm-fatigue number. At task4's
-  clinical `t`, NNE ≈ 20 (PPV ≈ 5%) = 20 alerted admissions per sepsis caught;
+- **`nne = 1/PPV`** = alarms per true case — the honest alarm-fatigue number. At a
+  low-prevalence hourly task's clinical `t` (matching Kamran et al.'s Epic Sepsis Model
+  operating point), NNE ≈ 20 (PPV ≈ 5%) = 20 alerted admissions per true case caught;
   `false_alarm_fraction = 1 − PPV = 0.95`. NNE is *already* computed on the peak surface
   in `discrimination`/`kpi` today — the sweep just reports it at all 99 thresholds.
-- **Horizon- and unit-invariant — this is why peak-only also fixes the task1/2-vs-task4
+- **Horizon- and unit-invariant — this is why peak-only also fixes the daily-vs-hourly
   mismatch.** Because burden is one-alert-per-hospitalization on the peak collapse, it
-  carries **no patient-day denominator**. task1/2 (30-day, day-windowed) and task4
-  (7-day, hour-windowed) therefore produce directly comparable encounter-level burden
+  carries **no patient-day denominator**. The daily ICU tasks (30-day, day-windowed) and a
+  hypothetical hourly task (7-day, hour-windowed) therefore produce directly comparable encounter-level burden
   with **no window_unit conversion**. The peak collapse *dissolves* the horizon mismatch
   raised above rather than correcting for it — a second reason (beyond matching Kamran)
   to keep the operating point on the peak surface.
@@ -437,15 +438,15 @@ derive from the sweep; include as `operating_budget` in the continuous JSON.
 
 ### 4.4 Intervention / treatment sub-analysis under the sweep
 
-**Scope: task4 only.** Only tasks that declare an `intervention` config get this block.
-task1/2 (daily mortality, daily LTACH) declare **no** intervention → the entire §4.4
+**Scope: intervention tasks only.** Only tasks that declare an `intervention` config get this block.
+The daily ICU tasks (daily mortality, daily LTACH) declare **no** intervention → the entire §4.4
 block is simply **absent** for them: the confusion sweep (§2) and alert burden (§4.2) are
 still produced in full, while `sub_rates`, `intervention_timing` and `intervention_offsets`
 are all null with a recorded `sub_analyses_reason` ("no intervention/treatment column
 configured") — exactly the existing `if not iv_col:` behaviour, unchanged. Nothing below
 fires unless the task names a treatment-time column. The rest of §4.4 concerns that case.
 
-Continuous tasks that declare an `intervention` config (task4 sepsis → antibiotics)
+Continuous tasks that declare an `intervention` config (e.g. a hypothetical hourly task, onset → treatment)
 today attach, **at every threshold**, a three-arm sub-analysis (`_positive_arm`,
 `_treated_negative_arm`, `_untreated_negative_arm`) where the two treated arms carry a
 **full** `hours_before_treatment` distribution — median + median-CI, p10/p25/p75/p90,
@@ -468,7 +469,7 @@ Decision (per the "keep the number, not the distribution" steer):
    no longer rides the 99-point axis. This removes the only real privacy/cost blow-up the
    sweep would introduce.
 3. **Keep ONE lead-time number, at the named thresholds only.** A single median "hours
-   before treatment" scalar per treated arm — "the model fired ~6 h before abx" —
+   before treatment" scalar per treated arm — "the model fired ~6 h before treatment" —
    computed only at the **named** thresholds (clinical + the drawn locators), NOT across
    the 99-point sweep. Lead-time is a *timing descriptor of an operating point*, not a
    *threshold-selection signal*; it does not need to be a curve, a CI, or a distribution
@@ -653,11 +654,11 @@ Renders §4.2. Twin-y trend across the full sweep:
 is absurd; render the 2×2 only at a **small named set** — default `clinical`, `youden`,
 `f1` (configurable). Remove the `dropped_offsets` footnote entirely (no offsets exist
 anymore). The title states which thresholds are shown and why. Sub-analysis rendering
-(`_render_operating_points_sub`, task4 intervention timing) changes shape per §4.4: the
+(`_render_operating_points_sub`, intervention timing) changes shape per §4.4: the
 per-threshold hours-before-treatment **histogram panel is gone**. In its place, (a) the
 swept **fire-rate curves** — positive-arm `pct_fired`, treated-negative `pct_fired`,
 untreated `misfire_rate` vs `t`, which decompose the false-alarm axis — and (b) a single
-**median lead-time annotation** at each named threshold ("~6 h before abx @ clinical").
+**median lead-time annotation** at each named threshold ("~6 h before treatment @ clinical").
 No distribution panel, no per-threshold histogram.
 
 ### 6.5 `data_driven_thresholds.png` (new) — where every rule lands
@@ -732,19 +733,21 @@ policy?).
 
 | Task | Clinical `t` | Dir | Mode | What the sweep newly shows |
 |---|---|---|---|---|
-| task1 ICU daily mortality | 0.95 | above | continuous (30-day, day) | Is 0.95 near any data-driven pick, or is the useful region far lower? Encounter alert-rate + NNE at 0.95 vs at Youden. No intervention → §4.4 absent. |
-| task2 ICU daily LTACH | 0.50 | above | continuous (30-day, day) | Youden vs the more-likely-than-not policy; encounter burden at 0.50. No intervention → §4.4 absent. |
-| task3 extubation failure 24h | 0.80 | **above** | episodic | Locators computed on risk (alarm) basis; action view = who gets a tracheostomy. Does 0.80 sit where the data separates fail/no-fail? |
-| task4 sepsis abx 6h | 0.10 | above | continuous (7-day, hour) | The headline case: Youden (prevalence-blind) vs F1/PPV-target (sees the ~2% prevalence). Encounter alert-rate + NNE across the sweep (frac admissions alerting; 1−PPV false-alarm) — the Kamran alarm-fatigue curve. **Only task with intervention** → §4.4 sub_rates + median lead-time apply. |
-| task5 ICU readmission | 0.20 | above | episodic | Where four rules land vs the top-20%-risk policy. |
+| icu_daily_mortality | 0.95 | above | continuous (30-day, day) | Is 0.95 near any data-driven pick, or is the useful region far lower? Encounter alert-rate + NNE at 0.95 vs at Youden. No intervention → §4.4 absent. |
+| icu_daily_ltach | 0.50 | above | continuous (30-day, day) | Youden vs the more-likely-than-not policy; encounter burden at 0.50. No intervention → §4.4 absent. |
+| extubation_failure_24h | 0.80 | **above** | episodic | Locators computed on risk (alarm) basis; action view = who gets a tracheostomy. Does 0.80 sit where the data separates fail/no-fail? |
+| _hypothetical hourly deterioration task_ (illustrative — no such task ships today) | 0.10 | above | continuous (7-day, hour) | The headline case for an intervention task: Youden (prevalence-blind) vs F1/PPV-target (sees the ~2% prevalence). Encounter alert-rate + NNE across the sweep (frac admissions alerting; 1−PPV false-alarm) — the Kamran alarm-fatigue curve. **The one task shape with an intervention** → §4.4 sub_rates + median lead-time apply. |
+| icu_readmission | 0.20 | above | episodic | Where four rules land vs the top-20%-risk policy. |
 
-Note the clinical thresholds `{0.95, 0.50, 0.80, 0.10, 0.20}` are all multiples of
+Note the shipped clinical thresholds `{0.95, 0.50, 0.80, 0.20}` (and the illustrative
+hourly task's 0.10) are all multiples of
 0.01 → all land exactly on the grid. The validation in §2.1 guards future edits.
 
-Two continuous-mode facts the table makes explicit: (a) **only task4 has an intervention
-config**, so §4.4's treatment sub-analysis exists there alone — task1/2 skip it entirely
-(§4.4). (b) The three continuous tasks run on **different horizons/window units** (task1/2
-= 30-day, day-windowed; task4 = 7-day = 168-h, hour-windowed), but because the operating
+Two continuous-mode facts the table makes explicit: (a) **only an intervention task (the
+illustrative hourly one) has an intervention config**, so §4.4's treatment sub-analysis
+exists there alone — the daily ICU tasks skip it entirely
+(§4.4). (b) The continuous tasks run on **different horizons/window units** (the daily ICU tasks
+= 30-day, day-windowed; a hypothetical hourly task = 7-day = 168-h, hour-windowed), but because the operating
 point and its burden are **encounter-level on the peak surface** (§4.2, Kamran), that
 difference **does not touch the operating point** — there is no patient-day denominator to
 convert. It would matter only for the deferred per-timepoint texture view (§9).

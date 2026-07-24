@@ -31,7 +31,7 @@ EXPECTED_JSONS = {"discrimination", "calibration", "dca", "fairness",
 EXPECTED_PNGS = {"roc_pr.png", "calibration.png", "dca.png", "fairness_auroc.png",
                  "operating_points.png"}
 
-TASK = "task5_icu_readmission"      # episodic: one prediction per stay
+TASK = "icu_readmission"      # episodic: one prediction per stay
 LABEL = "label_icu_readmission"
 
 runner = CliRunner()
@@ -72,7 +72,7 @@ def test_cli_continuous_mode(tmp_path):
 
     result = runner.invoke(app, [
         "build-report", str(preds_path),
-        "--task", "task1_icu_daily_mortality", "--out", str(out_dir),
+        "--task", "icu_daily_mortality", "--out", str(out_dir),
         "--mode", "continuous",
     ])
     assert result.exit_code == 0, result.output

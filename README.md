@@ -120,7 +120,7 @@ flair list-tasks
 Build a benchmark cohort:
 
 ```bash
-flair load-task task1_icu_daily_mortality \
+flair load-task icu_daily_mortality \
   --clif-config clif_config.json \
   --out cohort.parquet
 ```
@@ -156,7 +156,7 @@ Build an aggregate report:
 
 ```bash
 flair build-report preds.parquet \
-  --task task1_icu_daily_mortality \
+  --task icu_daily_mortality \
   --cohort cohort.parquet \
   --out ./report/
 ```
@@ -168,19 +168,18 @@ one bundle), episode tasks use `--mode episodic`.
 
 ## Benchmark Tasks
 
-FLAIR currently includes five binary ICU prediction tasks.
+FLAIR currently includes four binary ICU prediction tasks.
 
 | Task | Clinical question | Pattern | Unit | Recommended report |
 |---|---|---|---|---|
-| `task1_icu_daily_mortality` | Daily in-hospital mortality risk at 07:00 | continuous | one row per window | `continuous` (30-day landmark horizon) |
-| `task2_icu_daily_ltach` | Daily LTACH discharge risk at 07:00 | continuous | one row per window | `continuous` (30-day landmark horizon) |
-| `task3_extubation_failure_24h` | Extubation failure within 24 hours | episode | one row per stay | `episodic` |
-| `task4_sepsis_abx_6h` | Antibiotic-anchored sepsis within 6 hours | continuous | one row per window | `continuous` (168-hour landmark horizon) |
-| `task5_icu_readmission` | Unplanned ICU readmission after first ICU stay | episode | one row per stay | `episodic` |
+| `icu_daily_mortality` | Daily in-hospital mortality risk at 07:00 | continuous | one row per window | `continuous` (30-day landmark horizon) |
+| `icu_daily_ltach` | Daily LTACH discharge risk at 07:00 | continuous | one row per window | `continuous` (30-day landmark horizon) |
+| `extubation_failure_24h` | Extubation failure within 24 hours | episode | one row per stay | `episodic` |
+| `icu_readmission` | Unplanned ICU readmission after first ICU stay | episode | one row per stay | `episodic` |
 
 Task metadata records the task class, temporal pattern, prediction unit, label
 column, clinical threshold, threshold direction, and recommended report mode.
-The threshold policy is single-sourced in `flair_benchmark/_constants.py`.
+Each task's clinical policy (threshold, direction, report mode) is declared inline in its `META` in `flair_benchmark/tasks/<name>.py`.
 
 For more detail, see [docs/101/tasks.md](docs/101/tasks.md).
 
@@ -214,7 +213,7 @@ For site data, pass explicit temporal boundaries when you need a fixed train/tes
 split:
 
 ```bash
-flair load-task task1_icu_daily_mortality \
+flair load-task icu_daily_mortality \
   --clif-config clif_config.json \
   --train-end 2022-12-31 \
   --test-start 2023-01-01 \
@@ -294,7 +293,7 @@ columns to that same table. That avoids row drift and keeps reporting auditable.
 
 ```bash
 flair build-report preds.parquet \
-  --task task3_extubation_failure_24h \
+  --task extubation_failure_24h \
   --cohort cohort.parquet \
   --mode episodic \
   --out ./report/ \
@@ -393,8 +392,8 @@ site audit.
 
 Start with:
 
-- `flair_benchmark/tasks/task1_icu_daily_mortality.py` for a continuous task
-- `flair_benchmark/tasks/task3_extubation_failure_24h.py` for an episode task
+- `flair_benchmark/tasks/icu_daily_mortality.py` for a continuous task
+- `flair_benchmark/tasks/extubation_failure_24h.py` for an episode task
 
 For the task authoring guide, see [docs/101/tasks.md](docs/101/tasks.md).
 

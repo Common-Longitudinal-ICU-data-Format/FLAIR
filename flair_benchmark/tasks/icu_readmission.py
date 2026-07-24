@@ -1,5 +1,5 @@
 """
-Task 5: Unplanned ICU Readmission (binary, one-per-stay).
+Unplanned ICU Readmission (binary, one-per-stay).
 
 Clinical question:
   At the end of a patient's first ICU stay, will this patient be
@@ -50,7 +50,7 @@ from flair_benchmark.tasks._finalize import finalize_cohort
 MIN_ICU_STAY_HOURS = 24
 
 META = {
-    "name": "task5_icu_readmission",
+    "name": "icu_readmission",
     "display_name": "Unplanned ICU Readmission (one-per-stay, binary)",
     "task_class": "outcome",
     "temporal_pattern": "episode",

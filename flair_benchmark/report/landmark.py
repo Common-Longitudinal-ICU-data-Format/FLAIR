@@ -26,7 +26,7 @@ Why this is honest: one row per stay per landmark means report/_ci.py's row
 bootstrap is again a patient-level bootstrap (unlike row-pooling all windows).
 
 Notes:
-  - Early landmarks of windowed tasks (e.g. task4's 6h label) can be
+  - Early landmarks of windowed tasks (e.g. an hourly task's 6h label) can be
     single-class when no event falls within the horizon yet; those slices are
     undefined (no contrast) and emit a compact marker.
   - Deep landmarks shrink as stays end; a risk set below MIN_LANDMARK_N has its
@@ -143,8 +143,8 @@ def partition_windows(preds: pl.DataFrame) -> dict[int, pl.DataFrame]:
 def resolve_n_landmarks(meta: dict, n_landmarks: int | None) -> int:
     """Explicit override wins; otherwise the task's META['landmark_horizon'].
 
-    The horizon is a landmark COUNT in the task's window_unit (30 days for the
-    daily tasks, 168 hours for hourly sepsis) — it lives in the task's META,
+    The horizon is a landmark COUNT in the task's window_unit (e.g. 30 days for the
+    daily tasks, or N hours for an hourly task) — it lives in the task's META,
     never hardcoded here.
     """
     if n_landmarks is not None:

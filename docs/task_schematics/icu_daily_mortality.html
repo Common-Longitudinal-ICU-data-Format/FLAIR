@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>T1 · ICU Daily In-Hospital Mortality — FLAIR Task Schematics</title>
+<title>ICU Daily In-Hospital Mortality — FLAIR Task Schematics</title>
 <link rel="stylesheet" href="flair.css">
 <script>
 window.MathJax = {
@@ -28,7 +28,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 </div></div>
 
 <div class="wrap">
-  <p class="eyebrow">Task T1 · continuous · one-per-window</p>
+  <p class="eyebrow">continuous · one-per-window</p>
   <h1>ICU Daily In-Hospital Mortality at 07:00 Local</h1>
 
   <p class="lead">
@@ -44,7 +44,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 
   <div class="audit">
     <span class="tag">Code note</span>
-    Implemented in <code>task1_icu_daily_mortality.py</code> on the
+    Implemented in <code>icu_daily_mortality.py</code> on the
     <strong>stitched-encounter grain</strong> (<code>hospitalization_join_id</code>):
     read every <span class="mono">\(H_i\)</span> below as a stitched encounter,
     its members folded via the encounter index (default gap 6h). Label column
@@ -221,7 +221,7 @@ flowchart TD
     operational equivalent of a death-in-hospital trajectory — goals of care have
     shifted from cure to comfort, and the morning-rounds prediction horizon is
     identical. Sites wanting the strict CLIF definition (Expired only) adjust the
-    literal-set in <code>task1_icu_daily_mortality.py</code>.
+    literal-set in <code>icu_daily_mortality.py</code>.
   </p>
 
   <h4>Why null / Still Admitted are kept as label-0</h4>

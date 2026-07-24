@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>T5 · Unplanned ICU Readmission — FLAIR Task Schematics</title>
+<title>Unplanned ICU Readmission — FLAIR Task Schematics</title>
 <link rel="stylesheet" href="flair.css">
 <script>
 window.MathJax = {
@@ -28,7 +28,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 </div></div>
 
 <div class="wrap">
-  <p class="eyebrow">Task T5 · episode · one-per-stay</p>
+  <p class="eyebrow">episode · one-per-stay</p>
   <h1>Unplanned ICU Readmission</h1>
 
   <p class="lead">
@@ -42,7 +42,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 
   <div class="audit">
     <span class="tag">Code note</span>
-    Implemented in <code>task5_icu_readmission.py</code> on the
+    Implemented in <code>icu_readmission.py</code> on the
     <strong>stitched-encounter grain</strong>: <code>compute_readmission_timing</code>
     runs across the whole stitched encounter's ADT stream, so a true re-admission
     that the stitcher merged is read as one continuous location history. Constant

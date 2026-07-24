@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>T3 · Extubation Failure within 24h — FLAIR Task Schematics</title>
+<title>Extubation Failure within 24h — FLAIR Task Schematics</title>
 <link rel="stylesheet" href="flair.css">
 <script>
 window.MathJax = {
@@ -28,7 +28,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 </div></div>
 
 <div class="wrap">
-  <p class="eyebrow">Task T3 · episode · one-per-stay</p>
+  <p class="eyebrow">episode · one-per-stay</p>
   <h1>Extubation Failure within 24 Hours</h1>
 
   <p class="lead">
@@ -46,7 +46,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 
   <div class="audit">
     <span class="tag">Code note</span>
-    Implemented in <code>task3_extubation_failure_24h.py</code> on the
+    Implemented in <code>extubation_failure_24h.py</code> on the
     <strong>stitched-encounter grain</strong>: respiratory-support rows are
     relabeled to the stitched encounter before episode detection, so an
     intubation/extubation spanning a re-admission boundary is one episode. Constants

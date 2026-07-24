@@ -2,7 +2,7 @@
 + alert-vs-intervention timing in ONE bundle).
 
 No CLIF data needed. We build a multi-row-per-stay frame that mimics a windowed
-task (task4-style): each stay has several hourly windows; a positive stay is
+hourly task: each stay has several hourly windows; a positive stay is
 labeled 1 only in the last `HORIZON` windows (an onset that ends the stay), with
 y_prob rising toward it. This exercises:
 
@@ -668,7 +668,7 @@ def test_cli_peak_and_landmark_modes_removed(tmp_path):
     df.write_parquet(preds)
     for old_mode in ("peak", "landmark"):
         res = runner.invoke(app, ["build-report", str(preds),
-                                  "--task", "task1_icu_daily_mortality",
+                                  "--task", "icu_daily_mortality",
                                   "--out", str(tmp_path / "rep"),
                                   "--mode", old_mode, "--no-viz"])
         assert res.exit_code != 0

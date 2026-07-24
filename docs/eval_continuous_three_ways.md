@@ -4,18 +4,20 @@
 > `--mode` choices — they now ship together as SECTIONS of the single
 > `--mode continuous` report (inferred for continuous tasks). The landmark
 > horizon is no longer hardcoded: it comes from `META['landmark_horizon']`
-> (30 daily landmarks for T1/T2, 168 hourly for T4). The continuous bundle also
+> (30 daily landmarks for the daily ICU tasks, 168 hourly for a hypothetical
+> hourly task). The continuous bundle also
 > ships a single **`operating_points.json`** section: a per-threshold (clinical
 > and clinical ± 0.05) **alert × label** confusion matrix (sensitivity /
 > specificity / true FPR / PPV / NPV / NNE / F1) — MANDATORY for every continuous
 > task — plus, only when the task declares a treatment-time `intervention` column
-> (T4 = first CMS-qualifying antibiotic, `display` "treatment"), three
+> (e.g. a hypothetical hourly task whose intervention is a treatment time,
+> `display` "treatment"), three
 > per-threshold sub-analyses keyed on `(label, treatment, alert)`: among positives,
 > how many fired and the *hours before treatment* the alarm fired; among
 > treated-but-negative stays, `Δ = t_alert − t_treatment`; among never-treated
 > negatives, the misfire (false-alarm) count. The report layer is generic and
 > META-driven — it never assumes sepsis/antibiotics; tasks without an
-> intervention column (T1/T2) get only the confusion matrix. Landmarking is
+> intervention column (like the daily ICU tasks) get only the confusion matrix. Landmarking is
 > FORWARD-only: entries are indexed by `hospitalization_time` (day/hour
 > 1..horizon since the stay's first prediction window; unit from META), the
 > risk set at time t is every stay still at risk at t (a true KM
@@ -34,7 +36,7 @@
 This note explains what `flair build-report` should do for two task shapes:
 
 1.  **Episodic tasks**: one prediction per hospital stay.
-2.  **Continuous tasks**: many predictions per hospital stay, such as daily ICU mortality or hourly sepsis risk.
+2.  **Continuous tasks**: many predictions per hospital stay, such as daily ICU mortality or an hourly deterioration risk.
 
 For a visual step-by-step version with toy calculations, open [`eval_task_labels_modes.html`](eval_task_labels_modes.html).
 
@@ -82,7 +84,7 @@ Examples:
 | Task | Prediction shape | Problem |
 |------------------------|------------------------|------------------------|
 | Daily ICU mortality | one score per ICU day | long stays create more rows |
-| Sepsis in next 6 hours | one score per hour | one patient can create many alert chances |
+| Deterioration in next 6 hours | one score per hour | one patient can create many alert chances |
 | Deterioration warning score | repeated score while admitted | the report must respect hospital workflow |
 
 If we pool every row, the report no longer answers a patient-level question. It answers a row-level question. That is usually not what the clinician, site, or regulator wants.
@@ -139,29 +141,29 @@ Current FLAIR behavior:
 | `peak` | continuous screening or alert evaluation | discrimination and fairness only |
 | `landmark` | continuous probability and decision evaluation | all four pillars per landmark, plus lead-time |
 
-**Can landmarking be used for sepsis?**
+**Can landmarking be used for an hourly onset task?**
 
-Yes, but sepsis needs the right kind of landmark.
+Yes, but an hourly onset task needs the right kind of landmark.
 
-For sepsis, the question is usually: "At this hour, will sepsis happen in the next X hours?"
+For such a task, the question is usually: "At this hour, will the event happen in the next X hours?"
 
 The honest setup is a dynamic risk-set landmark:
 
 | Step | Plain meaning |
 |------------------------------------|------------------------------------|
 | Pick an hour | for example, 8 AM or hour 12 of admission |
-| Keep only eligible patients | still admitted, not already septic, not already treated |
+| Keep only eligible patients | still admitted, event not yet happened, not already treated |
 | Score each patient once | one row per patient at that hour |
-| Label the row | 1 if sepsis starts within the next X hours, otherwise 0 |
+| Label the row | 1 if the event starts within the next X hours, otherwise 0 |
 | Repeat | move to the next hour and build a curve |
 
-This matters because scoring after antibiotics, cultures, or treatment orders can create leakage. The model may look good because it is reading what the clinician already did, not because it predicted sepsis early.
+This matters because scoring after treatment has started can create leakage. The model may look good because it is reading what the clinician already did, not because it predicted the event early.
 
 This is the point of the Kamran sepsis evaluation in `docs/paper/lit/AIoa2300032.pdf`: they evaluated sepsis predictions before treatment began. That is the safer clinical question.
 
-For sepsis build reports, both modes are useful:
+For an hourly onset task's build reports, both modes are useful:
 
-| Mode | Sepsis use |
+| Mode | Onset-task use |
 |------------------------------------|------------------------------------|
 | `peak` | "Would this model ever alert during the stay, and how many alerts would clinicians see?" |
 | `landmark` | "At this hour, among patients still at risk, is the risk probability honest and useful?" |
@@ -289,7 +291,6 @@ FLAIR ships one fixed threshold per task, written down as clinical policy in `fl
 | ICU daily mortality | 0.95 | above | act when the model is very sure |
 | ICU daily LTACH | 0.5 | above | act on more-likely-than-not |
 | Extubation failure 24h | 0.80 | above | perform a tracheostomy when failure risk is high |
-| Sepsis antibiotics 6h | 0.1 | above | alert early, tolerate false alarms |
 | ICU readmission | 0.2 | above | flag the top slice of risk |
 
 This is a good default. It is fixed, it is the same at every site, and it is folded into the audit hash, so two sites reporting sensitivity at 0.2 are reporting the same number. Cross-site comparability comes from the threshold not moving.
@@ -312,7 +313,7 @@ Instead of fixing the threshold in advance, pick the one that optimises a statis
 
 Youden is the standard answer, and it is the one most reviewers will ask for. It is also the one that quietly assumes a false alarm and a missed death are equally bad. In an ICU they are not.
 
-Youden is also prevalence-blind. It reads only sensitivity and specificity, so it never sees how rare the event is. For sepsis at roughly 2 percent prevalence, the Youden threshold can produce a PPV low enough that clinicians would ignore the alert. F1-max sees prevalence through PPV and lands somewhere else. That gap is not a bug — it is the finding. Showing Youden alone would hide it.
+Youden is also prevalence-blind. It reads only sensitivity and specificity, so it never sees how rare the event is. For a low-prevalence task at roughly 2 percent prevalence, the Youden threshold can produce a PPV low enough that clinicians would ignore the alert. F1-max sees prevalence through PPV and lands somewhere else. That gap is not a bug — it is the finding. Showing Youden alone would hide it.
 
 So the report shows the threshold each rule picks, the performance each threshold buys, and the clinical threshold sitting alongside them as one more row. The clinical threshold is not being graded. It is being *located*.
 
@@ -373,7 +374,7 @@ Two things.
 | Read the model | at the threshold we ship, what does this model actually do to patients — and what would it do somewhere else? |
 | Read the policy | across sites, where does the data keep putting the cutpoint, and is the shipped threshold near it? |
 
-The second is the long game. `_constants.py` currently holds five thresholds chosen by clinical reasoning. Once every site's report carries where the data would have put each one, that table stops being an assumption and starts being a claim with evidence for or against it. If four sites independently put the mortality cutpoint at 0.78 and FLAIR ships 0.95, that is worth a conversation.
+The second is the long game. `_constants.py` currently holds four thresholds chosen by clinical reasoning. Once every site's report carries where the data would have put each one, that table stops being an assumption and starts being a claim with evidence for or against it. If four sites independently put the mortality cutpoint at 0.78 and FLAIR ships 0.95, that is worth a conversation.
 
 Data-driven thresholds do not replace the clinical threshold. They give it a second opinion.
 
@@ -388,7 +389,7 @@ For continuous tasks, FLAIR needs two modes:
 | `peak` | best for alert screening and burden: did the stay ever cross the line? |
 | `landmark` | best for honest probabilities and decisions: what was the risk at a fixed time? |
 
-Use `peak` when the report is about alarms. Use `landmark` when the report is about calibrated risk, DCA, sepsis risk sets, or time-dependent performance.
+Use `peak` when the report is about alarms. Use `landmark` when the report is about calibrated risk, DCA, dynamic risk sets, or time-dependent performance.
 
 The Zhang/Parker paper supports stronger time-dependent landmark reporting. The clinical-utility EWS paper supports a future optional build-report output for census-based utility, especially for real-time warning systems.
 

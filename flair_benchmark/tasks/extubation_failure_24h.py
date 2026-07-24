@@ -1,5 +1,5 @@
 """
-Task 3: Extubation failure within 24h of first extubation (binary, one-per-stay).
+Extubation failure within 24h of first extubation (binary, one-per-stay).
 
 Clinical question:
   After the first confirmed extubation, will the patient be reintubated
@@ -56,7 +56,7 @@ TRACH_CLOSURE_TOLERANCE_MIN = 1
 MIN_IMV_HOURS = 6
 
 META = {
-    "name": "task3_extubation_failure_24h",
+    "name": "extubation_failure_24h",
     "display_name": "Extubation failure within 24h (one-per-stay)",
     "task_class": "intervention",
     "temporal_pattern": "episode",

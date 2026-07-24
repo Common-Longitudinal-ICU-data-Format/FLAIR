@@ -319,7 +319,7 @@ def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
 def _validate_intervention_column(preds: pl.DataFrame, meta: dict) -> None:
     """META-declared intervention column must be present after the cohort join.
 
-    The column (e.g. task4's `first_abx_dttm`) is generated at task-BUILD time
+    The column (e.g. a `first_abx_dttm` treatment timestamp) is generated at task-BUILD time
     and stored in the cohort parquet; the report never touches raw CLIF data.
     Null values are fine (never-treated stays are the no-intervention arm), but
     a missing column means the eval cannot answer "did the model fire before

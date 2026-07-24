@@ -12,25 +12,24 @@ flair list-tasks
 
 | task | class | temporal pattern | prediction unit | type | threshold (dir) | clinical action |
 |---|---|---|---|---|---|---|
-| `task1_icu_daily_mortality` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.95 (above) | order a palliative care consult |
-| `task2_icu_daily_ltach` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.50 (above) | early tracheostomy |
-| `task3_extubation_failure_24h` | intervention | episode | one-per-stay | binary | 0.80 (above) | perform a tracheostomy |
-| `task4_sepsis_abx_6h` | intervention | continuous | one-per-window (hourly) | binary | 0.10 (above) | treat with antibiotics |
-| `task5_icu_readmission` | outcome | episode | one-per-stay | binary | 0.20 (above) | keep in ICU |
+| `icu_daily_mortality` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.95 (above) | order a palliative care consult |
+| `icu_daily_ltach` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.50 (above) | early tracheostomy |
+| `extubation_failure_24h` | intervention | episode | one-per-stay | binary | 0.80 (above) | perform a tracheostomy |
+| `icu_readmission` | outcome | episode | one-per-stay | binary | 0.20 (above) | keep in ICU |
 
 The **report mode** follows from the temporal pattern: episode tasks → `episodic`;
-continuous tasks (T1, T2, T4) → `continuous`, one bundle holding the stay-peak section and
-the per-landmark pillars over `META['landmark_horizon']` lead times (30 days for T1/T2,
-168 hours for T4) plus leadtime/alert timing. See [reports.md](reports.md).
+continuous tasks (T1, T2) → `continuous`, one bundle holding the stay-peak section and
+the per-landmark pillars over `META['landmark_horizon']` lead times (30 days for T1/T2)
+plus leadtime/alert timing. See [reports.md](reports.md).
 
-> The threshold, direction, and report mode for every task are single-sourced in
-> `flair_benchmark/_constants.py` (`TASK_POLICY`) — spread into each task's `META` at import
-> time and folded into the audit hash. Change them there, not per task file.
+> The threshold, direction, and report mode for every task are declared inline in that
+> task's `META` in `flair_benchmark/tasks/<name>.py` — value-validated in `tasks/__init__.py`
+> and folded into the audit hash. Change them in the task file.
 
 ## Loading a task → cohort
 
 ```bash
-flair load-task task1_icu_daily_mortality \
+flair load-task icu_daily_mortality \
   --clif-config clif_config.json \
   --out cohort.parquet \
   [--train-end YYYY-MM-DD] [--test-start YYYY-MM-DD]
@@ -116,8 +115,8 @@ label → `assign_split(...)` → `finalize_cohort(...)`.
 
 ### Templates to copy
 
-- `tasks/task1_icu_daily_mortality.py` — simplest **continuous** (one-per-window) task.
-- `tasks/task3_extubation_failure_24h.py` — simplest **episode** (one-per-stay) task.
+- `tasks/icu_daily_mortality.py` — simplest **continuous** (one-per-window) task.
+- `tasks/extubation_failure_24h.py` — simplest **episode** (one-per-stay) task.
 
 ### Acceptance
 

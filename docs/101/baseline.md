@@ -19,7 +19,7 @@ flair-baseline train \
   --clif-config clif_config.json \
   --elf-config flair_elf_config.yaml \
   --out . \
-  [--task task1_icu_daily_mortality]   # default: all 5 tasks
+  [--task icu_daily_mortality]   # default: all 4 tasks
 ```
 
 On MIMIC the split is **75/25 on `hospitalization_join_id`** (an encounter never spans
@@ -37,7 +37,7 @@ flair-baseline infer \
 
 `infer` re-applies the same deterministic 75/25 block split, so the model is evaluated on a
 **25% holdout** of *that* site's own data. The report mode per task is chosen automatically
-(continuous for T1/T2/T4, episodic for T3/T5).
+(continuous for the daily ICU tasks, episodic for the one-per-stay tasks).
 
 ## Output: three site-prefixed folders
 

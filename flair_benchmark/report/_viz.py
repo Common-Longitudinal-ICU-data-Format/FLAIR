@@ -108,18 +108,32 @@ def render_sanity_pngs(reports: dict[str, dict], out_dir: Path) -> list[Path]:
 
     cal = reports.get("calibration", {})
     cal_curves, cal_metrics = cal.get("curves", {}), cal.get("metrics", {})
-    bins = cal_curves.get("reliability")
+    # Prefer the equal-count (quantile) display curve so ~10 points span the
+    # actual predicted-risk range; fall back to equal-width for old payloads.
+    bins = cal_curves.get("reliability_quantile") or cal_curves.get("reliability")
     if bins:
         fig, ax = plt.subplots(figsize=(5, 5))
-        pairs = [(p, t) for p, t in zip(bins["bin_pred_prob"], bins["bin_true_prob"])
-                 if p is not None and t is not None]
+        pairs = sorted(
+            (p, t) for p, t in zip(bins["bin_pred_prob"], bins["bin_true_prob"])
+            if p is not None and t is not None)
         if pairs:
-            ax.scatter(*zip(*pairs), label="bins (n>=10)")
+            xs, ys = zip(*pairs)
+            ax.plot(xs, ys, "-o", ms=5, label="deciles (equal-count)")
         smoothed = cal_curves.get("smoothed")
         if smoothed:
             ax.plot(smoothed["pred_grid"], smoothed["obs_smoothed"],
                     label="logistic calibration fit")
-        ax.plot([0, 1], [0, 1], "k--", lw=0.8, label="ideal")
+        # Zoom to the data window (rare-event points cluster near 0); draw the
+        # ideal diagonal across that window instead of a full 0-1 line, which
+        # would otherwise force the whole curve into the bottom-left corner.
+        if len(pairs) >= 2:
+            lo, hi = min(min(xs), min(ys)), max(max(xs), max(ys))
+            pad = 0.05 * (hi - lo) or 0.01
+            ax.plot([lo, hi], [lo, hi], "k--", lw=0.8, label="ideal")
+            ax.set_xlim(min(xs) - pad, max(xs) + pad)
+            ax.set_ylim(lo - pad, hi + pad)
+        else:
+            ax.plot([0, 1], [0, 1], "k--", lw=0.8, label="ideal")
         ax.set(xlabel="Predicted probability", ylabel="Observed frequency",
                title="Calibration (reliability)")
         # All scalars (slope/intercept/Brier with 95% CIs, ECE, O:E) collected into a
@@ -465,6 +479,8 @@ def render_continuous_pngs(payloads: dict[str, dict], out_dir: Path) -> list[Pat
       landmark_auc_by_hospital_time : AUROC +/- 95% CI per hospitalization time
                                       (the time-varying / dynamic AUC curve)
       landmark_calibration          : calibration slope +/- 95% CI (drift)
+      landmark_brier                : Brier score +/- 95% CI per hospitalization
+                                      time (lower is better)
       landmark_reliability          : reliability curves at 3 hospitalization
                                       times (earliest / mid / latest scored)
     Operating points (all on the peak surface, 99-point sweep):
@@ -590,6 +606,10 @@ def render_continuous_pngs(payloads: dict[str, dict], out_dir: Path) -> list[Pat
               "landmark_calibration.png",
               f"Calibration slope by hospitalization {unit or 'window'}",
               "calibration slope", hline=1.0)
+    _lead_png(pillars["calibration"], _m("brier"), _m("brier_ci"),
+              "landmark_brier.png",
+              f"Brier score by hospitalization {unit or 'window'}",
+              "Brier score")
 
     _render_landmark_reliability(pillars["calibration"], _save, plt, unit)
 

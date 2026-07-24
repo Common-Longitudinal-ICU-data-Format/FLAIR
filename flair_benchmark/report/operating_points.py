@@ -306,7 +306,7 @@ def _decision_row(tp: np.ndarray, fp: np.ndarray, fn: np.ndarray, tn: np.ndarray
 def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
     """Peak-surface sweep + encounter alert burden + optional intervention rates.
 
-    Confusion, metrics, alert burden, locators and (task4) treatment sub-rates all
+    Confusion, metrics, alert burden, locators and (intervention) treatment sub-rates all
     ride the one-row-per-stay peak collapse. Net benefit is NOT reported here (peak
     DCA trap — it lives in dca.json's landmarks).
     """

@@ -28,32 +28,25 @@
 
   <div class="cards">
     <a class="card" href="icu_daily_mortality.html">
-      <span class="tid">TASK T1 · continuous</span>
+      <span class="tid">TASK · continuous</span>
       <h3>ICU Daily In-Hospital Mortality (07:00)</h3>
       <p>Each morning of the first ICU stay, will this hospitalization end in
          death or hospice? Unconditional adult-ICU cohort.</p>
     </a>
     <a class="card" href="icu_daily_ltach.html">
-      <span class="tid">TASK T2 · continuous</span>
+      <span class="tid">TASK · continuous</span>
       <h3>ICU Daily LTACH Discharge (07:00)</h3>
-      <p>Same cohort and grid as T1; predicts transfer to a Long-Term Acute
-         Care Hospital. T1 and T2 are not a partition.</p>
+      <p>Same cohort and grid as ICU Daily Mortality; predicts transfer to a
+         Long-Term Acute Care Hospital. The two daily tasks are not a partition.</p>
     </a>
     <a class="card" href="extubation_failure_24h.html">
-      <span class="tid">TASK T3 · one-per-stay</span>
+      <span class="tid">TASK · one-per-stay</span>
       <h3>Extubation Failure within 24h</h3>
       <p>At the first confirmed extubation, will the patient die or be
          reintubated within 24h? Consensus-window IMV episode detector.</p>
     </a>
-    <a class="card" href="sepsis_ase_6h.html">
-      <span class="tid">TASK T4 · continuous</span>
-      <h3>Sepsis (CDC ASE onset) within 6h</h3>
-      <p>Hourly hospital-wide prediction of CDC Adult Sepsis Event onset within
-         6h, censored before <span class="mono">t_zero</span> to avoid label
-         leakage.</p>
-    </a>
     <a class="card" href="icu_readmission.html">
-      <span class="tid">TASK T5 · one-per-stay</span>
+      <span class="tid">TASK · one-per-stay</span>
       <h3>Unplanned ICU Readmission</h3>
       <p>At first-ICU discharge, will the patient return to the ICU later in the
          same hospitalization through an unplanned path? ADT-only.</p>
@@ -67,35 +60,28 @@
     </thead>
     <tbody>
       <tr>
-        <td><a href="icu_daily_mortality.html">T1 Mortality</a></td>
+        <td><a href="icu_daily_mortality.html">Mortality</a></td>
         <td>one-per-window (daily)</td>
         <td>07:00 local, daily</td>
         <td><code>label_mortality</code></td>
         <td>hospitalization, patient, adt</td>
       </tr>
       <tr>
-        <td><a href="icu_daily_ltach.html">T2 LTACH</a></td>
+        <td><a href="icu_daily_ltach.html">LTACH</a></td>
         <td>one-per-window (daily)</td>
         <td>07:00 local, daily</td>
         <td><code>label_ltach</code></td>
         <td>hospitalization, patient, adt</td>
       </tr>
       <tr>
-        <td><a href="extubation_failure_24h.html">T3 Extubation</a></td>
+        <td><a href="extubation_failure_24h.html">Extubation</a></td>
         <td>one-per-stay</td>
         <td>first extubation</td>
         <td><code>label_extubation_failure_24h</code></td>
         <td>+ respiratory_support</td>
       </tr>
       <tr>
-        <td><a href="sepsis_ase_6h.html">T4 Sepsis</a></td>
-        <td>one-per-window (hourly)</td>
-        <td>first vital → before t_zero</td>
-        <td><code>label_sepsis_6h</code></td>
-        <td>+ vitals, microbiology_culture, labs/meds (via <code>compute_ase</code>)</td>
-      </tr>
-      <tr>
-        <td><a href="icu_readmission.html">T5 Readmission</a></td>
+        <td><a href="icu_readmission.html">Readmission</a></td>
         <td>one-per-stay</td>
         <td>first-ICU discharge</td>
         <td><code>label_icu_readmission</code></td>

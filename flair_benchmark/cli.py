@@ -65,7 +65,7 @@ def init_config_cmd(
 
 @app.command("load-task")
 def load_task(
-    task: str = typer.Argument(..., help="Task name, e.g. task1_icu_daily_mortality"),
+    task: str = typer.Argument(..., help="Task name, e.g. icu_daily_mortality"),
     clif_config: str = typer.Option(..., "--clif-config",
                                     help="Path to clif_config.json"),
     out: str = typer.Option(..., "--out", help="Output parquet path"),

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>T2 · ICU Daily LTACH Discharge — FLAIR Task Schematics</title>
+<title>ICU Daily LTACH Discharge — FLAIR Task Schematics</title>
 <link rel="stylesheet" href="flair.css">
 <script>
 window.MathJax = {
@@ -28,7 +28,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 </div></div>
 
 <div class="wrap">
-  <p class="eyebrow">Task T2 · continuous · one-per-window</p>
+  <p class="eyebrow">continuous · one-per-window</p>
   <h1>ICU Daily LTACH Discharge at 07:00 Local</h1>
 
   <p class="lead">
@@ -42,7 +42,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
 
   <div class="audit">
     <span class="tag">Code note</span>
-    Implemented in <code>task2_icu_daily_ltach.py</code> on the
+    Implemented in <code>icu_daily_ltach.py</code> on the
     <strong>stitched-encounter grain</strong>. Label column <code>label_ltach</code>;
     display name “ICU Daily LTACH Discharge (7AM, binary).” Build pipeline is shared
     with T1 (same module helpers).

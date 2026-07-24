@@ -4,7 +4,7 @@ from datetime import datetime
 
 import polars as pl
 
-from flair_benchmark.tasks import task5_icu_readmission as t5
+from flair_benchmark.tasks import icu_readmission as t5
 
 
 def _dt(day: int, hour: int) -> datetime:

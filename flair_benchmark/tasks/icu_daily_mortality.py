@@ -1,22 +1,23 @@
 """
-Task 2: ICU Daily LTACH Discharge (binary, one-per-window at 07:00 local).
+ICU Daily In-Hospital Mortality (binary, one-per-window at 07:00 local).
 
 Clinical question:
   Given everything we know about this ICU patient up to today's 07:00 rounds,
-  will the eventual disposition of this encounter be transfer to a
-  Long-Term Acute Care Hospital (LTACH)?
+  will this encounter end with the patient dying in hospital
+  (CLIF discharge_category in {Expired, Hospice}) rather than any other
+  disposition?
 
 Cohort (unconditional all-comers ICU, stitched-encounter grain):
   All adult stitched encounters with at least one ICU ADT record. NO filter
-  on discharge_category. The cohort is identical to Task 1.
+  on discharge_category — every retained encounter contributes daily rows,
+  including those discharged Home, SNF, Rehab, LTACH, AMA, Other,
+  Still Admitted, or with a null discharge_category.
 
-Label (label_ltach):
-  1 iff the encounter's FINAL discharge_category (lowercased, stripped) matches
-    regex r"ltach|long.?term"
-  0 otherwise — including Expired, Hospice, Home, SNF, Rehab, AMA, Other,
-  Still Admitted, and null. Null and Still Admitted are intentionally
-  retained as negatives. T1 and T2 are NOT a partition: a Home discharge
-  is 0 in both; an Expired discharge is 1 in T1 and 0 in T2.
+Label (label_mortality):
+  1 iff the encounter's FINAL discharge_category (lowercased, stripped) in
+  {"expired", "hospice"}; 0 otherwise — including LTACH, Home, SNF, Rehab,
+  AMA, Other, Still Admitted, and null. Null and Still Admitted are
+  intentionally retained as negatives.
 
 Row shape (one-per-window):
   prediction_dttm = 07:00 on day-of-admission + 1, +2, +3, ... while the
@@ -52,22 +53,22 @@ from flair_benchmark._split import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 META = {
-    "name": "task2_icu_daily_ltach",
-    "display_name": "ICU Daily LTACH Discharge (7AM, binary)",
+    "name": "icu_daily_mortality",
+    "display_name": "ICU Daily In-Hospital Mortality (7AM, binary)",
     "task_class": "outcome",
     "temporal_pattern": "continuous",
     "prediction_unit": "one-per-window",
     "task_type": "binary",
     # Clinical policy — this task owns it; value-validated in tasks/__init__.py.
-    "clinical_threshold": 0.5,
-    "clinical_action": "perform early tracheostomy",
+    "clinical_threshold": 0.95,
+    "clinical_action": "order a palliative care consult",
     "clinical_direction": "above",
     "report_mode": "continuous",
     "landmark_horizon": 30,
-    "dca_axis": {"event": "LTACH discharge",
-                 "action": "perform early tracheostomy"},
-    "label_column": "label_ltach",
-    "positive_class": "ltach_discharge",
+    "dca_axis": {"event": "in-hospital mortality",
+                 "action": "order a palliative care consult"},
+    "label_column": "label_mortality",
+    "positive_class": "in_hospital_mortality",
     "input_window_hours": None,
     "prediction_window": None,
     "window_unit": "day",  # window_number increments one row per local-07:00 day
@@ -112,7 +113,7 @@ def build(clif_config: str, train_end: str | None,
 
     disp = pl.col("discharge_category").str.to_lowercase().str.strip_chars()
     df = df.with_columns(
-        disp.str.contains(r"ltach|long.?term")
+        disp.is_in(["expired", "hospice"])
             .fill_null(False)
             .cast(pl.Int32)
             .alias(META["label_column"])

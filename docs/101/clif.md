@@ -18,7 +18,7 @@ same coded vocabulary at every site, so FLAIR measures genuine cross-site genera
 | respiratory support | `respiratory_support` |
 | assessments | `patient_assessments` (e.g. GCS, RASS) |
 | identity / timing | `hospitalization`, `patient`, `adt` |
-| infection | `microbiology_culture` (used by the sepsis task) |
+| infection | `microbiology_culture` |
 
 ## Two equivalent ways to consume CLIF
 

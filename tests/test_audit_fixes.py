@@ -1,7 +1,7 @@
 """Regression tests for the evaluation-audit fixes (C1, C4, C5/C6, C9).
 
 C2 (deterministic bootstrap CIs) is covered in test_report_continuous.py and
-C3 (task3 post-discharge-death censoring) in test_task3_extubation_failure_label.py.
+C3 (extubation-failure post-discharge-death censoring) in test_extubation_failure_label.py.
 """
 
 from __future__ import annotations
@@ -262,7 +262,7 @@ def test_validate_taxonomy_rejects_bad_policy_values():
     all raise."""
     from flair_benchmark.tasks import _validate_taxonomy
 
-    name = "task2_icu_daily_ltach"
+    name = "icu_daily_ltach"
     good = {"name": name, "task_type": "binary", "task_class": "outcome",
             "temporal_pattern": "continuous", "prediction_unit": "one-per-window",
             "clinical_threshold": 0.5, "clinical_action": "perform early tracheostomy",
@@ -278,6 +278,6 @@ def test_validate_taxonomy_rejects_bad_policy_values():
     with pytest.raises(ValueError, match="clinical_direction"):
         _validate_taxonomy(name, bad_dir)
 
-    wrong_name = {**good, "name": "task5_icu_readmission"}
+    wrong_name = {**good, "name": "icu_readmission"}
     with pytest.raises(ValueError, match="module filename"):
         _validate_taxonomy(name, wrong_name)
