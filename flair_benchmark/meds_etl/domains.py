@@ -98,7 +98,7 @@ def run_med(domain: str, clif_cfg: dict, domain_cfg: dict,
 
     uc = next(iter(concepts.values())).get("unit_conversion", {})
     preferred = uc.get("preferred_units", {})
-    if uc.get("enabled", False) and preferred:
+    if not med_pdf.empty and uc.get("enabled", False) and preferred:
         if not uc.get("allow_other_meds", True):
             med_pdf = med_pdf[med_pdf["med_category"].isin(set(preferred.keys()))]
         vitals_pdf = _load_weight_vitals(clif_cfg, hosp_ids, cache)
