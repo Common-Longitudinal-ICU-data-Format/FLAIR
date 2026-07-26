@@ -13,7 +13,7 @@ How well the model RANKS stays, independent of calibration:
     threshold-free ranking.
 
 The frame is one row per stay (split-filtered upstream), so the row bootstrap in
-report/_ci.py is a stay-level bootstrap.
+report/_stats.py is a stay-level bootstrap.
 """
 
 from __future__ import annotations
@@ -22,14 +22,14 @@ import numpy as np
 import polars as pl
 
 from flair_benchmark.report._basis import action_mask, alarm_mask
-from flair_benchmark.report._ci import bootstrap_ci
-from flair_benchmark.report._confusion import (
+from flair_benchmark.report._stats import (
+    bootstrap_ci,
     confusion_counts,
     confusion_metric,
     mk_stat,
     r1,
+    suppress,
 )
-from flair_benchmark.report._suppress import suppress
 
 # Backward-compatible private aliases (other report modules import these).
 _confusion_metric = confusion_metric

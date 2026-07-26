@@ -13,7 +13,7 @@ Definition:
   row is dropped and the two ICU stays merge into one. Consecutive
   same-location ADT rows also merge. After this normalization, the
   existence of a SECOND ICU stay is an unplanned readmission (label = 1).
-  See flair_benchmark/_readmission.py for the merge/sandwich algorithm.
+  See flair_benchmark/cohort/events.py for the merge/sandwich algorithm.
 
 Cohort exclusions (faithful port of the original task7 logic):
   1. No ICU data (no first ICU stay) — dropped by the inner join.
@@ -29,7 +29,7 @@ Row shape (one-per-stay):
   used.
 
 Pipeline:
-  1. base_icu_cohort()             — adult ICU cohort + ADT (see _clif.py)
+  1. base_icu_cohort()             — adult ICU cohort + ADT (see cohort/clif.py)
   2. compute_readmission_timing()  — first ICU stay + 2nd-ICU / flags
   3. apply the five exclusions
   4. label = 1 iff second_icu_start_time is not null
@@ -41,10 +41,10 @@ from __future__ import annotations
 
 import polars as pl
 
-from flair_benchmark._clif import base_icu_cohort, read_clif_config
-from flair_benchmark._encounter import as_encounter_keyed, encounter_attributes
-from flair_benchmark._readmission import compute_readmission_timing
-from flair_benchmark._split import assign_split
+from flair_benchmark.cohort.clif import base_icu_cohort, read_clif_config
+from flair_benchmark.cohort.encounter import as_encounter_keyed, encounter_attributes
+from flair_benchmark.cohort.events import compute_readmission_timing
+from flair_benchmark.cohort.stitch import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 MIN_ICU_STAY_HOURS = 24

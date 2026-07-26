@@ -45,17 +45,21 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from flair_benchmark._constants import SELECTION_DEFAULTS
+from flair_benchmark.constants import SELECTION_DEFAULTS
 from flair_benchmark.report._basis import (
     action_expr,
     axis_threshold,
     net_benefit_all,
     to_decision_basis,
 )
-from flair_benchmark.report._ci import scalar_ci
-from flair_benchmark.report._confusion import nne_from_ppv, r1
 from flair_benchmark.report._locators import locate_all, locate_band
-from flair_benchmark.report._suppress import MIN_CELL_COUNT, suppress
+from flair_benchmark.report._stats import (
+    MIN_CELL_COUNT,
+    nne_from_ppv,
+    r1,
+    scalar_ci,
+    suppress,
+)
 from flair_benchmark.report._sweep import (
     RATE_KEYS,
     SWEEP_GRID,
@@ -643,8 +647,7 @@ def _fairness_by_threshold(preds: pl.DataFrame, meta: dict,
             }
         per_threshold.append({"subgroups": subgroups, "parity": parity})
 
-    from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED
-    from flair_benchmark.report._confusion import pct
+    from flair_benchmark.report._stats import BOOT_REPS, BOOT_SEED, pct
     rng = np.random.default_rng(BOOT_SEED)
     n = len(label)
     samples: dict[tuple[int, str, str], list[float]] = {}

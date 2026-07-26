@@ -1,6 +1,6 @@
 """Unit tests for encounter stitching → hospitalization_join_id.
 
-Covers the two pieces flair_benchmark._stitch owns:
+Covers the two pieces flair_benchmark.cohort.stitch owns:
   * attach_join_id — pure polars mapping with self-fallback (no IO),
   * the clifpy stitch_encounters contract our index builder depends on
     (gap <= interval → one block; large gap → two blocks).
@@ -12,7 +12,7 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from flair_benchmark._stitch import JOIN_ID, attach_join_id
+from flair_benchmark.cohort.stitch import JOIN_ID, attach_join_id
 
 
 def test_attach_join_id_maps_and_falls_back_to_self():

@@ -16,7 +16,7 @@ import importlib
 import pkgutil
 from types import ModuleType
 
-from flair_benchmark._constants import REPORT_MODES
+from flair_benchmark.constants import REPORT_MODES
 
 TASK_CLASS_VALUES = {"outcome", "deterioration", "intervention", "operational"}
 TEMPORAL_PATTERN_VALUES = {"episode", "fixed_horizon", "continuous"}

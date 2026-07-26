@@ -15,7 +15,7 @@ which selects the task's contract columns and appends:
                          (`flair fe-meds`, or your own code over clifpy) receives
                          a cohort parquet and never imports the task module, so
                          the cutoff has to travel as data. Making it a value rather
-                         than a flag also means features/meds_stream.py keeps one
+                         than a flag also means features/extractors.py keeps one
                          comparison (`time <= end_time`) and is correct without
                          knowing per-task strictness exists.
 

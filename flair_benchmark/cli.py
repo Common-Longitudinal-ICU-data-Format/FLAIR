@@ -15,7 +15,7 @@ hospitalization_id may be carried for audit traceability but is NOT the
 report/evaluation unit.
 
 Cohorts from `load-task` carry hospitalization_join_id (the stitched-encounter
-key — one block can span several hospitalizations, see flair_benchmark._stitch)
+key — one block can span several hospitalizations, see flair_benchmark.cohort.stitch)
 and prediction_id, the auditable per-row key
   prediction_id = {hospitalization_join_id}-{hospitalization_id}-{patient_id}-{window_number}
 (always 4 parts; window_number = 1 when the task has no window). hospitalization_join_id
@@ -49,7 +49,7 @@ def init_config_cmd(
     Lets a fresh `pip install flair-benchmark` user start entirely from the CLI.
     Edit clif_config.json with your data path/timezone, then run load-task / fe-*.
     """
-    from flair_benchmark._templates import TEMPLATES
+    from flair_benchmark.constants import TEMPLATES
 
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -77,8 +77,8 @@ def load_task(
     """Run a task's build() function and write the cohort parquet + Table 1 JSON."""
     import json
 
-    from flair_benchmark._clif import read_clif_config
-    from flair_benchmark._table1 import generate_table1
+    from flair_benchmark.cohort.clif import read_clif_config
+    from flair_benchmark.cohort.table1 import generate_table1
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)

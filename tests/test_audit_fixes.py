@@ -13,9 +13,9 @@ import numpy as np
 import polars as pl
 import pytest
 
+from flair_benchmark.report.continuous import build_leadtime
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import _bin_age
-from flair_benchmark.report.leadtime import build_leadtime
 from flair_benchmark.report.operating_points import build_operating_points
 
 META = {
@@ -255,7 +255,7 @@ def test_mimic_split_is_pinned_forever():
     trained on the old deal). This fixture freezes the expected assignment; if
     it ever fails, the split changed and every existing MIMIC result is void.
     """
-    from flair_benchmark._split import assign_split
+    from flair_benchmark.cohort.stitch import assign_split
 
     ids = [f"g{i:02d}" for i in range(20)]
     df = pl.DataFrame({
@@ -273,7 +273,7 @@ def test_mimic_split_is_pinned_forever():
 def test_comorbidity_join_coalesces_keys():
     """D5: elix-only rows must keep their hospitalization_id (full-coalesce
     join), with no stray _right column entering the cohort_scores cache."""
-    from flair_benchmark.report import _comorbidity as comorb
+    from flair_benchmark.cohort.table1 import compute_cci_elix
 
     cci = pl.DataFrame({"hospitalization_id": ["a", "b"],
                         "charlson_score": [1.0, 2.0]})
@@ -284,9 +284,9 @@ def test_comorbidity_join_coalesces_keys():
                                 "elix_score"}
     row_c = out.filter(pl.col("hospitalization_id") == "c")
     assert row_c.height == 1 and row_c["elix_score"][0] == 4.0
-    # and the module itself uses the coalescing join
+    # and the real implementation uses the coalescing join
     import inspect
-    src = inspect.getsource(comorb)
+    src = inspect.getsource(compute_cci_elix)
     assert 'how="full"' in src and "coalesce=True" in src
 
 
@@ -294,7 +294,7 @@ def test_read_clif_config_requires_site(tmp_path):
     """D6: a missing 'site' must fail loudly — a defaulted 'unknown' silently
     applies the DATA_CUTOFF year filter to MIMIC's shifted dates and empties
     the cohort."""
-    from flair_benchmark._clif import read_clif_config
+    from flair_benchmark.cohort.clif import read_clif_config
 
     cfg = tmp_path / "clif_config.json"
     cfg.write_text(json.dumps({"data_directory": "/tmp/x", "filetype": "parquet"}))

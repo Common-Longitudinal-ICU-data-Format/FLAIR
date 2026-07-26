@@ -24,17 +24,15 @@ import numpy as np
 import polars as pl
 import pytest
 
-from flair_benchmark.tasks import get_task, list_tasks
-from flair_benchmark.report._calib import calibration_extended
-from flair_benchmark.report._ci import bootstrap_ci
+from flair_benchmark.report._locators import _CI_KEYS, _attach_ci, locate_band
+from flair_benchmark.report._stats import bootstrap_ci, calibration_extended, suppress
+from flair_benchmark.report._sweep import SWEEP_GRID
 from flair_benchmark.report.calibration import build_calibration
 from flair_benchmark.report.dca import build_dca
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import build_fairness
-from flair_benchmark.report._sweep import SWEEP_GRID
-from flair_benchmark.report._locators import _CI_KEYS, _attach_ci, locate_band
-from flair_benchmark.report._suppress import suppress
 from flair_benchmark.report.operating_points import build_episodic_operating_points
+from flair_benchmark.tasks import get_task, list_tasks
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 META = {

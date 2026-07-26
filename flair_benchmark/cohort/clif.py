@@ -1,8 +1,13 @@
-"""Shared CLIF loaders. Replaces FLAIRCohortBuilder.
+"""Load CLIF tables through clifpy, as polars frames.
+
+The single door between FLAIR and the raw data. Everything downstream —
+stitching, tasks, features, Table 1 — reads CLIF through these functions rather
+than touching clifpy directly, so cohort filtering, id typing, and the
+pandas-to-polars conversion happen in exactly one place.
 
 Each task script imports the small subset it needs:
 
-    from flair_benchmark._clif import (
+    from flair_benchmark.cohort.clif import (
         read_clif_config, base_icu_cohort,
         load_hospitalization, load_adt, load_patient,
         load_respiratory_support, load_vitals, load_labs,
@@ -10,6 +15,14 @@ Each task script imports the small subset it needs:
         load_medication_admin_continuous,
         pd_to_pl,
     )
+
+Note that clifpy returns tz-aware datetimes typed to cfg["timezone"]; `pd_to_pl`
+strips the timezone so every downstream comparison is on naive local wall-clock
+time. Mixing a tz-aware timestamp into a cohort built here will raise.
+
+Depends on: clifpy, polars.
+Used by: cohort/stitch.py, cohort/encounter.py, cohort/table1.py, every task,
+         features/_config.py.
 """
 
 from __future__ import annotations
@@ -253,7 +266,7 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
     adt = adt.filter(pl.col("hospitalization_id").is_in(final_ids))
 
     # Stitch encounters once (cached) and tag both frames with the block key.
-    from flair_benchmark._stitch import attach_join_id, load_or_build_encounter_index
+    from flair_benchmark.cohort.stitch import attach_join_id, load_or_build_encounter_index
     idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
     cohort = attach_join_id(cohort, idx)
     adt = attach_join_id(adt, idx)

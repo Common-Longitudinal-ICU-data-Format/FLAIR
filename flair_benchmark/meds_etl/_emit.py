@@ -1,13 +1,25 @@
-"""Core CLIF-table → MEDS-event emission, shared by every domain.
+"""Read a CLIF table, clean it, and emit MEDS event rows. Shared by every domain.
 
-Consolidates the near-identical per-domain processors from CLIF_MEDS into one
-emit loop plus small per-domain hooks (unit conversion, column drops, null-skip,
-outlier clamping). Behaviour per domain is preserved exactly; only the duplication
-is removed.
+One emit loop plus small per-domain hooks (unit conversion, column drops,
+null-skip, outlier clamping), replacing the near-identical per-domain processors
+CLIF_MEDS had. Per-domain behaviour is preserved exactly; only the duplication is
+gone.
 
 Every returned frame has the MEDS event schema:
     subject_id (Int64), time (Datetime), code (Utf8),
     numeric_value (Float32), text_value (Utf8), hospitalization_id (Int64)
+
+The load path is: clifpy DuckDB scan -> pandas -> polars -> strip timezone ->
+normalize categories. Both cleaning steps matter and are easy to skip by
+accident. `strip_tz` prevents a second UTC conversion downstream; the category
+normalization is what makes a concept YAML's category keys match real data.
+
+Pushdown (`filters=`) is an OPTIMIZATION ONLY. Callers keep their in-memory
+filters, and any pushdown failure falls back to a full load with a warning — so a
+site whose id column has a mismatched type gets slower, never wrong.
+
+Depends on: clifpy (loader), polars.
+Used by: meds_etl/pipeline.py.
 """
 from __future__ import annotations
 
@@ -18,8 +30,6 @@ from typing import Callable, TypeVar
 
 import polars as pl
 from clifpy.utils.io import load_data
-
-from flair_benchmark.meds_etl.transforms import normalize_categories, strip_tz
 
 # Keys in a domain YAML that are NOT concept sections.
 _CONFIG_META_KEYS = {"subject_id_col", "elf_version", "outlier_shaping"}
@@ -93,6 +103,41 @@ def load_clif_table(clif_cfg: dict, table_name: str, *,
     """Load a CLIF table → polars, tz-stripped, categories normalized."""
     pdf = load_clif_pandas(clif_cfg, table_name, filters=hosp_filters(hosp_ids))
     return normalize_categories(strip_tz(pl.from_pandas(pdf)))
+
+
+def strip_tz(df: pl.DataFrame) -> pl.DataFrame:
+    """Drop timezone info from every datetime column, keeping local wall-clock time.
+
+    clifpy's loader has already converted UTC -> site-local once. Dropping the tz
+    here (`replace_time_zone(None)`) preserves that wall-clock reading and
+    guarantees no second conversion can ever happen downstream.
+    """
+    for col_name in df.columns:
+        dtype = df[col_name].dtype
+        if dtype == pl.Datetime or (hasattr(dtype, "time_zone") and dtype.time_zone is not None):
+            df = df.with_columns(
+                pl.col(col_name).dt.replace_time_zone(None).alias(col_name)
+            )
+    return df
+
+
+def normalize_categories(df: pl.DataFrame) -> pl.DataFrame:
+    """Normalize every *_category column: trim, lowercase, spaces/hyphens -> underscores.
+
+    Concept YAMLs key on the normalized form, so skipping this silently drops
+    every row whose category differs only in case or punctuation.
+    """
+    cat_cols = [c for c in df.columns if c.endswith("_category") and df[c].dtype == pl.Utf8]
+    if not cat_cols:
+        return df
+    return df.with_columns(
+        pl.col(c)
+          .str.strip_chars()
+          .str.to_lowercase()
+          .str.replace_all(" ", "_")
+          .str.replace_all("-", "_")
+        for c in cat_cols
+    )
 
 
 class TableCache:
@@ -188,10 +233,11 @@ def build_clamp(domain_cfg: dict) -> tuple[dict, str | None]:
 
 
 def _code_expr(code_spec, available: set[str]) -> pl.Expr:
-    """Vectorized ELF-code builder mirroring resolve.resolve_code.
+    """Build the ELF code string for one concept, vectorized over the frame.
 
-    A ``col(X)`` part becomes the column value (→ 'UNK' when null/absent); a dict
-    part ``{col(X): {raw: mapped}}`` applies the value map then 'UNK'-fills.
+    A `col(X)` part becomes that column's value ('UNK' when null or absent); a
+    dict part `{col(X): {raw: mapped}}` applies the value map first, then
+    'UNK'-fills. Everything else is a literal. Parts are joined with '//'.
     """
     if isinstance(code_spec, str):
         return pl.lit(code_spec)

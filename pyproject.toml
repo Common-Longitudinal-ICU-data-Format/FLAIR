@@ -63,10 +63,10 @@ Homepage = "https://clif-icu.com"
 Repository = "https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR"
 Documentation = "https://clif-icu.com/flair"
 
-# Version is single-sourced from flair_benchmark/_constants.py (__version__).
+# Version is single-sourced from flair_benchmark/constants.py (__version__).
 # Bump it there; this reads it dynamically for the wheel/sdist.
 [tool.hatch.version]
-path = "flair_benchmark/_constants.py"
+path = "flair_benchmark/constants.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["flair_benchmark"]

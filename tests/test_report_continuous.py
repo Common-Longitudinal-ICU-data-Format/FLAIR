@@ -26,17 +26,18 @@ from types import SimpleNamespace
 import numpy as np
 import polars as pl
 import pytest
-
 from typer.testing import CliRunner
 
 from flair_benchmark.cli import app
-from flair_benchmark.report.continuous import build_continuous_report
+from flair_benchmark.report.continuous import (
+    build_continuous_report,
+    build_leadtime,
+    build_peak_report,
+)
 from flair_benchmark.report.dca import build_dca
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.landmark import build_landmark_report
-from flair_benchmark.report.leadtime import build_leadtime
 from flair_benchmark.report.operating_points import build_operating_points
-from flair_benchmark.report.peak import build_peak_report
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 runner = CliRunner()

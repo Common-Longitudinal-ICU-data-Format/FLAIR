@@ -176,7 +176,7 @@ flowchart TD
     <li>Explode the daily 07:00 grid \([\text{pred\_start}_i, \text{pred\_stop}_i)\) per encounter (<code>pl.datetime_ranges</code>, <code>interval="24h"</code>, <code>closed="left"</code>).</li>
     <li>Broadcast the label (disp &isin; {expired, hospice}, null-safe via <code>fill_null(False)</code>) to every grid row.</li>
     <li>Assign <code>window_start = d − 24h</code>, <code>window_end = d</code> (fixed 24h lookback).</li>
-    <li>Apply temporal train/test split (<code>flair_benchmark._split.assign_split</code>), keyed on <code>prediction_dttm</code>.</li>
+    <li>Apply temporal train/test split (<code>flair_benchmark.cohort.stitch.assign_split</code>), keyed on <code>prediction_dttm</code>.</li>
     <li>Select <code>OUTPUT_COLS</code> and persist as parquet.</li>
   </ol>
 
@@ -201,7 +201,7 @@ flowchart TD
     ICU morning rounds are the canonical decision cadence; predictions produced
     before rounds are actionable that day, after rounds are not. The 07:00
     timestamp is a wall-clock-local literal, relying on
-    <code>flair_benchmark._clif.pd_to_pl</code> having stripped timezone info from
+    <code>flair_benchmark.cohort.clif.pd_to_pl</code> having stripped timezone info from
     clifpy datetimes (typed to <code>cfg["timezone"]</code>). Sites preferring 06:00
     or 08:00 re-anchor by adjusting <code>PRED_HOUR</code> without changing the rest
     of the pipeline.

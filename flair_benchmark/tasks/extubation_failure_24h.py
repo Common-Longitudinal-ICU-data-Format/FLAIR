@@ -56,7 +56,7 @@ encounter, so a reintubation in a later member hospitalization counts.
 Prediction time = first_extubation_dttm.
 
 Episode detection uses the consensus-window state machine in
-_ventilation_episodes.detect_imv_episodes:
+cohort.events.detect_imv_episodes:
   - IMV start counts only if IMV persists >= 15 min
   - Extubation closes the episode only if non-IMV persists >= 30 min
   - A trach sentinel closes any open episode and stops further counting
@@ -86,11 +86,10 @@ from __future__ import annotations
 
 import polars as pl
 
-from flair_benchmark._clif import base_icu_cohort, load_respiratory_support, read_clif_config
-from flair_benchmark._encounter import as_encounter_keyed, encounter_attributes
-from flair_benchmark._split import assign_split
-from flair_benchmark._stitch import load_or_build_encounter_index
-from flair_benchmark._ventilation_episodes import detect_imv_episodes
+from flair_benchmark.cohort.clif import base_icu_cohort, load_respiratory_support, read_clif_config
+from flair_benchmark.cohort.encounter import as_encounter_keyed, encounter_attributes
+from flair_benchmark.cohort.events import detect_imv_episodes
+from flair_benchmark.cohort.stitch import assign_split, load_or_build_encounter_index
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 HORIZON_HOURS = 24
@@ -246,7 +245,7 @@ def build(clif_config: str, train_end: str | None,
 
     # STRICT feature cutoff — this task only. prediction_dttm is episode_end_dttm,
     # the timestamp of the FIRST non-IMV respiratory_support row
-    # (_ventilation_episodes.detect_imv_episodes), i.e. the row that ANNOUNCES the
+    # (cohort.events.detect_imv_episodes), i.e. the row that ANNOUNCES the
     # extubation. Anyone pulling respiratory_support (device_category /
     # mode_category / fio2_set / peep_set) — via clifpy's create_wide_dataset or
     # otherwise — gets no automatic guard, so the cohort must carry the boundary:

@@ -25,7 +25,7 @@ Row shape (one-per-window):
   first ICU stay. The label is the eventual encounter outcome and is constant
   across all rows for a given hospitalization_join_id.
 
-Pipeline (see flair_benchmark/_encounter.py):
+Pipeline (see flair_benchmark/cohort/encounter.py):
   1. build_icu_encounter_cohort() — one row per 07:00 day of each stitched
      encounter's first ICU stay, carrying the encounter's final
      discharge_category. First ICU stay comes from compute_readmission_timing
@@ -37,7 +37,7 @@ Pipeline (see flair_benchmark/_encounter.py):
      (prediction_dttm is the no-data-after cutoff; all prior history is usable)
 
 Timezone note:
-  clifpy returns tz-aware datetimes typed to cfg["timezone"]; flair_benchmark._clif
+  clifpy returns tz-aware datetimes typed to cfg["timezone"]; flair_benchmark.cohort.clif
   strips tz info via pd_to_pl, leaving naive datetimes whose wall-clock values are
   already local to the site. The literal "07:00" anchor IS local hospital time.
 """
@@ -46,9 +46,9 @@ from __future__ import annotations
 
 import polars as pl
 
-from flair_benchmark._clif import read_clif_config
-from flair_benchmark._encounter import build_icu_encounter_cohort
-from flair_benchmark._split import assign_split
+from flair_benchmark.cohort.clif import read_clif_config
+from flair_benchmark.cohort.encounter import build_icu_encounter_cohort
+from flair_benchmark.cohort.stitch import assign_split
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 META = {

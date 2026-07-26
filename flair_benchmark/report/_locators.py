@@ -22,9 +22,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from flair_benchmark.report._ci import BOOT_MAX_N, BOOT_REPS, BOOT_SEED
-from flair_benchmark.report._confusion import nne_from_ppv, pct, r1
-from flair_benchmark.report._suppress import MIN_CELL_COUNT
+from flair_benchmark.report._stats import (
+    BOOT_MAX_N,
+    BOOT_REPS,
+    BOOT_SEED,
+    MIN_CELL_COUNT,
+    nne_from_ppv,
+    pct,
+    r1,
+)
 from flair_benchmark.report._sweep import sweep_counts, sweep_metrics
 
 

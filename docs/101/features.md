@@ -8,7 +8,7 @@ for you, `direct` is on you. Pick by how much control vs. convenience you want.
 
 | mode | how | output | when to use |
 |---|---|---|---|
-| **direct** | your own code over `cohort.parquet` + `flair_benchmark._clif` loaders / clifpy | whatever you build | full control; custom or novel features; **all wide time-series** |
+| **direct** | your own code over `cohort.parquet` + `flair_benchmark.cohort.clif` loaders / clifpy | whatever you build | full control; custom or novel features; **all wide time-series** |
 | **fe-meds** | `flair fe-meds` | ELF-long **medication** events — raw dose + raw unit, **no conversion** | lightweight; only selected meds; you convert doses downstream |
 
 ## Wide time-series data (vitals, labs, assessments, respiratory support)

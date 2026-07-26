@@ -110,7 +110,7 @@
   <h3>Temporal split &amp; output</h3>
   <p>
     Each task ends with a temporal train/test split
-    (<code>flair_benchmark._split.assign_split</code>, keyed on
+    (<code>flair_benchmark.cohort.stitch.assign_split</code>, keyed on
     <code>prediction_dttm</code>) and persists a parquet with the label column,
     <code>split</code>, and demographics. Datetimes are naive wall-clock-local
     per <code>cfg["timezone"]</code>; literal hours (e.g. 07:00) are local

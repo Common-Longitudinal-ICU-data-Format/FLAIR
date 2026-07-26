@@ -22,7 +22,7 @@ calibration and fairness AS A FUNCTION OF HOSPITALIZATION TIME (the time-varying
 / dynamic AUC view). Net benefit / DCA is deliberately not among them — it is an
 episodic-only view (the same peak trap that keeps calibration off the peak).
 
-Why this is honest: one row per stay per landmark means report/_ci.py's row
+Why this is honest: one row per stay per landmark means report/_stats.py's row
 bootstrap is again a patient-level bootstrap (unlike row-pooling all windows).
 
 Notes:
@@ -44,7 +44,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import polars as pl
 
-from flair_benchmark.report._suppress import MIN_CELL_COUNT
+from flair_benchmark.report._stats import MIN_CELL_COUNT
 from flair_benchmark.report.calibration import build_calibration
 from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import build_fairness

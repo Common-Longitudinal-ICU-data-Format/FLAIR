@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import polars as pl
 import pytest
 
-from flair_benchmark._stitch import JOIN_ID
+from flair_benchmark.cohort.stitch import JOIN_ID
 
 
 def _dt(hour: int) -> datetime:
@@ -57,7 +57,7 @@ def test_feature_scope_expands_join_id_to_all_member_hospitalizations(monkeypatc
 
 
 def test_meds_stream_includes_sibling_hospitalization_events(monkeypatch):
-    import flair_benchmark.features.meds_stream as meds_mod
+    import flair_benchmark.features.extractors as meds_mod
 
     _patch_scope_index(monkeypatch)
     seen_hosp_ids: list[str] = []
@@ -96,7 +96,7 @@ def test_meds_stream_includes_sibling_hospitalization_events(monkeypatch):
 
 
 def test_direct_meds_builder_expands_sibling_hospitalizations(monkeypatch, tmp_path):
-    import flair_benchmark.features.fe_meds as fe_meds_mod
+    import flair_benchmark.features.extractors as fe_meds_mod
 
     _patch_scope_index(monkeypatch)
     seen_hosp_ids: list[str] = []
@@ -150,7 +150,7 @@ _STRICT = _dt(10) - timedelta(microseconds=1)
 
 def _fake_meds(monkeypatch):
     """Monkeypatch the meds loader with an event exactly ON the horizon."""
-    import flair_benchmark.features.meds_stream as meds_mod
+    import flair_benchmark.features.extractors as meds_mod
 
     def fake_loader(cfg, hospitalization_ids, med_categories=None, med_groups=None):
         return pl.DataFrame({

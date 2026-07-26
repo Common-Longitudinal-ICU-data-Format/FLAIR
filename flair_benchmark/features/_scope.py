@@ -1,9 +1,19 @@
-"""Cohort scope helpers for feature extraction.
+"""Work out WHICH hospitalizations to load, and HOW FAR FORWARD to read.
 
-Task cohorts are emitted at stitched-encounter grain. A cohort row carries one
-representative raw hospitalization_id, but the encounter can include sibling
-hospitalizations. Feature extraction must load every raw member hospitalization
-and apply the no-future cutoff at the hospitalization_join_id grain.
+Two questions every extractor must answer before touching CLIF, and getting
+either wrong is a silent correctness bug rather than a crash.
+
+WHICH: task cohorts are emitted at stitched-encounter grain. A cohort row carries
+one representative raw hospitalization_id, but the encounter can include sibling
+hospitalizations that have no prediction row of their own. Loading only the
+cohort's own ids would silently drop those siblings' events, so the id set is
+expanded back through the stitch index.
+
+HOW FAR: the no-future cutoff is applied at hospitalization_join_id grain, not
+per row — see `feature_scope` for why the widest row in a block governs.
+
+Depends on: cohort/stitch.py.
+Used by: features/extractors.py.
 """
 
 from __future__ import annotations
@@ -12,7 +22,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from flair_benchmark._stitch import (
+from flair_benchmark.cohort.stitch import (
     JOIN_ID,
     attach_join_id,
     load_or_build_encounter_index,

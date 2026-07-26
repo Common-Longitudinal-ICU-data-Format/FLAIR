@@ -1,4 +1,4 @@
-"""Unit tests for the Table 1 builder (flair_benchmark.report.table1.build_table1).
+"""Unit tests for the Table 1 builder (flair_benchmark.cohort.table1.build_table1).
 
 Frame-level, no clifpy IO. Covers: overall + by_label (positive/negative) + by_split
 columns, encounter-vs-row grain, severity/comorbidity continuous vars, and HIPAA
@@ -12,7 +12,7 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from flair_benchmark.report.table1 import build_table1
+from flair_benchmark.cohort.table1 import build_table1
 
 META = {"label_column": "label", "task_type": "binary"}
 

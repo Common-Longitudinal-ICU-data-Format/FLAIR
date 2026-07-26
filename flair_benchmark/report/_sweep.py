@@ -37,7 +37,7 @@ from collections.abc import Callable
 
 import numpy as np
 
-from flair_benchmark.report._ci import BOOT_MAX_N, BOOT_REPS, BOOT_SEED
+from flair_benchmark.report._stats import BOOT_MAX_N, BOOT_REPS, BOOT_SEED
 
 # 0.01 … 0.99 inclusive, 99 points. Rounded so the array holds exact 2-dp values
 # (float arange drifts) — the clinical threshold, always a multiple of 0.01,

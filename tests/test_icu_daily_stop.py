@@ -1,5 +1,5 @@
-"""Unit tests for the T1/T2 first-ICU-stay daily grid (flair_benchmark._encounter)
-and the leakage fix in flair_benchmark._split.
+"""Unit tests for the T1/T2 first-ICU-stay daily grid (flair_benchmark.cohort.encounter)
+and the leakage fix in flair_benchmark.cohort.stitch.
 
 All frame-level (no clifpy file IO), matching tests/test_stitch.py style. Covers:
   * pred_stop_expr  — the four boundary scenarios the audit flagged,
@@ -15,13 +15,13 @@ from datetime import datetime
 import polars as pl
 import pytest
 
-from flair_benchmark._encounter import (
+from flair_benchmark.cohort.encounter import (
     _encounter_timing,
     as_encounter_keyed,
     collapse_members,
     pred_stop_expr,
 )
-from flair_benchmark._split import assign_split
+from flair_benchmark.cohort.stitch import assign_split
 
 
 def _dt(y, m, d, h=0):
@@ -255,7 +255,7 @@ def test_as_encounter_keyed_replaces_key_when_join_id_present():
 
 
 def test_as_encounter_keyed_attaches_from_index_when_absent():
-    from flair_benchmark._stitch import JOIN_ID
+    from flair_benchmark.cohort.stitch import JOIN_ID
     df = pl.DataFrame({"hospitalization_id": ["h1", "h2", "h3"], "v": [1, 2, 3]})
     idx = pl.DataFrame({"hospitalization_id": ["h1", "h2"], JOIN_ID: ["e1", "e1"]})
     out = as_encounter_keyed(df, idx)
@@ -298,7 +298,7 @@ def test_t4_pred_stop_in_stay_death_before_t_zero():
 # Task 5 readmission at encounter grain — 2nd ICU stay across stitched members.
 # --------------------------------------------------------------------------- #
 def test_t5_readmission_detected_across_stitch_boundary():
-    from flair_benchmark._readmission import compute_readmission_timing
+    from flair_benchmark.cohort.events import compute_readmission_timing
     # Encounter e1: member A goes ICU -> Ward, member B (stitched) returns to ICU.
     # At encounter grain that 2nd ICU block is an unplanned readmission.
     adt = _adt([
@@ -314,7 +314,7 @@ def test_t5_readmission_detected_across_stitch_boundary():
 
 
 def test_t5_two_separate_encounters_stay_separate():
-    from flair_benchmark._readmission import compute_readmission_timing
+    from flair_benchmark.cohort.events import compute_readmission_timing
     adt = _adt([
         ("hA", "e1", "icu", _dt(2020, 1, 1, 8), _dt(2020, 1, 2, 8)),
         ("hB", "e2", "icu", _dt(2020, 2, 1, 8), _dt(2020, 2, 2, 8)),
@@ -348,7 +348,7 @@ def _resp(rows):
 
 
 def test_t3_reintubation_in_stitched_member_is_episode_two():
-    from flair_benchmark._ventilation_episodes import detect_imv_episodes
+    from flair_benchmark.cohort.events import detect_imv_episodes
 
     def at(h, mn):
         return datetime(2020, 1, 1, h, mn)

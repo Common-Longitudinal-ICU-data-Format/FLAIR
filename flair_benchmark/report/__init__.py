@@ -26,7 +26,7 @@ from pathlib import Path
 
 import polars as pl
 
-from flair_benchmark._constants import REPORT_MODES
+from flair_benchmark.constants import REPORT_MODES
 from flair_benchmark.report.episodic import build_episodic_report
 
 __all__ = ["build_report"]
@@ -54,7 +54,7 @@ def _blas_single_thread():
 
 # cohort columns the report can use when they flow through (or are joined in).
 # Demographics feed fairness.py; without them fairness emits no subgroups.
-# (The Table 1 is generated at task-generation time — see flair_benchmark/_table1.py.)
+# (The Table 1 is generated at task-generation time — see flair_benchmark/cohort/table1.py.)
 _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
                  "hospitalization_join_id",
                  "age_at_admission", "sex_category", "race_category",
@@ -81,7 +81,7 @@ def build_report(preds_path: str, task_module, out_dir: str,
     (episode -> episodic; continuous -> continuous).
     """
     from flair_benchmark import __version__
-    from flair_benchmark._hash import task_script_sha256
+    from flair_benchmark.constants import task_script_sha256
 
     preds = pl.read_parquet(preds_path)
     meta = task_module.META

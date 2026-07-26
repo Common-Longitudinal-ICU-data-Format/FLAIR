@@ -40,8 +40,7 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED
-from flair_benchmark.report._suppress import MIN_CELL_COUNT
+from flair_benchmark.report._stats import BOOT_REPS, BOOT_SEED, MIN_CELL_COUNT
 
 _METHOD_NOTE = ("pooled dynamic AUC per Heagerty & Zheng 2005 (incident/dynamic"
                 " concordance, pair-weighted across ALL FORWARD windows of the"

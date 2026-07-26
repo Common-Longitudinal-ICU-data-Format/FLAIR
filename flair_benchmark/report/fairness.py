@@ -29,8 +29,13 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from flair_benchmark.report._ci import BOOT_REPS, BOOT_SEED, bootstrap_ci
-from flair_benchmark.report._confusion import pct
+from flair_benchmark.report._stats import (
+    BOOT_REPS,
+    BOOT_SEED,
+    bootstrap_ci,
+    calibration_slope_intercept,
+    pct,
+)
 from flair_benchmark.report.discrimination import _operating_point
 
 SUBGROUP_COLS = ["sex_category", "race_category", "ethnicity_category", "age_bin"]
@@ -180,7 +185,6 @@ def _metrics_one_group(sub: pl.DataFrame, label_col: str, task_type: str,
         if y_prob is not None and len(np.unique(y_true)) > 1:
             from sklearn.metrics import brier_score_loss
 
-            from flair_benchmark.report._calib import calibration_slope_intercept
             out["auroc"] = round(float(roc_auc_score(y_true, y_prob)), 4)
             out["auroc_ci"] = bootstrap_ci(
                 y_true.astype(int), y_prob,

@@ -20,11 +20,11 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
-from flair_benchmark.report._calib import (
+from flair_benchmark.report._stats import (
+    bootstrap_ci,
     calibration_extended,
     calibration_slope_intercept,
 )
-from flair_benchmark.report._ci import bootstrap_ci
 
 N_BINS = 10
 

@@ -1,9 +1,9 @@
 """Stitched-encounter ICU cohort + first-ICU-stay daily grid.
 
-Shared by the continuous one-per-window ICU tasks (Task 1 mortality, Task 2
-LTACH). Both tasks are identical except for the label they put on the
-encounter's final disposition, so all of the cohort/timing/grid logic lives
-here and each task only adds its own label expression.
+Shared by the continuous one-per-window ICU tasks (`icu_daily_mortality` and
+`icu_daily_ltach`). Those two tasks are identical except for the label they put
+on the encounter's final disposition, so all of the cohort, timing and grid logic
+lives here and each task adds only its own label expression.
 
 Grain: one entity per ``hospitalization_join_id`` (the stitched encounter), NOT
 per ``hospitalization_id``. A patient discharged and re-admitted within the
@@ -42,9 +42,9 @@ from __future__ import annotations
 
 import polars as pl
 
-from flair_benchmark._clif import base_icu_cohort, load_hospitalization
-from flair_benchmark._readmission import compute_readmission_timing
-from flair_benchmark._stitch import attach_join_id, load_or_build_encounter_index
+from flair_benchmark.cohort.clif import base_icu_cohort, load_hospitalization
+from flair_benchmark.cohort.events import compute_readmission_timing
+from flair_benchmark.cohort.stitch import attach_join_id, load_or_build_encounter_index
 
 PRED_HOUR = 7
 GRID_STEP = "24h"

@@ -45,7 +45,7 @@ lists every such interval. `metrics.verdict` reports the model against both
 defaults AT the shipped policy — the DCA's own conclusion, kept with its own curve.
 
 The net benefit at the clinical threshold carries a 95% bootstrap CI
-(report/_ci.py). The full-curve CI band is left out by cost (one resample per
+(report/_stats.py). The full-curve CI band is left out by cost (one resample per
 threshold × grid); add later if a band is needed.
 
 Suppression: net benefit at a threshold flagging < 10 patients positive is
@@ -65,8 +65,7 @@ from flair_benchmark.report._basis import (
     net_benefit_all,
     to_decision_basis,
 )
-from flair_benchmark.report._ci import bootstrap_ci
-from flair_benchmark.report._suppress import MIN_CELL_COUNT
+from flair_benchmark.report._stats import MIN_CELL_COUNT, bootstrap_ci
 
 __all__ = ["build_dca", "axis_threshold", "net_benefit_all", "to_decision_basis"]
 
