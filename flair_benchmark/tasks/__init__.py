@@ -96,14 +96,6 @@ def _validate_taxonomy(task_name: str, meta: dict) -> None:
                 f"META['landmark_horizon'] to be a positive int (landmarks in "
                 f"the task's window_unit); got {h!r}."
             )
-    if "intervention" in meta:
-        iv = meta["intervention"]
-        if (not isinstance(iv, dict) or not isinstance(iv.get("column"), str)
-                or not iv["column"]):
-            raise ValueError(
-                f"Task {task_name!r}: META['intervention'] must be a dict with "
-                f"a non-empty str 'column' (optional 'display'); got {iv!r}."
-            )
     for field, allowed in _TAXONOMY_ENUMS.items():
         if field not in meta:
             raise TypeError(

@@ -3,7 +3,8 @@
 [← back to FLAIR 101](../101.md)
 
 A report turns a predictions parquet into the aggregate-only JSON bundle that a site
-uploads. The key choice is **`--mode`** — how a task's predictions are scored.
+uploads. Every run writes **exactly two JSON files**. The key choice is **`--mode`** —
+how a task's predictions are scored.
 
 ## The command
 
@@ -12,7 +13,6 @@ flair build-report preds.parquet \
   --task icu_daily_mortality \
   --out ./report/ \
   --cohort cohort.parquet \
-  --split test \
   --viz            # or --no-viz
 ```
 
@@ -21,9 +21,12 @@ flair build-report preds.parquet \
 | `--task` | (required) | task name |
 | `--out` | (required) | output directory for the JSON bundle |
 | `--mode` | inferred | `episodic` \| `continuous` (see below) |
-| `--split` | `test` | which split to analyze |
-| `--cohort` | — | task cohort parquet; joins demographics + `window_number` (and the intervention timestamp, e.g. `first_abx_dttm`) when they don't flow through `preds` |
+| `--cohort` | — | task cohort parquet; joins demographics + `window_number` when they don't flow through `preds` |
 | `--viz/--no-viz` | on | render local sanity-check PNGs (needs `flair-benchmark[viz]`); never uploaded |
+
+Reports are **always** scored on the held-out `test` split. There is no override:
+the home site trains on `train`, every site is scored on `test`, so cross-site
+numbers are comparable.
 
 ## The predictions parquet
 
@@ -35,90 +38,104 @@ Required columns (validated by the report builder):
 
 `hospitalization_join_id` is the required report unit: one stitched encounter / stay.
 `hospitalization_id` can still be carried for audit traceability, but it is not the
-evaluation key. Carry `window_number`, `prediction_dttm`, and demographics through too
-(or pass `--cohort` and they're joined in). `y_prob` must be a valid probability in
-`[0, 1]` with no nulls.
+evaluation key. Carry `window_number` and demographics through too (or pass
+`--cohort` and they're joined in). `y_prob` must be a valid probability in `[0, 1]`
+with no nulls and no NaNs.
 
-**Intervention tasks:** when a task's META declares an `intervention` (e.g.
-`first_abx_dttm`, a treatment timestamp), that column is **required** —
-it is generated at cohort-build time; carry it through your preds or pass `--cohort`.
+## The two files
 
-## Choosing `--mode`
-
-| mode | use for | pillars produced |
+| mode | file 1 — model quality | file 2 — the decision |
 |---|---|---|
-| **episodic** | one-per-stay tasks (T3, T5) | discrimination, calibration, dca, fairness + `operating_points` (the scorecard: every threshold-dependent metric, swept over the clinical threshold and ± 0.05 / ± 0.10) |
-| **continuous** | multi-row-per-stay tasks (T1, T2) | ONE bundle: a **peak** section + the four pillars **per landmark** + `leadtime` + `operating_points` (a per-threshold confusion matrix, plus optional intervention sub-analyses) |
+| **episodic** (T3, T5 — one-per-stay) | `overall.json` | `hospitalization_level.json` |
+| **continuous** (T1, T2 — multi-row-per-stay) | `landmark.json` | `hospitalization_level.json` |
+
+`hospitalization_level.json` carries the **same schema in both modes** — one reader,
+one plotter, one cross-site aggregator. The only difference is where its
+`(label, score)` pair came from, and that episodic adds three net-benefit keys.
 
 If you omit `--mode`, it's inferred from META's `temporal_pattern`
 (`episode` → `episodic`, `continuous` → `continuous`). The old `--mode peak` and
-`--mode landmark` were merged into `continuous`, which emits both views at once:
+`--mode landmark` were merged into `continuous`.
 
-- **peak section** (in `discrimination.json` / `fairness.json` under `"peak"`): each stay
-  collapsed to its worst (peak) risk — deployment-like screening discrimination (+ NNE).
-  Calibration/DCA have no peak section because peak-selection breaks calibration
-  (the "peak-calibration trap").
-- **landmark section** (`"landmarks"` list in all four pillar JSONs): FORWARD
-  landmarking at **`hospitalization_time`** = day/hour 1..horizon since each stay's
-  first prediction window — never anchored on the event or outcome. The risk set at
-  time t is every stay still producing predictions at t (still at risk, event-free),
-  so per-landmark `n` is a true Kaplan-Meier "No. at risk" count. This is the
-  time-varying / dynamic AUC view (US-CRS eFigure-2 idiom). The horizon comes from
-  **`META['landmark_horizon']`**, a count in the task's `window_unit`: **30 daily**
-  landmarks for T1/T2. Never hardcoded.
-- **kpi scoreboard** (`kpi.json`): the headline numbers — **pooled dynamic AUROC**
-  (Heagerty & Zheng-style time-varying AUC, per-landmark AUCs pooled with
-  cases×controls pair weights), peak AUROC/AUPRC/NNE + operating point, calibration at
-  hospitalization time 1 (+ slope range = drift), pct caught + median first-alert
-  hospitalization time, and the operating-point headline (clinical-threshold
-  sensitivity/specificity/FPR/PPV/NNE + intervention sub-analysis highlights).
-- **leadtime** (`leadtime.json`): per-time detection sensitivity, median first-alert
-  hospitalization time (how early in the stay the model first fires), and the mean
-  risk trajectory by eventual outcome.
-- **operating_points** (`operating_points.json`): the one decision-point section.
-  It is **generic and META-driven** — the report layer knows only the task's
-  `clinical_threshold`/`clinical_direction`, the `label`, and an *optional*
-  `intervention` config `{"column", "display"}`; it never assumes what the task
-  is about. Evaluated at THREE thresholds (clinical, clinical−0.05, clinical+0.05):
-  - **confusion matrix (mandatory)** — model **alert × label** per stay
-    (fired = the stay ever crosses the threshold; label = ever-positive) →
-    {TP, FP, FN, TN} + sensitivity / specificity / **true FPR = FP/(FP+TN)** /
-    PPV / NPV / NNE / F1 / flag-rate, each with a 95% CI. Every continuous task
-    gets this (T1/T2), no config needed.
-  - **sub-analyses (optional)** — present only when the task declares a
-    treatment-time `intervention` column (e.g. `first_abx_dttm`, `display`
-    "treatment"). At each threshold, keyed on `(label, treatment, alert)`:
-    - `label_positive`: how many positive stays fired + the *hours before
-      treatment* the alarm first fired (positive = earlier);
-    - `label_negative_treated`: of treated non-positive stays, the fire rate and
-      `Δ = t_alert − t_treatment` (negative = fired before treatment);
-    - `label_negative_untreated`: of never-treated non-positive stays, the misfire
-      (false-alarm) count/rate — no timing.
-  Tasks without an intervention column (T1, T2) still get the confusion matrix at
-  all three thresholds.
+## `landmark.json` — four numbers
 
-See [`../eval_continuous_three_ways.md`](../eval_continuous_three_ways.md) for the full
-row-pooled vs. landmark vs. stay-peak rationale.
+FORWARD landmarking at **`hospitalization_time`** = day/hour 1..horizon since each
+stay's first prediction window — never anchored on the event or outcome. The risk
+set at time t is every stay still producing predictions at t (still at risk,
+event-free), so per-landmark `n` is a true Kaplan-Meier "No. at risk" count. The
+horizon comes from **`META['landmark_horizon']`**, a count in the task's
+`window_unit`: **30 daily** landmarks for T1/T2. Never hardcoded.
 
-## What each pillar reports
+Four numbers, each published **pooled** (with a CI) and **per landmark** (the curve
+behind it, with a CI ribbon):
 
-In **episodic** mode the split is by whether a decision threshold is involved. The
-four pillars answer questions that hold wherever the threshold is put; the
-scorecard owns every number that moves when it moves.
-
-| pillar | contents | threshold-dependent? |
+| number | pooled how | citation |
 |---|---|---|
-| **discrimination** | AUROC, AUPRC, AUPRC lift, ROC/PR curves | no |
-| **calibration** | ECE, Brier, slope, intercept, reliability + smoothed curves | no |
-| **fairness** | per-subgroup (sex, race, ethnicity, age-bin) AUROC/AUPRC/Brier/calibration slope — does the model *rank* equally well across groups | no |
-| **dca** | decision-curve net benefit across a threshold grid, `useful_range`, **and its `verdict` at the shipped policy** | the one exception (below) |
-| **operating_points** | THE scorecard, at 5 thresholds: confusion matrix, sensitivity/specificity/PPV/NPV/F1/FPR/NNE/alert-rate (`metrics`), the act taken and its net benefit (`decision`), and subgroup positive-rate/TPR/FPR + parity gaps (`fairness`) | yes — all of it |
+| `auroc` | pair-weighted, `w = cases × controls` — the time-varying / dynamic AUC | Heagerty & Zheng 2005 |
+| `auprc` | case-weighted, since average precision is anchored on the positives | — |
+| `brier` | n-weighted, which *is* the pooled mean squared error | Brier 1950 |
+| `calibration_slope` | ONE logistic fit over all landmark rows | Cox 1958 |
 
-In **continuous** mode the pillars keep their operating point inline (the peak
-section and every landmark need it), and `operating_points` is the stay-level
-alert×label view at clinical ± 0.05.
+The calibration slope is a single fit, **not** an average of per-landmark slopes:
+averaging regression coefficients is a different estimator, and one degenerate
+landmark would poison the mean.
 
-### Two bases, and why the scorecard keeps them apart
+**No fairness, no thresholds, no curves, no operating point** — those are
+`hospitalization_level.json`'s job. A landmark with fewer than 10 stays at risk is
+suppressed whole; one with a single label class is marked `undefined`.
+
+## `overall.json` — ranking + calibration
+
+Threshold-free, and small. AUROC and AUPRC with CIs; Brier, calibration slope and
+intercept with CIs; a ten-point equal-count reliability curve.
+
+**Curves are one array each.** ROC is stored as `tpr_at_grid` (TPR at a fixed FPR
+grid, 0.00–1.00 step 0.01) and PR as `precision_at_grid` (precision at a fixed
+recall grid). The x-axes are known constants, so they are never written down — which
+also means two sites' curves can be averaged elementwise without interpolating one
+onto the other's thresholds.
+
+**Calibration uses equal-count (quantile) bins**, not equal-width. For a rare event
+almost every prediction falls in the first equal-width bin and the curve collapses to
+one point; equal-count binning puts ~n/10 stays in each bin and spreads ten readable
+points across the range the model actually uses. Only the two probability arrays are
+published — no counts, no edges — and a bin below 10 stays nulls its *observed* rate.
+
+There is no `dca` block: the decision curve **is** `net_benefit` +
+`net_benefit_treat_all` across the 99 rows of `hospitalization_level.json`.
+
+## `hospitalization_level.json` — the whole decision
+
+One hospitalization is the unit of analysis:
+
+- **continuous** — collapse to the peak: `score = max(y_prob)` over the stay,
+  `label = ever positive`. One alert per hospitalization, which is how a real-time
+  alerting model is actually deployed.
+- **episodic** — already one row per stay. Nothing to collapse.
+
+It holds three things:
+
+- **`by_threshold`** — the fixed 99-point grid (0.01 … 0.99, step 0.01), the same at
+  every site and for every task, so two sites' sweeps line up row-for-row and pool
+  without interpolation. Each row carries the full 2×2 plus sensitivity /
+  specificity / PPV / NPV / F1 / FPR / flag-rate / NNE, each with a 95% CI band, and
+  (episodic only) net benefit. **The shipped clinical policy is one flagged row**
+  (`is_clinical: true`), not a separate analysis — it is already on the grid.
+- **`selected_thresholds`** — Youden's J (Youden 1950) beside the clinical policy.
+  Youden is stamped `in_sample: true`: choosing a cutpoint to maximise a metric on
+  the rows you then score is upward biased (Leeflang 2008), so it annotates the
+  sweep rather than heading it. Its `threshold_ci` is **selection-aware** — the
+  cutpoint is re-chosen on every bootstrap resample — and so runs wider than the
+  fixed-threshold band.
+- **`fairness`** — per-subgroup (sex, race, ethnicity, age-bin) n, prevalence, AUROC
+  with CI, positive-rate, TPR, FPR, plus demographic-parity and equalized-odds gaps
+  with CIs. Computed **at the clinical threshold only**, not at all 99.
+
+**Net benefit is episodic-only.** A decision curve on the peak (max-of-many) surface
+is the peak-calibration trap, so continuous rows omit those keys and `metadata`
+says why.
+
+### Two bases, and why they are kept apart
 
 A `clinical_direction: "below"` task — one whose action fires on LOW risk — has two
 different frames, and conflating them is how a decision curve gets read backwards.
@@ -126,46 +143,40 @@ different frames, and conflating them is how a decision curve gets read backward
 decision it supports is two-sided — *extubate*, or *keep the patient intubated* —
 so it acts on LOW risk, when P(failure) < 0.10.
 
-- **Alarm basis** (`y_prob >= t`, both directions) — `confusion` + `metrics`. The
+- **Alarm basis** (`score >= t`, both directions) — the 2×2 and every rate. The
   *alarm* is always high risk, so sensitivity/PPV always mean "how well do we detect
   the event". Scoring the confusion matrix on the *action* instead would make
   TP = "extubated AND failed": a disaster booked as a true positive, with a
   sensitivity that rises as the model gets worse.
-- **Decision basis** — the `decision` block and all of `dca.json`. This is the frame
-  the clinician decides in. For that below task the event is *successful extubation*
-  and the x-axis is the probability of success required before extubating: 0 =
-  "unworried about failure, worried about the harms of continued intubation →
-  extubate everyone", 1 = "terrified of failure → keep everyone intubated", so its
-  0.10 policy sits at **x = 0.90**. For an "above" task like `icu_readmission` the
-  policy sits directly on the x-axis (0.20) — `decision.dca_threshold`,
-  `metadata.clinical_threshold_on_axis`.
+- **Decision basis** — `net_benefit` only. For that below task the event is
+  *successful extubation* and the threshold weighs a false action against a missed
+  one on the complement axis, so its 0.10 policy is weighed at **0.90**.
 
-  Only the **labels** and the **axis** complement. The model still emits P(failure),
-  and the acted arm is cut on the label scale (`p < t`) in every file — comparing
-  `1-p` is not exact at a tie, which is how the curve and the scorecard once
-  disagreed about who had been acted on.
+Only the **labels** and the **odds weight** complement. The model still emits
+P(failure), and the acted arm is cut on the label scale (`p < t`) — comparing `1-p`
+is not exact at a tie, which is how the curve and the sweep once disagreed about who
+had been acted on. `tests/test_hospitalization_level.py` pins the vectorized sweep
+against the scalar reference at every grid tie, in both directions.
 
-`decision.net_benefit` is *the same number* as `dca.json`'s curve at
-`dca_threshold` — both go through `dca.to_decision_basis` / `dca.axis_threshold`, so
-the two files cannot drift apart. It is deliberately **not** derivable from the
-entry's alarm-basis TP/FP.
+## Privacy and precision
 
-`dca.json` keeps its own `verdict` (net benefit vs act-on-all vs act-on-none at the
-shipped policy) rather than surrendering it to the scorecard: for a task like
-`extubation_failure_24h` the decision curve *is* the primary analysis, and a curve
-whose conclusion lives in another file invites the conclusion to be missed. Both
-defaults are named from the task's `dca_axis`, so a two-sided decision reads as
-"…vs 0.46 for extubating everyone and 0 for keeping everyone intubated" rather than
-the double negative "'extubate' on no one".
+Every metric carries a **500-replicate bootstrap 95% CI** with a deterministic seed.
+Confusion cells below 10 are masked **in pairs** (`tp` with `fp`, `fn` with `tn`) —
+masking one alone is theatre, because the published `n` recovers it by subtraction.
+Subgroup levels with fewer than 10 stays are dropped entirely, not merely suppressed:
+even an AUROC on <10 patients can reveal individual outcomes.
 
-Every metric carries a **500-replicate bootstrap 95% CI** (deterministic seed). Cell
-suppression (`<10`) and subgroup dropping (`n < 10`) are applied so nothing identifying
-leaves the site. Output is one JSON per pillar under `--out` (continuous adds
-`leadtime.json` + `operating_points.json` + `kpi.json`); `--viz` writes matching PNGs
-under `report/viz/` for local validation only — continuous mode renders `peak_*`
-panels and the landmark curves on a KM-style axis: `hospitalization day` /
-`hospitalization hour` ascending 1 → horizon with a true "No. at risk" row beneath,
-reliability curves at three hospitalization times (`landmark_reliability.png`), the
-sensitivity curve with a red mean±SD intervention line, the confusion-matrix grids
-(`operating_points_confusion.png`), and — for intervention tasks — the per-threshold
-sub-analysis grid (`operating_points_subanalyses.png`).
+## `--viz`
+
+PNGs under `report/viz/`, for local validation only — never uploaded. Every plot
+reads the same dicts that were written to disk, so a figure can never show a number
+the JSON does not contain.
+
+| mode | figures |
+|---|---|
+| **continuous** | `landmark_auroc`, `landmark_auprc`, `landmark_brier`, `landmark_slope`, `threshold_sweep` |
+| **episodic** | `roc`, `pr`, `calibration`, `dca`, `fairness`, `threshold_sweep` |
+
+`threshold_sweep.png` is the decision figure: six panels — sensitivity, specificity,
+PPV, NPV, NNE, flag-rate — each against the threshold with its CI band, the shipped
+policy marked in red and Youden's pick in green.

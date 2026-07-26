@@ -166,10 +166,10 @@ flair build-report preds.parquet \
   --out ./report/
 ```
 
-The mode is inferred from the task: continuous tasks use `--mode continuous`
-(peak section + per-landmark pillars + leadtime + an `operating_points` section
-— a per-threshold confusion matrix plus optional intervention sub-analyses — in
-one bundle), episode tasks use `--mode episodic`.
+Every run writes **exactly two JSON files**. The mode is inferred from the task:
+continuous tasks use `--mode continuous` (`landmark.json` +
+`hospitalization_level.json`), episode tasks use `--mode episodic`
+(`overall.json` + `hospitalization_level.json`).
 
 ## Benchmark Tasks
 
@@ -308,21 +308,21 @@ Report modes:
 
 | Mode | Use for | Output focus |
 |---|---|---|
-| `episodic` | One prediction per stay | Four **threshold-free** pillars (discrimination, calibration, decision curves, fairness) + an `operating_points` scorecard holding every threshold-dependent metric — confusion matrix, sensitivity/specificity/PPV/NPV/F1/FPR/NNE/alert-rate, the act taken and its net benefit, and subgroup parity gaps — swept over the clinical threshold and ± 0.05 / ± 0.10 |
-| `continuous` | Multi-row-per-stay tasks | One bundle: stay-peak screening section + forward landmarks (time-varying AUC/calibration per hospitalization day/hour over `META['landmark_horizon']` times, KM at-risk counts) + leadtime + an `operating_points` section (per-threshold alert×label confusion matrix — clinical ± 0.05 — plus optional intervention sub-analyses) + a `kpi.json` scoreboard (pooled dynamic AUROC, NNE, calibration, lead time) |
+| `episodic` | One prediction per stay | `overall.json` — **threshold-free** AUROC / AUPRC with curves on a fixed grid, plus Brier, calibration slope/intercept and a quantile reliability curve — and `hospitalization_level.json` |
+| `continuous` | Multi-row-per-stay tasks | `landmark.json` — four pooled numbers (Heagerty-pooled dynamic AUROC, AUPRC, Brier, calibration slope), each with a CI and the per-landmark curve behind it, over `META['landmark_horizon']` forward landmarks with KM at-risk counts — and `hospitalization_level.json` |
+
+`hospitalization_level.json` is the same file in both modes: the fixed 99-point
+threshold sweep (0.01 … 0.99) with every metric and its CI band, the shipped policy
+flagged as one row, Youden's J beside it, and subgroup fairness at the clinical
+threshold. In continuous mode each hospitalization is collapsed to its peak score
+first — one alert per stay, as deployed.
 
 Reports are computed on the held-out `test` split. JSON outputs include audit
 metadata such as the task name, FLAIR version, generation time, report mode, and
 task script SHA-256.
 
-Depending on mode, the report directory can include JSON files for:
-
-- discrimination
-- calibration
-- decision curve analysis
-- fairness
-- lead time
-- threshold or operating-point behavior
+The report directory holds exactly two JSON files, plus a `viz/` directory when
+`--viz` is on.
 
 For a task whose action fires on LOW risk (`clinical_direction: "below"`), the
 decision curve is built on the **complement** of the label. `extubation_failure_24h`
@@ -335,10 +335,11 @@ complemented: the model still emits P(failure), and AUROC / AUPRC / calibration 
 the confusion matrix all stay on the failure label.
 
 For an `"above"` task (e.g. `icu_readmission` "keep in ICU when readmission risk
-≥ 0.20") the DCA event is the label event itself and the policy threshold appears
-directly on the x-axis. `dca.json`'s `metadata.x_axis` names the axis, its
-`metadata.action` / `metadata.inaction` name the two arms of the decision, and its
-`metrics.verdict` states whether the model beats acting on everyone / no one.
+≥ 0.20") the event is the label event itself and the policy threshold is weighed
+directly. Net benefit is reported per threshold in `hospitalization_level.json`,
+alongside `net_benefit_treat_all`, so the decision curve and the operating-point
+table are the same array and cannot drift apart. It is episodic-only: on the
+continuous peak surface a decision curve is the peak-calibration trap.
 
 When visualization support is installed, `--viz` writes local PNGs from the same
 JSON data. These PNGs are for site review; the portable artifact is the JSON

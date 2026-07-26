@@ -31,27 +31,16 @@ rows, the build stops with an error.
 
 ```
 report/
-├── discrimination.json      how well the model RANKS patients
-├── calibration.json         do the probabilities mean what they say
-├── dca.json                 is the model worth using at all (net benefit)
-├── fairness.json            does it work equally well across groups
-├── operating_points.json    THE scorecard — everything that depends on the cutoff
-└── viz/                     pictures only, for your own eyes — never uploaded
-    ├── roc_pr.png
-    ├── calibration.png
-    ├── dca.png
-    ├── fairness_auroc.png
-    └── operating_points.png
+  overall.json                  ranking + calibration, threshold-free
+  hospitalization_level.json    everything that depends on the threshold
+  viz/                          local PNGs, never uploaded
 ```
 
-**5 JSON files, 5 PNGs.** Only the JSON is uploaded. The PNGs need
-`pip install "flair-benchmark[viz]"`; without matplotlib you get a warning and the
-JSON only. `--no-viz` skips them. Each rebuild wipes old PNGs in `viz/` first, so
-you never look at a stale picture.
+**Two files. That is the whole bundle** (~95 KB on a 700-stay cohort). Only the
+JSON is uploaded.
 
-`report/` also does **not** contain `table1.json` — that one is written by
-`flair load-task` next to your cohort file (`cohort.table1.json`), not by
-`build-report`.
+`hospitalization_level.json` is the **same schema continuous mode produces**, so a
+reader written once works for every task and every site.
 
 ---
 
@@ -70,8 +59,8 @@ file's own metadata keys):
 | `split` | always `"test"` |
 | `n_stays` | number of unique stays scored |
 | `prevalence` | event rate in the scored rows |
-| `report_schema` | shape version of the bundle (currently `3`) |
-| `evaled_at` | the task's clinical threshold (centre of the sweep) |
+| `report_schema` | shape version of the bundle (currently `4`) |
+| `evaled_at` | the task's clinical threshold |
 
 **Confidence intervals.** Anything ending in `_ci` is a `[low, high]` pair =
 95% percentile bootstrap, **500 replicates, fixed seed 20260612**. One row = one
@@ -80,8 +69,10 @@ stay, so it is a proper patient-level bootstrap. A CI is `null` when fewer than
 once before resampling.
 
 **Privacy.** Any count below **10** is written as the string `"<10"` instead of the
-number. Any demographic subgroup with fewer than 10 patients is **dropped
-entirely** — it never appears in the file.
+number, and the confusion matrix masks **in pairs** — `tp` with `fp`, `fn` with
+`tn` — because `n` is published and a lone masked cell is recoverable by
+subtraction. Any demographic subgroup with fewer than 10 patients is **dropped
+entirely**.
 
 **Rounding.** Scalars are rounded to 4 decimals; curve arrays to 6.
 
@@ -91,337 +82,155 @@ entirely** — it never appears in the file.
   sensitivity / specificity / PPV / the confusion matrix are built on, so
   "sensitivity" always means "how well do we catch the event".
 - **Decision basis** — the act actually taken. For a `below` task the act fires on
-  LOW risk (`y_prob < t`, extubate). This is what `dca.json` and the `decision`
-  block use.
+  LOW risk (`y_prob < t`, extubate). Only `net_benefit` uses it.
 
 ---
 
-## 3. `discrimination.json` — can the model tell patients apart?
+## 3. `overall.json` — how good is the model, ignoring the cutoff?
 
-Threshold-free. Nothing here changes if you move the cutoff.
+### 3.1 `discrimination` — can it tell patients apart?
 
-| key | plain meaning |
+| key | meaning |
 |---|---|
-| `task_type` | `binary` / `multiclass` / `regression` |
-| `prevalence` | fraction of stays that had the event |
-| `metrics.auroc` | AUROC: chance a random event patient scores higher than a random non-event patient. 0.5 = coin flip, 1.0 = perfect |
-| `metrics.auroc_ci` | 95% CI for AUROC |
-| `metrics.auprc` | area under the precision–recall curve — the honest one for rare events |
-| `metrics.auprc_ci` | 95% CI for AUPRC |
-| `metrics.auprc_baseline` | what AUPRC a useless model would get = the prevalence |
-| `metrics.auprc_lift` | `auprc / prevalence` — how many times better than useless. Comparable across sites with different event rates |
-| `curves.roc.fpr` | false-positive rate points of the ROC curve (≤500 points) |
-| `curves.roc.tpr` | matching true-positive rate points |
-| `curves.roc.thresholds` | the probability cutoff at each point (`null` where infinite) |
-| `curves.roc.grid_fpr` | a fixed FPR ladder 0.00 → 1.00 in steps of 0.01 |
-| `curves.roc.tpr_at_grid` | TPR read at that fixed ladder — lets many sites' ROC curves be averaged |
-| `curves.pr.recall` | recall points of the precision–recall curve |
-| `curves.pr.precision` | matching precision points |
-| `curves.pr.thresholds` | the cutoff at each point |
-| `metadata.n` | rows scored |
-| `metadata.downsample_max` | curves are trimmed to at most 500 points (`500`) |
-| `metadata.reason` | only appears when the metrics could not be computed, e.g. `"single label class"` |
+| `auroc`, `auroc_ci` | probability a random event outranks a random non-event. 0.5 = coin flip |
+| `auprc`, `auprc_ci` | area under the precision-recall curve — the one that matters for rare events |
+| `auprc_baseline` | the prevalence; a no-skill model scores exactly this |
+| `tpr_at_grid` | 101 numbers: the ROC curve, sampled at FPR 0.00, 0.01 … 1.00 |
+| `precision_at_grid` | 101 numbers: the PR curve, sampled at recall 0.00, 0.01 … 1.00 |
 
-**Not here:** sensitivity, PPV, confusion matrix. Those depend on a cutoff and live
-in `operating_points.json`.
+**Why the curves are single arrays.** The x-axes are fixed constants, so they are
+never written down — and two sites' curves can be averaged point-by-point without
+interpolating one onto the other's thresholds. Both curves are stored as their
+**upper envelope**: at FPR 0 several TPRs are valid (every event that outranks
+every non-event adds one), and at recall 1.0 several precisions are valid, so the
+best value at each grid point is the one published.
 
-**Other task types.** A `multiclass` task replaces `curves` with
-`curves.multiclass` = `{class_order, confusion_matrix, per_class_roc}`; a
-`regression` task gets `curves.regression` =
-`{quantiles, y_true_quantiles, y_pred_quantiles, residual_quantiles}`.
+### 3.2 `calibration` — does "20%" really mean 20%?
+
+| key | meaning |
+|---|---|
+| `brier`, `brier_ci` | mean squared error of the probabilities. Lower is better |
+| `slope`, `slope_ci` | **1.0 = perfect.** Below 1 = overconfident (the classic overfit signature); above 1 = underconfident |
+| `intercept`, `intercept_ci` | **0.0 = perfect.** Negative = the model over-predicts risk overall |
+| `quantile_bins.bin_pred_prob` | 10 numbers: mean predicted probability per bin |
+| `quantile_bins.bin_true_prob` | 10 numbers: observed event rate per bin. `null` where the bin holds <10 stays |
+
+**Bins hold equal COUNTS, not equal widths.** For a rare event nearly every
+prediction falls into the first equal-width bin and the curve collapses to a single
+point; equal-count binning puts ~n/10 stays in each bin and spreads ten readable
+points across the range the model actually uses. Counts and edges are not published
+— the two arrays are all a reliability plot needs.
+
+There is **no ECE** (it is defined on the equal-width bins that were removed) and
+**no separate DCA file** — see §4.
 
 ---
 
-## 4. `calibration.json` — does "20%" really mean 20%?
+## 4. `hospitalization_level.json` — what happens at a cutoff?
 
-Also threshold-free: it looks at the whole range of predicted probabilities.
+### 4.1 `metadata`
 
-| key | plain meaning |
+| key | meaning |
 |---|---|
-| `task_type` | `binary` (calibration is only computed for binary) |
-| `prevalence` | observed event rate |
-| `metrics.ece` | Expected Calibration Error — average gap between predicted and observed, weighted by how many patients are in each bin. **Lower is better; 0 is perfect** |
-| `metrics.ece_ci` | 95% CI |
-| `metrics.brier` | Brier score = mean squared error of the probabilities. Lower is better |
-| `metrics.brier_ci` | 95% CI |
-| `metrics.slope` | calibration slope. **1.0 = perfect.** Below 1 = over-confident (scores too extreme); above 1 = under-confident |
-| `metrics.slope_ci` | 95% CI |
-| `metrics.intercept` | calibration-in-the-large. **0 = perfect.** Positive = the model under-predicts overall |
-| `metrics.intercept_ci` | 95% CI |
-| `metrics.o_e_ratio` | observed events ÷ expected events. 1.0 = the totals match |
-| `curves.reliability.n_bins` | `10` |
-| `curves.reliability.bin_edges` | the 11 edges of 10 equal-width bins (0.0, 0.1, … 1.0) |
-| `curves.reliability.bin_pred_prob` | mean predicted probability inside each bin |
-| `curves.reliability.bin_true_prob` | observed event rate inside each bin — **`null` if the bin holds fewer than 10 patients** |
-| `curves.reliability.bin_counts` | how many patients fell in each bin |
-| `curves.reliability.ece` | the ECE computed from these bins (same number as `metrics.ece`) |
-| `curves.reliability_quantile.*` | the same five keys again, but with **equal-count** bins (~n/10 patients each) instead of equal-width. This is the readable curve for rare events, where everything piles up near 0. Display only — it does **not** feed ECE. Carries `binning: "quantile"` instead of `ece` |
-| `curves.smoothed.method` | `"linear_fit"` |
-| `curves.smoothed.fit_slope` | slope of a plain straight line fitted to observed-vs-predicted |
-| `curves.smoothed.fit_intercept` | its intercept |
-| `curves.smoothed.pred_grid` | 50 evenly spaced predicted probabilities (0.01 → 0.99) |
-| `curves.smoothed.obs_smoothed` | the fitted line read at that grid |
-| `metadata.n` | rows scored |
-| `metadata.n_bins` | `10` |
-| `metadata.threshold_used` | `null` — calibration never uses the clinical threshold |
-| `metadata.note` | says the same thing in words |
-| `metadata.reason` | only when calibration could not be computed |
-
----
-
-## 5. `dca.json` — is the model actually worth using?
-
-Decision Curve Analysis. The question it answers is not "is the model accurate"
-but "**would acting on this model beat the two obvious default policies?**" — treat
-everybody, or treat nobody.
-
-Net benefit at a threshold `t` is `TP/n − (FP/n) × t/(1−t)`.
-
-**Read the axis framing first.** For `icu_readmission` (`above`) the x-axis is
-"probability of readmission required before keeping the patient in ICU", and the
-0.20 policy sits at x = 0.20. For `extubation_failure_24h` (`below`) the whole
-frame flips: the event becomes **successful extubation**, the x-axis is
-"probability of success required before extubating", and the 0.10 failure-risk
-policy sits at **x = 0.90**. That is why `prevalence` in this file can read ~0.95
-for a task with a ~5% failure rate — `metadata.prevalence_of` names which event it
-is counting.
-
-| key | plain meaning |
-|---|---|
-| `task_type` | `binary` |
-| `direction` | `above` or `below`, from the task |
-| `basis` | a sentence saying whether the frame was complemented |
-| `clinical_threshold_original` | the task's threshold on the label scale (e.g. 0.10) |
-| `prevalence` | event rate **on this file's axis** (may be the complement) |
-| `metrics.clinical_threshold` | where the shipped policy sits on the x-axis (0.90 for the extubation task) |
-| `metrics.net_benefit_at_clinical_threshold.model` | the model's net benefit there |
-| `…​.model_ci` | 95% CI for it |
-| `…​.treat_all` | net benefit of acting on everyone |
-| `…​.treat_none` | always `0.0` |
-| `metrics.clinically_useful` | `true` if the model beats **both** defaults at the shipped policy |
-| `metrics.verdict.clinically_useful` | same flag, repeated inside the verdict |
-| `metrics.verdict.model` / `model_ci` / `treat_all` / `treat_none` | the same four numbers |
-| `metrics.verdict.beats` | **one readable sentence**, e.g. "the model beats both defaults — net benefit 0.031, vs 0.004 for 'extubate' on everyone and 0 for 'keep the patient intubated' on everyone" |
-| `metrics.useful_range` | `{low, high}` — the widest continuous stretch of thresholds where the model beats both defaults |
-| `metrics.all_useful_intervals` | every such stretch, as `[low, high]` pairs |
-| `curves.thresholds` | the x-axis grid (see `metadata.grid`) |
-| `curves.net_benefit_model` | the model's curve; `null` where suppressed |
-| `curves.net_benefit_all` | the treat-everyone curve |
-| `curves.net_benefit_none` | `0.0` (a scalar, the flat treat-nobody line) |
-| `curves.focus_range` | `[low, high]` hint for where to zoom the plot — the full grid stays in the file |
-| `curves.suppressed_thresholds` | thresholds nulled because fewer than 10 patients were acted on |
-| `metadata.grid` | `"0.001-0.05 step .002 + 0.01-0.99 step .01 + 0.90-0.999 step .002"` — dense at both tails where rare-event and complement decisions live |
-| `metadata.min_flagged_n` | `10` |
-| `metadata.n_test` | rows scored |
-| `metadata.event` | what the curve counts as the event, in words |
-| `metadata.action` | the act, e.g. `"extubate"` |
-| `metadata.inaction` | the other real policy, e.g. `"keep the patient intubated"` |
-| `metadata.x_axis` | a sentence describing the axis |
-| `metadata.prevalence_of` | which event `prevalence` refers to |
-| `metadata.clinical_threshold_on_axis` | policy position on this file's axis |
-| `metadata.clinical_threshold_on_label_scale` | the same policy on the label scale |
-| `metadata.reason` | only when DCA could not be computed |
-
-The net benefit in this file and the one in `operating_points.json` are computed
-through the same code, so **they cannot disagree**.
-
----
-
-## 6. `fairness.json` — does it work equally well for everyone?
-
-In episodic mode this file is **threshold-free**: it only asks whether the model
-*ranks and calibrates* equally well across groups. The threshold-dependent equity
-numbers (who gets flagged, at what error rates) are in `operating_points.json`, at
-all 99 thresholds.
-
-Four grouping columns, when the demographics are present:
-`sex_category`, `race_category`, `ethnicity_category`, `age_bin`
-(age is binned into `18-39`, `40-64`, `65-79`, `80+`; a missing age is dropped,
-not silently counted as 80+).
-
-Shape: `subgroups.<column>.<level>` → one dict per group level.
-
-| key | plain meaning |
-|---|---|
-| `subgroups.<col>.<level>.n` | patients in that group (levels with n < 10 are **not written at all**) |
-| `…​.prevalence` | event rate in that group |
-| `…​.auroc` | AUROC within the group |
-| `…​.auroc_ci` | 95% CI |
-| `…​.auprc` | AUPRC within the group |
-| `…​.brier` | Brier score within the group |
-| `…​.calibration_slope` | calibration slope within the group |
-| `…​.calibration_intercept` | calibration intercept within the group |
-| `metadata.min_subgroup_n` | `10` |
-| `metadata.threshold_free` | `true` |
-| `metadata.note` | points you at `operating_points.json` for the decision-threshold view |
-
-AUROC/AUPRC/Brier/slope are omitted for a group that has only one label class.
-
-*(A `multiclass` task reports `accuracy` + `macro_f1` per group instead; a
-`regression` task reports `mae`, `mean_y_true`, `mean_y_pred`.)*
-
----
-
-## 7. `operating_points.json` — THE scorecard
-
-This is the biggest file and the one that answers "what happens if we deploy at
-cutoff X". Every threshold-dependent number in episodic mode lives here.
-
-It sweeps a **fixed grid of 99 thresholds: 0.01, 0.02, … 0.99**. The grid is a
-constant — not centred on your task — so two sites' files line up row-for-row. The
-shipped clinical policy is simply the one row with `is_clinical: true`.
-
-### 7.1 `metadata`
-
-| key | plain meaning |
-|---|---|
-| `clinical_threshold` | the task's shipped cutoff |
-| `clinical_direction` | `above` / `below` |
-| `grid` | `{min: 0.01, max: 0.99, step: 0.01, n: 99}` |
-| `surface` | `"stay"` (one row per stay) |
-| `clinical_index` | which of the 99 rows is the clinical one (0-based) |
+| `surface` | `"stay"` — one prediction per hospitalization, nothing collapsed |
+| `score_rule` | `"y_prob (one prediction per hospitalization)"` |
+| `clinical_threshold` / `clinical_direction` | the shipped policy |
+| `grid` | `{min: 0.01, max: 0.99, step: 0.01, n: 99}` — identical at every site |
+| `clinical_index` | which of the 99 rows is the shipped policy |
 | `min_cell_count` | `10` |
-| `selection_params` | the constants the cutpoint rules use: `sens_target` 0.90, `spec_target` 0.90, `ppv_target` 0.30, `alert_rate_target` 0.10, `alert_rate_targets` [0.05, 0.10, 0.20], `f_beta` 1, `cost_ratio` 1 |
-| `data_driven_ci` | a paragraph warning that the fitted rules' CIs are *selection-aware* and therefore wider |
-| `flag_rule` | `"y_prob >= threshold (alarm convention)"` |
-| `net_benefit_basis` | explains that `decision.net_benefit` matches `dca.json`, not this row's TP/FP |
-| `reason` | only when the scorecard could not be built (non-binary task, or no threshold) |
 
-### 7.2 `by_threshold` — 99 rows, one per cutoff
+### 4.2 `by_threshold` — 99 rows
 
-Each row has:
+One row per cutoff from 0.01 to 0.99. The same grid at every site and for every
+task, so two sites' sweeps line up row-for-row and pool without interpolation.
 
-**`threshold`** — the cutoff · **`is_clinical`** — `true` for exactly one row.
-
-**`confusion`** — the 2×2 table at that cutoff (alarm basis, `y_prob >= t`):
-
-| key | plain meaning |
+| key | meaning |
 |---|---|
-| `n` | total patients |
-| `tp` | flagged **and** had the event (`"<10"` if under 10) |
-| `fp` | flagged but no event |
-| `fn` | not flagged but had the event |
-| `tn` | not flagged, no event |
+| `threshold` | the cutoff |
+| `is_clinical` | `true` on exactly one row — the shipped policy |
+| `n` | stays scored |
+| `tp`, `fp`, `fn`, `tn` | the 2×2, masked in pairs when small |
+| `sensitivity` (+`_ci`) | of the events, how many did we catch |
+| `specificity` (+`_ci`) | of the non-events, how many did we leave alone |
+| `ppv` (+`_ci`) | of the alarms, how many were real. `null` when <10 stays are flagged |
+| `npv` (+`_ci`) | of the non-alarms, how many were truly fine |
+| `f1` (+`_ci`) | harmonic mean of PPV and sensitivity |
+| `fpr` (+`_ci`) | false alarm rate = 1 − specificity |
+| `flag_rate` | fraction of all stays flagged — the workload |
+| `nne` (+`_ci`) | **alarms per true case** = 1/PPV. The number a screener lives or dies by |
+| `net_benefit` (+`_ci`) | the decision curve, on the decision basis |
+| `net_benefit_treat_all` | the "act on everyone" comparator. "Act on no one" is 0 by definition |
 
-**`metrics`** — the rates derived from that 2×2, each with a CI band:
+**The decision curve lives here.** `net_benefit` and `net_benefit_treat_all` across
+these 99 rows *are* the DCA — there is no `dca.json`, because storing the same array
+twice is how two files end up disagreeing.
 
-| key | plain meaning |
+**Reading it:** the model earns its keep at threshold t when `net_benefit` exceeds
+both `net_benefit_treat_all` and 0 at that row.
+
+### 4.3 `selected_thresholds` — two entries
+
+| key | meaning |
 |---|---|
-| `sensitivity` (+ `_ci`) | of the patients who had the event, what share did we flag (recall) |
-| `specificity` (+ `_ci`) | of the patients with no event, what share did we correctly leave alone |
-| `ppv` (+ `_ci`) | of the patients we flagged, what share really had the event (precision). **`null` when fewer than 10 were flagged** |
-| `npv` (+ `_ci`) | of the patients we did not flag, what share really had no event |
-| `f1` (+ `_ci`) | harmonic mean of PPV and sensitivity |
-| `fpr` (+ `_ci`) | true false-positive rate = FP/(FP+TN) |
-| `nne` (+ `_nne_ci`) | **N**umber **N**eeded to **E**valuate = 1/PPV — how many alerts you review per real case. Lower is better |
-| `flag_rate` | share of all patients flagged (your workload). No CI — it is a count, not an estimate |
+| `rule` | `"youden_j"` or `"clinical"` |
+| `threshold` | where it lands |
+| `threshold_ci` | for Youden: **selection-aware** — the cutpoint is re-picked on every bootstrap resample, so this is wider than a fixed-threshold band. `null` for the clinical policy, which is not fitted |
+| `in_sample` | `true` for Youden, `false` for the clinical policy |
+| `citation` | `"Youden 1950"` |
+| `delta_from_clinical` | how far the rule sits from the shipped policy |
+| `sensitivity`, `specificity`, `ppv`, `npv`, `f1`, `fpr`, `flag_rate`, `nne` | that row's metrics |
 
-**`decision`** — what the clinician actually *does* at that cutoff (direction-aware):
+**Why only Youden.** Ten other cutpoint rules were dropped. Youden's J
+(sensitivity + specificity − 1) is the most-cited and the easiest to explain, and
+the honest object is the full sweep anyway — every rule is just an annotation on it.
+`in_sample: true` is the warning label: a cutpoint chosen to maximise a metric on
+the rows you then report is upward biased (Leeflang 2008).
 
-| key | plain meaning |
+### 4.4 `fairness` — at the clinical threshold only
+
+| key | meaning |
 |---|---|
-| `acts_on` | `"y_prob >= threshold"` or `"y_prob < threshold"` |
-| `n_acted` | how many patients get the action (`"<10"` if under 10) |
-| `act_rate` | that as a fraction |
-| `event_rate_in_acted` | observed event rate among the acted-on patients |
-| `event_rate_in_not_acted` | observed event rate among the rest |
-| `dca_threshold` | where this cutoff sits on the decision-curve axis (`1−t` for a `below` task) |
-| `net_benefit` | net benefit of the act here — **the same number as `dca.json`'s curve** at `dca_threshold` |
-| `net_benefit_ci` | 95% CI |
-| `net_benefit_treat_all` | net benefit of acting on everyone |
-| `net_benefit_treat_none` | `0.0` |
-| `clinically_useful` | `true` if the model beats both defaults here |
-| `suppressed_reason` | present when fewer than 10 patients were acted on — the net-benefit keys are then `null` |
+| `at_threshold` | the clinical threshold — this block is ONE point, not 99 |
+| `subgroups.<column>.<level>.n` | stays in that group. Groups under 10 never appear |
+| `… .prevalence` | event rate in the group |
+| `… .auroc` (+`_ci`) | does the model **rank** this group as well as the others |
+| `… .positive_rate` | how often the group gets flagged |
+| `… .tpr`, `… .fpr` | catch rate and false-alarm rate within the group |
+| `parity.<column>.reference_group` | the largest level |
+| `… .demographic_parity_gap` (+`_ci`) | max − min flag rate across levels |
+| `… .equalized_odds_tpr_gap` (+`_ci`) | max − min TPR across levels |
+| `… .equalized_odds_fpr_gap` (+`_ci`) | max − min FPR across levels |
 
-**`fairness`** (only when demographics are present) — the equity view **at that
-cutoff**:
-
-| key | plain meaning |
-|---|---|
-| `fairness.subgroups.<col>.<level>.n` | patients in the group |
-| `…​.positive_rate` | share of that group flagged at this cutoff |
-| `…​.tpr` | of that group's event patients, share flagged |
-| `…​.fpr` | of that group's non-event patients, share flagged |
-| `fairness.parity.<col>.reference_group` | the largest group, used as the comparison anchor |
-| `…​.demographic_parity_gap` (+ `_ci`) | biggest minus smallest **flag rate** across groups. 0 = every group flagged at the same rate |
-| `…​.equalized_odds_tpr_gap` (+ `_ci`) | biggest minus smallest **TPR** across groups |
-| `…​.equalized_odds_fpr_gap` (+ `_ci`) | biggest minus smallest **FPR** across groups |
-
-**Row-level suppression:** if fewer than 10 patients are flagged at a cutoff, the
-row gets `suppressed: true` and `suppressed_reason`.
-
-### 7.3 `data_driven_thresholds` — 12 entries
-
-"If you had picked the cutoff by a statistical rule instead of by clinical policy,
-where would you have landed?" These are **annotations, not recommendations** — a
-cutoff chosen to maximise a metric on the same data it is then scored on is
-optimistic, which is why every fitted rule is stamped `in_sample: true`.
-
-The 11 rules:
-
-| `rule` | picks the threshold that… |
-|---|---|
-| `youden_j` | maximises sensitivity + specificity − 1 (equal cost, ignores prevalence) |
-| `closest_01` | is geometrically closest to the perfect corner (0,1) of ROC space |
-| `concordance_cz` | maximises sensitivity × specificity (punishes lopsided points) |
-| `index_of_union` | puts sensitivity and specificity both closest to the AUC |
-| `f_beta_max` | maximises F-β (β = 1 → plain F1); ignores true negatives |
-| `sensitivity_target` | gives the best specificity while sensitivity ≥ 0.90 — "a miss is worse than a false alarm" |
-| `specificity_target` | gives the best sensitivity while specificity ≥ 0.90 — the reverse |
-| `cost_based` | maximises sensitivity − slope × FPR with an explicit FP/FN cost ratio |
-| `ppv_target` | is the lowest cutoff that still reaches PPV ≥ 0.30 |
-| `alert_rate_target` | lands nearest a 10% alert workload |
-| `max_accuracy` | maximises plain accuracy. **Flagged `degenerate: true`** — for rare events it collapses toward "never alert" |
-
-Plus a 12th entry with `rule: "clinical"` — your shipped policy lined up in the
-same list, with `in_sample: false` (it was not fitted).
-
-Keys per entry:
-
-| key | plain meaning |
-|---|---|
-| `rule` | rule name |
-| `threshold` | where it landed (`null` if the rule is undefined on this data) |
-| `threshold_ci` | 95% CI of the landing point — how unstable the rule is. `null` for the clinical row (it was never fitted) |
-| `objective_value` | the value of the thing the rule maximised/minimised |
-| `surface` | `"stay"` |
-| `delta_from_clinical` | landing threshold minus your clinical threshold |
-| `metrics_at.sensitivity` / `specificity` / `ppv` / `npv` / `f1` / `fpr` / `flag_rate` / `nne` | performance read off the sweep at that landing point |
-| `metrics_at.*_ci` | CIs for all of the above except `flag_rate` |
-| `in_sample` | `true` for fitted rules, `false` for the clinical row |
-| `assumption` | one line saying what the rule assumes about costs |
-| `citation` | where the rule comes from (e.g. `"Youden 1950"`) |
-| `degenerate` | `true` only on `max_accuracy` |
-| `reason` | present instead of the metrics when the rule could not be applied |
-
-### 7.4 `prevalence`
-
-Event rate over the scored rows.
+Columns: `sex_category`, `race_category`, `ethnicity_category`, `age_bin`.
+The whole block is `null` when the predictions frame carries no demographics —
+pass `--cohort` and they are joined in.
 
 ---
 
-## 8. The PNGs (local only, never uploaded)
+## 5. The PNGs (local only, never uploaded)
 
-| file | what it shows |
+| file | shows |
 |---|---|
-| `viz/roc_pr.png` | ROC curve and precision–recall curve side by side. Because episodic mode keeps no operating point inside `discrimination.json`, the ROC is annotated from the scorecard instead: the clinical point (with error bars) plus where the named data-driven rules land. The PR panel draws the prevalence baseline |
-| `viz/calibration.png` | reliability curve (equal-count deciles) + the fitted line, with slope / intercept / Brier / ECE / O:E in a box, and a red warning if the slope is more than 0.3 away from 1 |
-| `viz/dca.png` | the net-benefit curve against treat-all and treat-none, with the shipped policy marked |
-| `viz/fairness_auroc.png` | AUROC per demographic subgroup with CIs |
-| `viz/operating_points.png` | every scorecard metric as a trend across all 99 thresholds, plus a table of named thresholds |
+| `roc.png` | the ROC curve with AUROC + CI |
+| `pr.png` | the PR curve with AUPRC + CI and the prevalence baseline |
+| `calibration.png` | the ten quantile reliability points against the diagonal |
+| `dca.png` | net benefit vs treat-all vs treat-none |
+| `fairness.png` | subgroup AUROC with CIs |
+| `threshold_sweep.png` | six panels — sensitivity, specificity, PPV, NPV, NNE, flag-rate — each against the threshold with its CI band |
 
-Use these to sanity-check your run before uploading. They are rebuilt from the
-same JSON dicts, so they can never show a different number than the JSON.
+On every threshold plot the shipped policy is the **red dashed** line and Youden's
+pick is the **green dotted** line.
 
 ---
 
-## 9. Quick cheat sheet — which number do I quote?
+## 6. Quick cheat sheet — which number do I quote?
 
 | the question | where to look |
 |---|---|
-| "Does the model rank well?" | `discrimination.json` → `metrics.auroc`, `metrics.auprc_lift` |
-| "Are the probabilities honest?" | `calibration.json` → `metrics.slope`, `metrics.ece` |
-| "Is it worth deploying at all?" | `dca.json` → `metrics.verdict.beats` (one sentence) |
-| "What happens at our cutoff?" | `operating_points.json` → the row with `is_clinical: true` |
-| "How many alerts per real case?" | that row → `metrics.nne` |
-| "Does it treat groups equally?" | `fairness.json` (ranking) + that row's `fairness.parity` (flag rates) |
+| "Does the model rank well?" | `overall.json` → `discrimination.auroc`, `discrimination.auprc` |
+| "Are the probabilities honest?" | `overall.json` → `calibration.slope` (want 1.0), `calibration.brier` |
+| "Is it worth deploying at all?" | `hospitalization_level.json` → the `is_clinical` row's `net_benefit` vs `net_benefit_treat_all` |
+| "What happens at our cutoff?" | that same `is_clinical` row |
+| "How many alerts per real case?" | that row → `nne` |
+| "Where would the data put the cutoff?" | `selected_thresholds` → `youden_j.threshold` (and mind `in_sample`) |
+| "Does it treat groups equally?" | `fairness.subgroups` (ranking) + `fairness.parity` (flag rates) |

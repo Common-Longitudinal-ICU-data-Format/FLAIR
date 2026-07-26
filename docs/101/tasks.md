@@ -18,9 +18,9 @@ flair list-tasks
 | `icu_readmission` | outcome | episode | one-per-stay | binary | 0.20 (above) | keep in ICU |
 
 The **report mode** follows from the temporal pattern: episode tasks → `episodic`;
-continuous tasks (T1, T2) → `continuous`, one bundle holding the stay-peak section and
-the per-landmark pillars over `META['landmark_horizon']` lead times (30 days for T1/T2)
-plus leadtime/alert timing. See [reports.md](reports.md).
+continuous tasks (T1, T2) → `continuous`, which emits `landmark.json` (four pooled
+numbers over `META['landmark_horizon']` forward landmarks — 30 days for T1/T2) and
+`hospitalization_level.json`. See [reports.md](reports.md).
 
 > The threshold, direction, and report mode for every task are declared inline in that
 > task's `META` in `flair_benchmark/tasks/<name>.py` — value-validated in `tasks/__init__.py`

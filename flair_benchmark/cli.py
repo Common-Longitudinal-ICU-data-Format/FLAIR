@@ -106,12 +106,10 @@ def build_report_cmd(
                             help="Output directory for the report JSONs"),
     mode: Optional[str] = typer.Option(
         None, "--mode",
-        help="How to score the task: 'episodic' (one-per-stay) or 'continuous' "
-             "(multi-row-per-stay -> one bundle: stay-peak section + "
-             "per-landmark pillars over META['landmark_horizon'] landmarks + "
-             "leadtime + an operating_points section (per-threshold confusion "
-             "matrix + optional intervention sub-analyses)). Inferred from META "
-             "when omitted."),
+        help="How to score the task: 'episodic' (one-per-stay) -> overall.json "
+             "+ hospitalization_level.json, or 'continuous' "
+             "(multi-row-per-stay) -> landmark.json + "
+             "hospitalization_level.json. Inferred from META when omitted."),
     cohort: Optional[str] = typer.Option(
         None, "--cohort",
         help="Task cohort parquet (from load-task). Joins demographics for "

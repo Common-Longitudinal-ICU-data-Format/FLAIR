@@ -11,9 +11,8 @@ by construction instead of by remembering to thread ``clinical_direction``:
                   for an act-on-LOW-risk task.
   ACTION basis  : the decision actually taken. ``y_prob < t`` when
                   ``clinical_direction == "below"`` (act on LOW risk, e.g.
-                  extubate when failure risk < t), else ``y_prob >= t``. Timing
-                  panels ("did the model fire before treatment", first-alert
-                  time) and the decision/net-benefit blocks live here.
+                  extubate when failure risk < t), else ``y_prob >= t``. The
+                  decision / net-benefit block lives here.
   DECISION basis: the frame a decision curve is drawn in. For a "below" task
                   the event is the label's COMPLEMENT and the score is 1-p, so
                   net benefit describes the act (extubate) rather than reading
@@ -28,48 +27,34 @@ axis only rescales the odds weight inside the net-benefit formula.
 
 NEVER derive the arm from ``1-p``. ``1.0 - x`` is exact in float64 only for
 x in [0.5, 1] (Sterbenz), so a patient sitting exactly on t lands on the wrong
-side of ``(1-p) > (1-t)`` at 20 of the 99 sweep thresholds — which is how dca.py
-and operating_points.py used to publish two different numbers for the same
-quantity. ``to_decision_basis`` still complements the probabilities, but only for
-display; arm membership never reads them.
+side of ``(1-p) > (1-t)`` at 20 of the 99 sweep thresholds — which is how the
+decision curve and the threshold sweep used to publish two different numbers for
+the same quantity. ``to_decision_basis`` still complements the probabilities, but
+only for display; arm membership never reads them.
 
-Both a polars-expression and a numpy-mask form are provided for each mask so
-frame-level and array-level code share one definition.
+``net_benefit`` below is the scalar reference implementation. The report itself
+uses the vectorized ``_sweep.nb_curve``; the two are pinned against each other
+in tests, including at a tie, precisely because that is where they once drifted.
 """
 
 from __future__ import annotations
 
 import numpy as np
-import polars as pl
-
 
 # --------------------------------------------------------------- alarm basis
 
 
-def alarm_expr(threshold: float, prob_col: str = "y_prob") -> pl.Expr:
-    """ALARM: the model warns of the (high-risk) event — ``p >= t``, always."""
-    return pl.col(prob_col) >= threshold
-
-
 def alarm_mask(y_prob: np.ndarray, threshold: float) -> np.ndarray:
-    """Numpy form of :func:`alarm_expr`."""
+    """ALARM: the model warns of the (high-risk) event — ``p >= t``, always."""
     return y_prob >= threshold
 
 
 # -------------------------------------------------------------- action basis
 
 
-def action_expr(threshold: float, direction: str,
-                prob_col: str = "y_prob") -> pl.Expr:
-    """ACTION: p < t when the action fires on LOW risk, else p >= t."""
-    if direction == "below":
-        return pl.col(prob_col) < threshold
-    return pl.col(prob_col) >= threshold
-
-
 def action_mask(y_prob: np.ndarray, threshold: float,
                 direction: str) -> np.ndarray:
-    """Numpy form of :func:`action_expr`."""
+    """ACTION: p < t when the action fires on LOW risk, else p >= t."""
     if direction == "below":
         return y_prob < threshold
     return y_prob >= threshold

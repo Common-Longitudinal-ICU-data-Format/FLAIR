@@ -1,20 +1,26 @@
 """Report bundle builder, keyed on the unit of prediction (`--mode`).
 
-  episodic   : one prediction per stay -> discrimination, calibration, dca and
-               fairness (all THRESHOLD-FREE) + operating_points, the scorecard
-               holding every threshold-dependent metric, swept over the clinical
-               threshold and ± 0.05 / ± 0.10 around it.
-  continuous : multi-row-per-stay task -> ONE bundle holding the stay-peak view
-               (discrimination + fairness + NNE, as a "peak" section) AND the
-               per-landmark four pillars (META['landmark_horizon'] landmarks in
-               the task's window_unit) AND leadtime + alert-vs-intervention
-               timing. See report/continuous.py.
+TWO JSON FILES PER MODE. Always.
 
-All output is JSON with raw curve arrays + 95% CIs, at the task's fixed clinical
-threshold. Only JSON is exported to the FLAIR website (cross-site aggregation).
+  continuous : landmark.json + hospitalization_level.json
+  episodic   : overall.json  + hospitalization_level.json
 
-Optional --viz renders local site-validation PNGs from the same JSON dicts
-(see report/_viz.py) — never exported.
+  landmark.json              four pooled numbers (AUROC, AUPRC, Brier,
+                             calibration slope) with CIs, plus the per-landmark
+                             curve behind each. No thresholds, no fairness, no
+                             curves. See report/landmark.py.
+  overall.json               the episodic equivalent: ranking + calibration,
+                             threshold-free, curves stored on a fixed grid.
+                             See report/overall.py.
+  hospitalization_level.json THE decision file, one schema in BOTH modes: the
+                             fixed 99-point threshold sweep with every metric
+                             and its CI band, Youden's J beside the shipped
+                             policy, and fairness at the clinical threshold.
+                             See report/hospitalization_level.py.
+
+Only JSON is exported to the FLAIR website (cross-site aggregation). Optional
+--viz renders local site-validation PNGs from the same dicts (report/_viz.py) —
+never exported.
 """
 
 from __future__ import annotations
@@ -27,18 +33,18 @@ from pathlib import Path
 import polars as pl
 
 from flair_benchmark.constants import REPORT_MODES
-from flair_benchmark.report.episodic import build_episodic_report
 
 __all__ = ["build_report"]
 
-# 3: operating_points.json is a fixed 99-point universal sweep (0.01..0.99) with
-#    the clinical policy flagged as one is_clinical row, data-driven threshold
-#    locators, encounter-level alert burden + operating budget (continuous), and
-#    treatment sub-rates + a named-threshold median lead-time; the leadtime
-#    sensitivity curve and risk trajectory are dropped. 2: episodic hoists every
-#    threshold-dependent metric into operating_points.json (clinical ± 0.05/0.10).
-#    1: the original four-pillar shape.
-REPORT_SCHEMA = 3
+# 4: two files per mode — landmark/overall + hospitalization_level. Net benefit
+#    folded into the sweep (dca.json gone), kpi/leadtime gone, threshold rules
+#    cut to Youden alone, fairness computed at the clinical threshold only,
+#    curves stored on fixed grids, calibration reduced to quantile bins.
+# 3: operating_points.json as a fixed 99-point sweep with 11 threshold locators,
+#    alert burden, operating budget and treatment sub-analyses.
+# 2: episodic hoisted every threshold-dependent metric into operating_points.json.
+# 1: the original four-pillar shape.
+REPORT_SCHEMA = 4
 
 
 def _blas_single_thread():
@@ -52,9 +58,11 @@ def _blas_single_thread():
         from contextlib import nullcontext
         return nullcontext()
 
-# cohort columns the report can use when they flow through (or are joined in).
-# Demographics feed fairness.py; without them fairness emits no subgroups.
-# (The Table 1 is generated at task-generation time — see flair_benchmark/cohort/table1.py.)
+# Cohort columns the report can use when they flow through (or are joined in).
+# window_number places a row on the landmark axis; the demographics feed the
+# fairness block of hospitalization_level.json (without them it emits no
+# subgroups). prediction_dttm doubles as a join key for multi-row-per-stay tasks.
+# (The Table 1 is generated at task-generation time — see cohort/table1.py.)
 _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
                  "hospitalization_join_id",
                  "age_at_admission", "sex_category", "race_category",
@@ -71,11 +79,8 @@ def build_report(preds_path: str, task_module, out_dir: str,
     `train`, every site (incl. inference-only) is scored on `test`, so cross-site
     numbers are comparable. `mode` is the unit of prediction:
 
-      episodic   : one prediction per stay -> threshold-free discrimination /
-                   calibration / dca / fairness + the operating_points scorecard.
-      continuous : multi-row-per-stay -> one bundle: peak section + per-landmark
-                   pillars (META['landmark_horizon'] landmarks) + leadtime with
-                   the alert-vs-intervention timing arms.
+      episodic   : one prediction per stay  -> overall.json  + hospitalization_level.json
+      continuous : multi-row-per-stay       -> landmark.json + hospitalization_level.json
 
     When `mode` is omitted it is inferred from META.temporal_pattern
     (episode -> episodic; continuous -> continuous).
@@ -88,7 +93,6 @@ def build_report(preds_path: str, task_module, out_dir: str,
     _validate_preds_schema(preds, meta)
     _validate_split_integrity(preds, meta)
     preds = _attach_cohort_context(preds, cohort_path, meta)
-    _validate_intervention_column(preds, meta)
     preds = _ensure_y_pred(preds, meta)
 
     # Reports are always scored on the held-out 'test' split only.
@@ -125,15 +129,12 @@ def build_report(preds_path: str, task_module, out_dir: str,
         "split": split,
         "n_stays": preds[block].n_unique(),
         "prevalence": prevalence,
-        # Shape of this bundle. Bump when a key moves between files: sites have
-        # already uploaded bundles in schema 1 (episodic carried its operating
-        # point inside discrimination.json, its net-benefit marker inside
-        # dca.json, and fairness was implicitly at the clinical threshold), and a
-        # reader needs to be able to tell the two apart.
+        # Shape of this bundle. Bump whenever a key moves between files: sites
+        # have already uploaded bundles in every earlier schema, and a reader
+        # needs to be able to tell them apart. See REPORT_SCHEMA above.
         "report_schema": REPORT_SCHEMA,
-        # The threshold the threshold-dependent numbers were evaluated at; null
-        # for tasks with no clinical_threshold in META. In episodic mode this is
-        # the CENTRE of the operating_points.json grid, not the only point scored.
+        # The task's shipped policy; null for tasks without one. It is ONE
+        # flagged row of the 99-point sweep, not the only point scored.
         "evaled_at": meta.get("clinical_threshold"),
     }
 
@@ -143,14 +144,20 @@ def build_report(preds_path: str, task_module, out_dir: str,
     # Pin linear algebra to ONE thread for the whole build so the report numbers
     # are reproducible across machines: a degenerate logistic fit (e.g. a tiny
     # fairness subgroup) is sensitive to the BLAS thread count, which otherwise
-    # varies with each site's core count. (Landmark worker processes re-pin
-    # inside report/landmark._build_one.) See report/landmark.py.
+    # varies with each site's core count.
     with _blas_single_thread():
-        if mode == "continuous":
-            from flair_benchmark.report.continuous import build_continuous_report
-            payloads = build_continuous_report(preds, meta)
+        from flair_benchmark.report.hospitalization_level import (
+            build_hospitalization_level,
+        )
+        collapse = mode == "continuous"
+        if collapse:
+            from flair_benchmark.report.landmark import build_landmark
+            payloads = {"landmark": build_landmark(preds, meta)}
         else:
-            payloads = build_episodic_report(preds, meta)
+            from flair_benchmark.report.overall import build_overall
+            payloads = {"overall": build_overall(preds, meta)}
+        payloads["hospitalization_level"] = build_hospitalization_level(
+            preds, meta, collapse=collapse)
     for payload in payloads.values():
         payload["metadata"] = {**audit, **payload.get("metadata", {})}
 
@@ -161,13 +168,8 @@ def build_report(preds_path: str, task_module, out_dir: str,
 
     if viz:
         try:
-            if mode == "continuous":
-                from flair_benchmark.report._viz import render_continuous_pngs
-                pngs = render_continuous_pngs(payloads, out / "viz")
-            else:
-                from flair_benchmark.report._viz import render_sanity_pngs
-                pngs = render_sanity_pngs(payloads, out / "viz")
-            for png in pngs:
+            from flair_benchmark.report._viz import render_pngs
+            for png in render_pngs(payloads, out / "viz", mode):
                 paths[png.stem + "_png"] = png
         except ImportError:
             # viz is default-on but matplotlib is an optional extra; the JSON
@@ -191,9 +193,8 @@ def _resolve_mode(mode: str | None, pattern: str | None) -> str:
         return "episodic"
     if mode in {"peak", "landmark"}:
         raise ValueError(
-            f"--mode {mode} was merged into --mode continuous: one bundle with "
-            f"the peak section + per-landmark pillars + leadtime + "
-            f"alert-vs-intervention timing.")
+            f"--mode {mode} was merged into --mode continuous, which emits "
+            f"landmark.json + hospitalization_level.json.")
     if mode not in REPORT_MODES:
         raise ValueError(
             f"Unknown --mode '{mode}'; expected one of {sorted(REPORT_MODES)}.")
@@ -233,15 +234,10 @@ def _attach_cohort_context(preds: pl.DataFrame, cohort_path: str | None,
       2. join the cohort parquet on prediction_id, else
          (hospitalization_join_id, prediction_dttm), else hospitalization_join_id
           (safe for one-per-stay tasks only)
-    Missing context never fails — temporal sections degrade gracefully — EXCEPT
-    the META-declared intervention column, which is enforced afterwards by
-    `_validate_intervention_column` (the report only ever consumes cohort
-    columns, never raw CLIF data, so it must arrive here or already be on preds).
+    Missing context never fails — sections that need it degrade gracefully. The
+    report only ever consumes cohort columns, never raw CLIF data.
     """
-    context_cols = list(_CONTEXT_COLS)
-    if meta.get("intervention"):
-        context_cols.append(meta["intervention"]["column"])
-    needed = [c for c in context_cols if c not in preds.columns]
+    needed = [c for c in _CONTEXT_COLS if c not in preds.columns]
     if not needed or cohort_path is None:
         return preds
 
@@ -324,26 +320,6 @@ def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
                 f"Pass calibrated probabilities (e.g. model.predict_proba(...)[:, 1]), "
                 f"not logits or scores."
             )
-
-
-def _validate_intervention_column(preds: pl.DataFrame, meta: dict) -> None:
-    """META-declared intervention column must be present after the cohort join.
-
-    The column (e.g. a `first_abx_dttm` treatment timestamp) is generated at task-BUILD time
-    and stored in the cohort parquet; the report never touches raw CLIF data.
-    Null values are fine (never-treated stays are the no-intervention arm), but
-    a missing column means the eval cannot answer "did the model fire before
-    the intervention" — fail loudly rather than silently degrade.
-    """
-    iv = meta.get("intervention")
-    if iv and iv["column"] not in preds.columns:
-        raise ValueError(
-            f"Task '{meta['name']}' declares META['intervention'] on column "
-            f"'{iv['column']}', but it is missing from the predictions parquet. "
-            f"Regenerate the cohort with this flair version (the task build "
-            f"emits it) and either carry the column through your predictions "
-            f"or pass the cohort parquet via --cohort so it can be joined in."
-        )
 
 
 def _validate_split_integrity(preds: pl.DataFrame, meta: dict) -> None:

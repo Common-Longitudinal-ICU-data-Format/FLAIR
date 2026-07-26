@@ -4,7 +4,6 @@ to tmp_path — no site data required.
 """
 from __future__ import annotations
 
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import polars as pl

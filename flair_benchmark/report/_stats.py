@@ -5,14 +5,13 @@ all "the arithmetic the report agrees on" — the point is that there is exactly
 definition of each, so two sections can never disagree about what sensitivity
 means or how wide a confidence interval is.
 
-    Part 1  suppression   HIPAA cell-count masking            (used by ~10 modules)
-    Part 2  bootstrap     95% confidence intervals            (used by ~10 modules)
-    Part 3  confusion     2x2 arithmetic and rounding         (used by ~5 modules)
-    Part 4  calibration   logistic recalibration summaries    (used by ~3 modules)
+    Part 1  suppression   HIPAA cell-count masking
+    Part 2  bootstrap     95% confidence intervals
+    Part 3  rounding      report precision, percentiles, NNE
 
 Everything here is either a pure function of its arguments or a fixed constant.
 
-Depends on: report/_basis.py (the alarm convention), numpy, sklearn.
+Depends on: numpy only.
 Used by: every report section, plus cohort/table1.py for suppression only.
 """
 
@@ -21,8 +20,6 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import numpy as np
-
-from flair_benchmark.report._basis import alarm_mask
 
 # ===========================================================================
 # Part 1 — HIPAA cell-count suppression
@@ -88,7 +85,8 @@ def suppress_confusion(tp: int, fp: int, fn: int, tn: int,
 # bootstrap is already a stay-clustered (patient-level) bootstrap — the honest
 # unit for ICU benchmark CIs. Do not reuse this on a row-pooled continuous task,
 # where rows are correlated within a stay and a row bootstrap would understate
-# the interval.
+# the interval; landmark.py resamples hospitalizations explicitly for that
+# reason.
 #
 # CALLER CONTRACT: the frame you hand this must have a DETERMINISTIC row order.
 #
@@ -102,8 +100,8 @@ def suppress_confusion(tp: int, fp: int, fn: int, tn: int,
 # reproducible.
 #
 # Every collapse feeding a bootstrap therefore ends in .sort(<stay id>) — see
-# continuous._collapse_to_peak, operating_points._collapse_stays,
-# continuous._median_first_alert. Sorting on the stay id (rather than
+# hospitalization_level._collapse and landmark._partition. Sorting on the stay
+# id (rather than
 # maintain_order=True) also makes the CIs independent of the row order a site
 # happened to write its preds parquet in: same data => same intervals, across
 # sites and across runs.
@@ -172,56 +170,14 @@ def scalar_ci(values: np.ndarray, stat=np.median) -> list[float] | None:
 
 
 # ===========================================================================
-# Part 3 — Confusion-matrix arithmetic and small numeric helpers
+# Part 3 — Rounding, percentiles, and NNE
 #
-# Single owner for the 2x2-derived rates the report publishes, the bootstrap stat
-# factory that recomputes them per resample, and the rounding / percentile / NNE
-# helpers.
-#
-# All flagging here is the ALARM convention (y_prob >= t; see report/_basis.py).
-# That is what keeps "sensitivity" meaning "how well do we detect the event"
-# across every task and both report modes.
+# The 2x2 arithmetic itself lives (vectorized, over the whole threshold grid) in
+# report/_sweep.py, and the calibration fit in report/landmark.py. What is left
+# here is the shared numeric etiquette: how many decimals the report publishes,
+# how a bootstrap sample becomes an interval, and the one derived metric whose
+# CI has to be inverted rather than resampled.
 # ===========================================================================
-
-
-def confusion_counts(y_true: np.ndarray,
-                     flagged: np.ndarray) -> tuple[int, int, int, int]:
-    """(tp, fp, fn, tn) of a boolean flagged mask against a 0/1 label."""
-    n_flag = int(flagged.sum())
-    tp = int((flagged & (y_true == 1)).sum())
-    fp = n_flag - tp
-    fn = int((~flagged & (y_true == 1)).sum())
-    tn = len(y_true) - n_flag - fn
-    return tp, fp, fn, tn
-
-
-def confusion_metric(tp: int, fp: int, fn: int, tn: int,
-                     name: str) -> float | None:
-    if name == "sensitivity":
-        return tp / (tp + fn) if (tp + fn) else None
-    if name == "specificity":
-        return tn / (tn + fp) if (tn + fp) else None
-    if name == "ppv":
-        return tp / (tp + fp) if (tp + fp) else None
-    if name == "npv":
-        return tn / (tn + fn) if (tn + fn) else None
-    if name == "f1":
-        return 2 * tp / (2 * tp + fp + fn) if (2 * tp + fp + fn) else None
-    if name == "fpr":
-        return fp / (fp + tn) if (fp + tn) else None
-    return None
-
-
-def mk_stat(t: float, name: str):
-    """Bootstrap stat_fn: recompute one confusion metric at threshold t.
-
-    ALARM convention (`yp >= t`). Also serves collapsed fired-as-0/1 arrays:
-    `mk_stat(0.5, name)` on a {0.0, 1.0} column recovers the fired mask.
-    """
-    def _fn(yt: np.ndarray, yp: np.ndarray) -> float | None:
-        tp, fp, fn, tn = confusion_counts(yt, alarm_mask(yp, t))
-        return confusion_metric(tp, fp, fn, tn, name)
-    return _fn
 
 
 def nne_from_ppv(ppv: float | None,
@@ -253,79 +209,3 @@ def pct(vals: list[float], reps: int) -> list[float] | None:
         return None
     lo, hi = np.percentile(vals, [2.5, 97.5])
     return [round(float(lo), 4), round(float(hi), 4)]
-
-
-# ===========================================================================
-# Part 4 — Calibration summaries
-#
-# Every summary here is model-derived (a 2-parameter logistic recalibration, or
-# scalar means), so none of it carries patient-level information and none of it
-# needs cell suppression.
-# ===========================================================================
-
-_EPS = 1e-6
-
-
-def _logit(p: np.ndarray) -> np.ndarray:
-    p = np.clip(p, _EPS, 1 - _EPS)
-    return np.log(p / (1 - p))
-
-
-def calibration_slope_intercept(
-    y_true: np.ndarray, y_prob: np.ndarray
-) -> tuple[float | None, float | None]:
-    """Logistic regression of y_true on logit(y_prob). Returns (slope, intercept).
-
-    A perfectly calibrated model yields slope=1, intercept=0.
-    """
-    logit = _logit(y_prob)
-    if len(np.unique(y_true)) < 2 or np.std(logit) == 0:
-        return None, None
-    from sklearn.linear_model import LogisticRegression
-
-    lr = LogisticRegression(C=1e6).fit(logit.reshape(-1, 1), y_true.astype(int))
-    return round(float(lr.coef_[0, 0]), 4), round(float(lr.intercept_[0]), 4)
-
-
-def calibration_extended(y_true: np.ndarray, y_prob: np.ndarray,
-                         grid_points: int = 50) -> dict:
-    """TRIPOD-style calibration summary + smoothed curve.
-
-    slope / intercept : logistic recalibration (weak calibration)
-    o_e_ratio         : observed / expected event ratio (calibration-in-the-large)
-    brier             : Brier score
-    smoothed          : a simple straight calibration line — least-squares fit of
-                        observed event on predicted probability (no logistic
-                        recalibration), evaluated on a fixed probability grid.
-                        Model-derived (2 fitted params), PHI-safe.
-    """
-    from sklearn.metrics import brier_score_loss
-
-    y_true = y_true.astype(float)
-    y_prob = y_prob.astype(float)
-    slope, intercept = calibration_slope_intercept(y_true, y_prob)
-
-    expected = float(y_prob.mean())
-    observed = float(y_true.mean())
-    o_e = round(observed / expected, 4) if expected > 0 else None
-
-    out: dict = {
-        "slope": slope,
-        "intercept": intercept,
-        "o_e_ratio": o_e,
-        "brier": round(float(brier_score_loss(y_true, y_prob)), 4),
-        "smoothed": None,
-    }
-    if len(np.unique(y_true)) >= 2 and np.std(y_prob) > 0:
-        # plain straight line: observed ~ a + b * predicted, clipped to [0, 1].
-        b, a = np.polyfit(y_prob, y_true, 1)
-        grid = np.linspace(0.01, 0.99, grid_points)
-        line = np.clip(a + b * grid, 0.0, 1.0)
-        out["smoothed"] = {
-            "method": "linear_fit",
-            "fit_slope": round(float(b), 4),
-            "fit_intercept": round(float(a), 4),
-            "pred_grid": [round(float(x), 4) for x in grid],
-            "obs_smoothed": [round(float(x), 4) for x in line],
-        }
-    return out

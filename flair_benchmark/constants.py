@@ -6,8 +6,7 @@ to import from `__init__.py`, the task modules, and the report code without any
 circular-import risk. Keep it that way.
 
 Edit this file to bump the PyPI version (`__version__` — pyproject reads it via
-[tool.hatch.version]), move the global data cutoff, or change the shared
-selection defaults.
+[tool.hatch.version]) or move the global data cutoff.
 
 Per-task clinical policy (threshold, direction, report mode, ...) does NOT live
 here. Each task owns it inline in its own META dict; tasks/__init__.py validates
@@ -43,23 +42,6 @@ DATA_CUTOFF = date(2025, 12, 31)
 # Scoring units a task's META may declare in `report_mode`. Each task picks one
 # inline in its META; tasks/__init__.py validates the choice against this set.
 REPORT_MODES = {"episodic", "continuous"}
-
-# Defaults for the data-driven threshold-locator menu + operating-budget view
-# (report/operating_points.py, report/_locators.py — design doc §3.2, §4.3). Any
-# task may override one by adding the same key to its META; the values actually
-# used are recorded in operating_points.json's metadata so a reader knows what
-# was asked for. cost_ratio ships at 1 (which reduces the cost-based rule toward
-# the prevalence-weighted point) until clinicians state a real ratio.
-SELECTION_DEFAULTS: dict = {
-    "sens_target": 0.90,           # rule 6:  max specificity s.t. sensitivity >= this
-    "spec_target": 0.90,           # rule 6b: max sensitivity s.t. specificity >= this
-    "ppv_target": 0.30,            # rule 8:  smallest threshold clearing this PPV
-    "alert_rate_target": 0.10,     # rule 9:  flag ~this fraction of the cohort
-    "alert_rate_targets": (0.05, 0.10, 0.20),   # operating_budget: equal-workload grid
-    "f_beta": 1,                   # rule 5:  F-beta (1 = F1)
-    "cost_ratio": 1,               # rule 7:  C_FP / C_FN
-}
-
 
 # ---------------------------------------------------------------------------
 # Config templates  (written out by `flair init-config`)
@@ -111,13 +93,13 @@ TEMPLATES = {
 # ---------------------------------------------------------------------------
 
 # The resolved META keys that define "the same task" for cross-site comparison.
-# A key absent from a task's META serializes as null (e.g. landmark_horizon or
-# intervention on an episodic task). Extending this tuple changes every task's
-# digest, so cross-site comparisons must be regenerated on the same version.
+# A key absent from a task's META serializes as null (e.g. landmark_horizon on
+# an episodic task). Extending this tuple changes every task's digest, so
+# cross-site comparisons must be regenerated on the same version.
 _AUDIT_KEYS = (
     "name", "label_column", "task_type", "temporal_pattern",
     "prediction_unit", "clinical_threshold", "clinical_direction", "report_mode",
-    "landmark_horizon", "intervention",
+    "landmark_horizon",
 )
 
 
