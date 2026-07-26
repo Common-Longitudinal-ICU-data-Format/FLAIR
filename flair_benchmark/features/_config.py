@@ -5,19 +5,9 @@ feature_config.yaml shape::
     clif_config: clif_config_mimic.json     # path to existing JSON clif config
     output_directory: ./output/features     # optional default out dir
 
-    wide:                                    # clifpy create_wide_dataset inputs
-      vitals:    {categories: [heart_rate, sbp, spo2]}
-      labs:      {categories: [creatinine, lactate]}
-      medication_admin_continuous: {categories: [norepinephrine]}
-      patient_assessments: {categories: [gcs_total, RASS]}
-      respiratory_support: {columns: [device_category, fio2_set, peep_set]}
-
     meds_stream:                             # lightweight ELF pull (no conversion)
       medication_admin_continuous: {categories: [norepinephrine]}
       medication_admin_intermittent: {categories: [vancomycin, cefepime]}
-
-    units:                                   # optional unit overrides
-      labs: {creatinine: mg/dl}
 """
 
 from __future__ import annotations
@@ -37,13 +27,10 @@ V1_TABLES = {
     "respiratory_support", "vitals",
 }
 
-# Category column per pivot table (used for permissible-value validation).
+# Category column per configurable table (used for permissible-value validation).
 _CATEGORY_COLUMN = {
-    "vitals": "vital_category",
-    "labs": "lab_category",
     "medication_admin_continuous": "med_category",
     "medication_admin_intermittent": "med_category",
-    "patient_assessments": "assessment_category",
 }
 
 
@@ -70,7 +57,7 @@ def load_feature_config(path: str) -> tuple[dict, dict]:
 
 
 def _permissible_values(table: str) -> set[str] | None:
-    """Permissible category values for a pivot table, from clifpy schema."""
+    """Permissible category values for a configurable table, from clifpy schema."""
     col = _CATEGORY_COLUMN.get(table)
     if col is None:
         return None
@@ -91,7 +78,7 @@ def _permissible_values(table: str) -> set[str] | None:
 
 def _validate(feature_cfg: dict) -> None:
     """Warn (don't fail) on unsupported tables / unknown mCIDE categories."""
-    for block in ("wide", "meds_stream"):
+    for block in ("meds_stream",):
         spec = feature_cfg.get(block) or {}
         for table, tspec in spec.items():
             if table not in V1_TABLES:

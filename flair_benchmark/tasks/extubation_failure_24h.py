@@ -247,10 +247,11 @@ def build(clif_config: str, train_end: str | None,
     # STRICT feature cutoff — this task only. prediction_dttm is episode_end_dttm,
     # the timestamp of the FIRST non-IMV respiratory_support row
     # (_ventilation_episodes.detect_imv_episodes), i.e. the row that ANNOUNCES the
-    # extubation. feature_config.yaml feeds respiratory_support device_category /
-    # mode_category / fio2_set / peep_set into the wide extractor, so the default
-    # inclusive cutoff would hand a "should we extubate?" model the row saying the
-    # patient is already extubated.
+    # extubation. Anyone pulling respiratory_support (device_category /
+    # mode_category / fio2_set / peep_set) — via clifpy's create_wide_dataset or
+    # otherwise — gets no automatic guard, so the cohort must carry the boundary:
+    # the default inclusive cutoff would hand a "should we extubate?" model the
+    # row saying the patient is already extubated.
     #
     # The 1us is NOT the exact representable predecessor — cohort datetimes arrive
     # as Datetime("ns") through _clif.pd_to_pl. It is a step far below CLIF's

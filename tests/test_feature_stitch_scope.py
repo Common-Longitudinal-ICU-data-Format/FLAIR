@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-import pandas as pd
 import polars as pl
 import pytest
 
@@ -96,53 +95,6 @@ def test_meds_stream_includes_sibling_hospitalization_events(monkeypatch):
     assert out["time"].max() <= _dt(10)
 
 
-def test_wide_includes_sibling_hospitalization_events(monkeypatch):
-    import clifpy
-    import flair_benchmark.features.wide as wide_mod
-
-    _patch_scope_index(monkeypatch)
-
-    class FakeClifOrchestrator:
-        hospitalization_ids: list[str] = []
-
-        def __init__(self, data_directory, filetype, timezone):
-            self.wide_df = pd.DataFrame()
-
-        def create_wide_dataset(
-            self,
-            tables_to_load,
-            category_filters,
-            hospitalization_ids,
-            output_format,
-            show_progress,
-        ):
-            FakeClifOrchestrator.hospitalization_ids = list(hospitalization_ids)
-            self.wide_df = pd.DataFrame({
-                "hospitalization_id": ["h1", "h2", "h2", "h3"],
-                "patient_id": ["p1", "p1", "p1", "p2"],
-                "event_time": [_dt(9), _dt(9), _dt(11), _dt(9)],
-                "heart_rate": [80.0, 90.0, 95.0, 100.0],
-            })
-
-    monkeypatch.setattr(clifpy, "ClifOrchestrator", FakeClifOrchestrator)
-
-    out = wide_mod.get_wide_feature_dataset(
-        _task_df(),
-        {"wide": {"vitals": {"categories": ["heart_rate"]}}},
-        {
-            "data_directory": "/tmp/unused",
-            "filetype": "parquet",
-            "timezone": "US/Eastern",
-            "stitch_time_interval_hours": 6,
-        },
-    )
-
-    assert FakeClifOrchestrator.hospitalization_ids == ["h1", "h2"]
-    assert set(out["hospitalization_id"].to_list()) == {"h1", "h2"}
-    assert set(out[JOIN_ID].to_list()) == {"e1"}
-    assert out["time"].max() <= _dt(10)
-
-
 def test_direct_meds_builder_expands_sibling_hospitalizations(monkeypatch, tmp_path):
     import flair_benchmark.features.fe_meds as fe_meds_mod
 
@@ -217,33 +169,6 @@ def _fake_meds(monkeypatch):
     return meds_mod
 
 
-def _fake_wide(monkeypatch):
-    """Monkeypatch clifpy with a wide row exactly ON the horizon."""
-    import clifpy
-
-    import flair_benchmark.features.wide as wide_mod
-
-    class FakeClifOrchestrator:
-        def __init__(self, data_directory, filetype, timezone):
-            self.wide_df = pd.DataFrame()
-
-        def create_wide_dataset(self, tables_to_load, category_filters,
-                                hospitalization_ids, output_format, show_progress):
-            self.wide_df = pd.DataFrame({
-                "hospitalization_id": ["h1", "h1", "h1"],
-                "patient_id": ["p1", "p1", "p1"],
-                "event_time": [_dt(9), _dt(10), _dt(11)],   # before / ON / after
-                "heart_rate": [80.0, 90.0, 95.0],
-            })
-
-    monkeypatch.setattr(clifpy, "ClifOrchestrator", FakeClifOrchestrator)
-    return wide_mod
-
-
-_WIDE_CFG = {"data_directory": "/tmp/unused", "filetype": "parquet",
-             "timezone": "US/Eastern", "stitch_time_interval_hours": 6}
-
-
 def test_default_cutoff_keeps_the_boundary_sample(monkeypatch):
     """cutoff == prediction_dttm is inclusive — unchanged behaviour for 3 of 4 tasks."""
     _patch_scope_index(monkeypatch)
@@ -254,18 +179,13 @@ def test_default_cutoff_keeps_the_boundary_sample(monkeypatch):
         {"stitch_time_interval_hours": 6})
     assert _dt(10) in out["time"].to_list()
 
-    wide_mod = _fake_wide(monkeypatch)
-    out = wide_mod.get_wide_feature_dataset(
-        _task_df(), {"wide": {"vitals": {"categories": ["heart_rate"]}}}, _WIDE_CFG)
-    assert _dt(10) in out["time"].to_list()
-
 
 def test_strict_cutoff_drops_the_boundary_sample(monkeypatch):
-    """A cutoff 1us earlier excludes the anchor row itself, in BOTH extractors.
+    """A cutoff 1us earlier excludes the anchor row itself.
 
-    wide.py and meds_stream.py still compare `time <= end_time`; only the value
-    they compare against moved. That is the point of carrying the cutoff as a
-    timestamp rather than a flag — no extractor had to learn about strictness.
+    meds_stream.py still compares `time <= end_time`; only the value it compares
+    against moved. That is the point of carrying the cutoff as a timestamp rather
+    than a flag — the extractor never had to learn about strictness.
     """
     _patch_scope_index(monkeypatch)
     meds_mod = _fake_meds(monkeypatch)
@@ -273,11 +193,6 @@ def test_strict_cutoff_drops_the_boundary_sample(monkeypatch):
         _task_df(_STRICT),
         {"meds_stream": {"medication_admin_continuous": {"categories": ["norepinephrine"]}}},
         {"stitch_time_interval_hours": 6})
-    assert out["time"].to_list() == [_dt(9)]
-
-    wide_mod = _fake_wide(monkeypatch)
-    out = wide_mod.get_wide_feature_dataset(
-        _task_df(_STRICT), {"wide": {"vitals": {"categories": ["heart_rate"]}}}, _WIDE_CFG)
     assert out["time"].to_list() == [_dt(9)]
 
 

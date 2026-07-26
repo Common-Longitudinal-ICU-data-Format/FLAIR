@@ -63,16 +63,16 @@ all four segments always present, so any prediction row traces back to its stitc
 the specific hospitalization, the patient, and the window.
 
 > **Leakage rule.** A row may use **all** data with `time ≤ feature_cutoff_dttm` and
-> **nothing** after it. Every `build()` respects this, and the feature extractors
-> enforce it.
+> **nothing** after it. Every `build()` respects this, `fe-meds` enforces it, and any
+> direct extraction you write must enforce it too.
 
 The cutoff travels as a *timestamp*, not a flag, and that is deliberate: `flair
-fe-wide --task` takes a **cohort parquet path** and never imports the task module,
+fe-meds --task` takes a **cohort parquet path** and never imports the task module,
 so a per-task rule expressed any other way would silently fall back to the default.
-Carrying a value instead means `features/wide.py` and `features/meds_stream.py` keep
-a single comparison (`time <= end_time`) and are correct without knowing that
-per-task strictness exists. A cohort predating the column is rejected loudly by
-`features/_scope.py` rather than defaulted.
+Carrying a value instead means `features/meds_stream.py` keeps a single comparison
+(`time <= end_time`) and is correct without knowing that per-task strictness exists —
+and it means the rule is legible to code FLAIR never wrote. A cohort predating the
+column is rejected loudly by `features/_scope.py` rather than defaulted.
 
 `extubation_failure_24h` is the one task that sets it: its `prediction_dttm` is the
 first non-IMV respiratory-support row — the row that *announces* the extubation — so

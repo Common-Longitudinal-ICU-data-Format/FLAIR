@@ -153,7 +153,7 @@ def test_finalize_cohort_always_stamps_a_feature_cutoff():
     """feature_cutoff_dttm is a cohort CONTRACT column, not a task option.
 
     Feature extraction reads a cohort parquet and never imports the task module
-    (`flair fe-wide --task` is a path), so the cutoff has to travel as data. If it
+    (`flair fe-meds --task` is a path), so the cutoff has to travel as data. If it
     were optional, features/_scope.py could not tell a task that wants the default
     from a stale cohort that predates the column — and would have to guess.
     """

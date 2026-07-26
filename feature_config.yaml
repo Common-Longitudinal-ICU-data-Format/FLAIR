@@ -1,20 +1,11 @@
-# FLAIR feature-engineering config (drives `flair fe-wide` / `flair fe-meds`).
+# FLAIR feature-engineering config (drives `flair fe-meds`).
 # Categories are CLIF 2.1 mCIDE values; unknown ones warn but don't fail.
+#
+# For wide time-series data (vitals, labs, assessments, respiratory support) use
+# clifpy's ClifOrchestrator.create_wide_dataset directly — and filter its output
+# to `time <= feature_cutoff_dttm` yourself; clifpy applies no leakage guard.
 clif_config: clif_config_mimic.json        # existing JSON clif config (site/data_dir/tz)
 output_directory: ./output/features        # convention; --out overrides
-
-# Wide time-series features -> clifpy create_wide_dataset -> melted to ELF long.
-wide:
-  vitals:
-    categories: [heart_rate, sbp, dbp, map, spo2, respiratory_rate, temp_c]
-  labs:
-    categories: [creatinine, lactate, wbc, hemoglobin, platelet_count, sodium, potassium]
-  medication_admin_continuous:
-    categories: [norepinephrine, epinephrine, vasopressin, propofol]
-  patient_assessments:
-    categories: [gcs_total, RASS]
-  respiratory_support:                     # clifpy 'wide' table -> column names
-    columns: [device_category, mode_category, fio2_set, peep_set]
 
 # Lightweight med event stream: raw dose + raw unit, NO unit-conversion ETL.
 meds_stream:
@@ -22,8 +13,3 @@ meds_stream:
     categories: [norepinephrine, propofol]
   medication_admin_intermittent:
     categories: [vancomycin, cefepime, piperacillin_tazobactam]
-
-# Optional per-category unit overrides (table -> category -> unit).
-# units:
-#   labs:
-#     creatinine: mg/dl

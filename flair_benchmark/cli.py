@@ -133,7 +133,7 @@ def build_report_cmd(
 
 
 def _run_fe(extractor, feature_config: str, task: str, out: str) -> None:
-    """Shared body for fe-wide / fe-meds: load config + task, extract, write."""
+    """Body for fe-meds: load config + task, extract, write."""
     import polars as pl
 
     from flair_benchmark.features._config import load_feature_config
@@ -145,18 +145,6 @@ def _run_fe(extractor, feature_config: str, task: str, out: str) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(out_path)
     typer.echo(f"Wrote {df.height:,} ELF events → {out_path}")
-
-
-@app.command("fe-wide")
-def fe_wide_cmd(
-    feature_config: str = typer.Option(..., "--feature-config",
-                                       help="Path to feature_config.yaml"),
-    task: str = typer.Option(..., "--task", help="Task cohort parquet (from load-task)"),
-    out: str = typer.Option(..., "--out", help="Output ELF parquet path"),
-) -> None:
-    """Wide time-series features → MEDS/ELF long, truncated at the prediction point."""
-    from flair_benchmark.features import get_wide_feature_dataset
-    _run_fe(get_wide_feature_dataset, feature_config, task, out)
 
 
 @app.command("fe-meds")

@@ -12,12 +12,12 @@ which selects the task's contract columns and appends:
                          we extubate?" must not see it.
 
                          Stamped on EVERY cohort on purpose. Feature extraction
-                         (`flair fe-wide` / `fe-meds`) receives a cohort parquet
-                         and never imports the task module, so the cutoff has to
-                         travel as data. Making it a value rather than a flag also
-                         means features/wide.py and features/meds_stream.py keep
-                         one comparison (`time <= end_time`) and are correct
-                         without knowing per-task strictness exists.
+                         (`flair fe-meds`, or your own code over clifpy) receives
+                         a cohort parquet and never imports the task module, so
+                         the cutoff has to travel as data. Making it a value rather
+                         than a flag also means features/meds_stream.py keeps one
+                         comparison (`time <= end_time`) and is correct without
+                         knowing per-task strictness exists.
 
   window_number  Int32   1-based k-th prediction timestep per stitched
                          encounter (hospitalization_join_id), ordered by

@@ -52,7 +52,7 @@ Configure -> Build a cohort -> Get features -> Train -> Report
 |---|---|---|
 | Configure | `flair init-config` | Write editable CLIF and feature config templates |
 | Build a cohort | `flair load-task` | Create one benchmark cohort parquet and a Table 1 JSON |
-| Get features | `flair fe-wide` or `flair fe-meds` | Optionally extract leak-guarded ELF event tables |
+| Get features | `flair fe-meds` | Optionally extract a leak-guarded ELF medication event table |
 | Train | your code | Fit a model and add predictions to the cohort rows |
 | Report | `flair build-report` | Write aggregate JSON metrics, with optional local PNGs |
 
@@ -135,10 +135,10 @@ This writes:
 - `cohort.parquet`: one row per prediction point
 - `cohort.table1.json`: aggregate cohort characteristics
 
-Optionally extract CLIF features into an ELF-long event table:
+Optionally extract CLIF medication features into an ELF-long event table:
 
 ```bash
-flair fe-wide \
+flair fe-meds \
   --feature-config feature_config.yaml \
   --task cohort.parquet \
   --out features.parquet
@@ -227,21 +227,20 @@ flair load-task icu_daily_mortality \
 
 ## Feature Options
 
-FLAIR supports three ways to turn CLIF data into model inputs.
+FLAIR supports two ways to turn CLIF data into model inputs.
 
 | Mode | How it works | Best for |
 |---|---|---|
-| Direct | Use `cohort.parquet` with `clifpy` or your own CLIF loaders | Maximum control |
-| `fe-meds` | Extract configured medication events into ELF-long parquet | Lightweight medication streams |
-| `fe-wide` | Extract configured vitals, labs, medications, assessments, and respiratory support into ELF-long parquet | Fast baseline feature building |
+| Direct | Use `cohort.parquet` with `clifpy` or your own CLIF loaders. Wide time-series (vitals, labs, assessments, respiratory support) goes through clifpy's `ClifOrchestrator.create_wide_dataset` — **you** apply the `feature_cutoff_dttm` filter | Maximum control; everything except meds |
+| `fe-meds` | Extract configured medication events into ELF-long parquet | Lightweight, leak-guarded medication streams |
 
-Both assisted extractors:
+The assisted extractor:
 
-- read `feature_config.yaml`
-- load CLIF data through `clifpy`
-- truncate events at each row's prediction point
-- write parquet
-- emit a shared ELF-long schema
+- reads `feature_config.yaml`
+- loads CLIF data through `clifpy`
+- truncates events at each row's prediction point
+- writes parquet
+- emits the ELF-long schema
 
 Example:
 

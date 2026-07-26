@@ -1,4 +1,4 @@
-"""ELF (Event List Format) helpers shared by the wide + meds extractors.
+"""ELF (Event List Format) helpers for the meds extractor.
 
 ELF long schema (one row per clinical event), mirroring CLIF_MEDS with one extra
 ``unit`` column so raw units survive for later conversion::
@@ -35,13 +35,6 @@ ELF_SCHEMA = {
     "hospitalization_id": pl.Utf8,
     "hospitalization_join_id": pl.Utf8,
 }
-
-
-def build_code(domain: str, *parts: str | None) -> str:
-    """Join an ELF code: '<DOMAIN>//<part>//<part>', dropping None/empty parts."""
-    out = [domain]
-    out.extend(str(p) for p in parts if p is not None and str(p) != "")
-    return "//".join(out)
 
 
 def empty_elf() -> pl.DataFrame:
@@ -86,8 +79,8 @@ def finalize(df: pl.DataFrame) -> pl.DataFrame:
     if bad_unit:
         raise ValueError(
             f"{bad_unit} numeric ELF rows have no unit charted; a unit is "
-            "required wherever numeric_value is set (configure features.units "
-            "or extend _units.py)."
+            "required wherever numeric_value is set (meds_stream charts 'UNK' "
+            "for a dose whose med_dose_unit is missing)."
         )
     return df
 
