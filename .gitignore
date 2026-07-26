@@ -41,6 +41,9 @@ data/
 CLIF_MEDS/
 ehrshot-benchmark/
 femr/
+# Local scratch checkout used for testing against the library. It has its own
+# git repo and is NOT part of flair-benchmark — never commit it here.
+flair_baseline/
 
 # ---- Generated documents ----
 *.docx
