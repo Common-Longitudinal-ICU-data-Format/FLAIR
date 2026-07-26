@@ -276,8 +276,13 @@ def _sweep_fig(hosp: dict, plt):
         if pts:
             ax.plot([p[0] for p in pts], [p[1] for p in pts], lw=1.6,
                     color="#1f77b4")
-            band = [(r["threshold"], r.get(f"{key}_ci")) for r in rows
-                    if r.get(f"{key}_ci")]
+            # Both endpoints must be numeric. A CI can legitimately be half-open
+            # — NNE is 1/PPV, so a PPV bound at zero gives nne_ci = [4.8, None] —
+            # and a truthiness test alone lets that through to fill_between,
+            # where matplotlib's isfinite raises TypeError on the None.
+            band = [(r["threshold"], r[f"{key}_ci"]) for r in rows
+                    if r.get(f"{key}_ci")
+                    and all(isinstance(b, (int, float)) for b in r[f"{key}_ci"])]
             if band:
                 ax.fill_between([b[0] for b in band], [b[1][0] for b in band],
                                 [b[1][1] for b in band], alpha=0.18,
