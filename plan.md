@@ -264,11 +264,11 @@ Roughly **110 import statements** across the 54 source files and 12 test files.
 `docs/task_schematics/*.log` are LaTeX build output and are **not** hand-edited; they
 regenerate.
 
-### Out-of-repo consumer
+### Out-of-repo consumers
 
-`PUBLISHING.md:137` records that `flair-baseline` is now its own repo and imports this
-package. It cannot be updated from here. The mapping table in §5 is what its
-maintainer needs; note the break in its changelog when this ships.
+None known. The `flair-baseline` reference model no longer exists and all mention
+of it has been removed from this repo. If another project turns out to import
+these paths, §5 is the mapping it needs.
 
 ---
 
@@ -343,7 +343,7 @@ top-level private path should remain anywhere.
 | A `tasks/` file gains or loses an underscore → phantom or missing task | low | `flair list-tasks` in §9 |
 | Circular import between `cohort/` modules | low | `constants.py` imports nothing from the package (already true today); `cohort/table1.py` imports `clif` and `stitch`, never the reverse |
 | A merged file exceeds what fits in one reading | low | Largest new file is `cohort/table1.py` at ~452 lines; nothing merges into `_viz.py` or `operating_points.py` |
-| `flair-baseline` breaks silently | **certain, by design** | §5 mapping table; `ModuleNotFoundError` is immediate and names the module |
+| An unknown out-of-repo importer breaks | low | No known consumers; §5 mapping table, and `ModuleNotFoundError` is immediate and names the module |
 
 ---
 

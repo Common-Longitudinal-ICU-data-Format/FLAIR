@@ -40,7 +40,6 @@ include = ["/flair_benchmark", "/README.md", "/LICENSE", "/pyproject.toml"]
 | `uv.lock` | lockfile is for dev, not consumers |
 | `clif_config_mimic.json`, `feature_config.yaml` | local/site config, not part of the lib |
 | `tests/` | not needed by consumers |
-| `flair_baseline/` | separate package (being split to its own repo) |
 
 > `init-config` scaffolds fresh `clif_config.json` + `feature_config.yaml` templates for users at runtime, so the repo's own config files don't need to ship.
 
@@ -134,5 +133,5 @@ uv publish --token <PYPI_TOKEN>
 ## Notes / gotchas
 
 - **Version is a downgrade vs. old source (`0.1.0` → `0.0.1`).** Fine here because nothing is on PyPI yet; this is the first upload.
-- The library lives in this repo alongside `flair_baseline/` (own repo) and the website (own repo) per the `split` work — only `flair_benchmark/` is published.
+- The website lives in its own repo; only `flair_benchmark/` is published from here.
 - Optional, not blocking: add `flair_benchmark/py.typed` if shipping type hints; add a `CHANGELOG.md`.

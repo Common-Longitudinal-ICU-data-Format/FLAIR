@@ -20,8 +20,6 @@ dist/
 out/
 out_external/
 output/
-flair_baseline/out/
-flair_baseline/out_external/
 
 # ---- Datasets / data files (raw data lives outside the repo) ----
 *.csv

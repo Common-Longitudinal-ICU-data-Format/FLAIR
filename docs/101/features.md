@@ -72,7 +72,7 @@ P101       | 2150-03-01 06:15 | MED_CON//norepinephrine//mcg/kg/min | 0.08 | mcg
 ```
 
 If you build wide features with clifpy, nothing forces you into this schema — but matching
-it keeps downstream baselines reusable.
+it keeps downstream feature code reusable across tasks and sites.
 
 ## feature_config.yaml
 
@@ -102,10 +102,10 @@ against a preferred-unit table, see `flair_benchmark/meds_etl/` (which wraps cli
 
 ## From ELF to model features (count truncation)
 
-The reference baseline counts ELF codes into a sparse matrix, whatever produced them
-(`fe-meds`, or your own wide extraction). Before counting, codes are **truncated to fixed
-levels** so units and order-types don't leak in as separate features
-(`flair_baseline/.../featurize.py`):
+A common way to turn ELF events into model features is to count codes into a sparse
+matrix, whatever produced them (`fe-meds`, or your own wide extraction). Before counting,
+truncate codes to **fixed levels** so units and order-types don't leak in as separate
+features:
 
 - **numeric** codes → 2 levels: `LAB//lactate//mmol/l//bmp` → `LAB//lactate`
 - **categorical** codes → 3 levels: `RESP//device_category//imv` (unchanged)
