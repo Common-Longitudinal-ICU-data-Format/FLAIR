@@ -38,13 +38,19 @@ import polars as pl
 #
 # Steps:
 #   1. Map raw location_category to a coarse std_location via LOCATION_MAPPING.
-#   2. Drop procedural rows sandwiched between two ICU rows (planned).
-#   3. Merge consecutive same-location rows into one location group, so
+#   2. Merge consecutive same-location rows into one location group, so
 #      back-to-back ICU ADT rows become a single stay.
+#   3. Drop procedural GROUPS sandwiched between two ICU groups (planned), then
+#      re-merge so the ICU groups either side become one stay.
 #   4. The 1st merged ICU group gives first_icu_start/end_time; the 2nd merged
 #      ICU group, if any, is the unplanned readmission.
 #   5. Flag direct ICU discharge (last location is ICU, so there was no chance
 #      to readmit) and intermediate ER (ER after the first location).
+#
+# Step order matters: merging BEFORE the procedural drop is what lets a routine
+# OR trip charted as several rows (OR, then PACU, then recovery) be recognised as
+# one procedural interval. Dropping first only ever matches a single-row trip, so
+# a multi-row trip to theatre reads as an unplanned ICU readmission.
 # ===========================================================================
 
 # Coarse location buckets. Anything not explicitly relevant becomes "Other";
@@ -78,6 +84,35 @@ def _empty_readmission_frame() -> pl.DataFrame:
     return pl.DataFrame(schema=_READMISSION_SCHEMA)
 
 
+def _merge_runs(df: pl.DataFrame) -> pl.DataFrame:
+    """Collapse consecutive same-`std_location` rows of a hospitalization into one.
+
+    Returns [hospitalization_id, in_dttm, out_dttm, std_location] sorted by time,
+    where in/out span the whole run. Runs twice in the readmission pipeline: once
+    on raw ADT rows, once more after planned procedural trips are removed.
+    """
+    df = df.sort(["hospitalization_id", "in_dttm"]).with_columns(
+        (
+            pl.col("std_location")
+            != pl.col("std_location").shift(1).over("hospitalization_id")
+        )
+        .fill_null(True)
+        .cum_sum()
+        .over("hospitalization_id")
+        .alias("_group")
+    )
+    return (
+        df.group_by(["hospitalization_id", "_group"])
+        .agg([
+            pl.col("in_dttm").min().alias("in_dttm"),
+            pl.col("out_dttm").max().alias("out_dttm"),
+            pl.col("std_location").first().alias("std_location"),
+        ])
+        .sort(["hospitalization_id", "in_dttm"])
+        .drop("_group")
+    )
+
+
 def compute_readmission_timing(adt: pl.DataFrame) -> pl.DataFrame:
     """One row per hospitalization_id with unplanned-readmission timing.
 
@@ -89,52 +124,40 @@ def compute_readmission_timing(adt: pl.DataFrame) -> pl.DataFrame:
     if adt.height == 0:
         return _empty_readmission_frame()
 
-    # 1. Standardize location categories.
+    # 1. Standardize location categories. replace_STRICT with a default, not
+    #    plain .replace(): the latter leaves an unmapped value UNCHANGED, so a
+    #    site-local location string would survive as itself instead of becoming
+    #    "Other" — and the docstring above would be a lie the day a site charts
+    #    something outside the mCIDE set.
     adt = adt.with_columns(
         pl.col("location_category")
         .str.to_lowercase()
-        .replace(LOCATION_MAPPING)
+        .replace_strict(LOCATION_MAPPING, default="Other")
         .alias("std_location")
     ).sort(["hospitalization_id", "in_dttm"])
 
-    # 2. Remove procedural rows sandwiched between two ICU rows (planned).
-    adt = adt.with_columns([
+    # 2. Merge consecutive same-location rows into location groups.
+    merged = _merge_runs(adt)
+
+    # 3. Drop procedural GROUPS sandwiched between two ICU groups (planned), then
+    #    re-merge — the two ICU groups either side are now adjacent and must
+    #    become one stay, or the second would read as a readmission.
+    merged = merged.with_columns([
         pl.col("std_location").shift(1).over("hospitalization_id").alias("_prev"),
         pl.col("std_location").shift(-1).over("hospitalization_id").alias("_next"),
     ])
-    adt = adt.filter(
+    merged = merged.filter(
         ~(
             (pl.col("std_location") == "Procedural")
             & (pl.col("_prev") == "ICU")
             & (pl.col("_next") == "ICU")
         )
-    ).sort(["hospitalization_id", "in_dttm"])
+    ).drop(["_prev", "_next"])
 
-    if adt.height == 0:
+    if merged.height == 0:
         return _empty_readmission_frame()
 
-    # 3. Merge consecutive same-location rows into location groups.
-    adt = adt.with_columns(
-        (
-            pl.col("std_location")
-            != pl.col("std_location").shift(1).over("hospitalization_id")
-        )
-        .fill_null(True)
-        .alias("_changed")
-    )
-    adt = adt.with_columns(
-        pl.col("_changed").cum_sum().over("hospitalization_id").alias("_group")
-    )
-
-    merged = (
-        adt.group_by(["hospitalization_id", "_group"])
-        .agg([
-            pl.col("in_dttm").min().alias("in_dttm"),
-            pl.col("out_dttm").max().alias("out_dttm"),
-            pl.col("std_location").first().alias("std_location"),
-        ])
-        .sort(["hospitalization_id", "in_dttm"])
-    )
+    merged = _merge_runs(merged)
 
     merged = merged.with_columns(
         pl.col("in_dttm").rank("ordinal").over("hospitalization_id").alias("_loc_rank")
@@ -274,9 +297,14 @@ def detect_imv_episodes(
 
         first_imv_idx = next((i for i, v in enumerate(imvs) if v == 1), None)
         first_trach_idx = next((i for i, v in enumerate(trachs) if v), None)
+        # <=, not <: one row can be both IMV and trach (a trached patient
+        # ventilated through the trach). The loop below breaks on the trach
+        # sentinel before it can ever open an episode at that index, so a strict
+        # < would call this "not pre-existing" and the hospitalization would
+        # return NOTHING — no episode and no sentinel row either.
         pre_existing_trach = (
             first_trach_idx is not None
-            and (first_imv_idx is None or first_trach_idx < first_imv_idx)
+            and (first_imv_idx is None or first_trach_idx <= first_imv_idx)
         )
 
         episodes: list[tuple] = []  # (start_dttm, end_dttm | None)

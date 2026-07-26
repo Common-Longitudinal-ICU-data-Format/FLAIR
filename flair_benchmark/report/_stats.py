@@ -43,6 +43,41 @@ def suppress_dict(counts: dict, threshold: int = MIN_CELL_COUNT) -> dict:
     return {k: suppress(int(v), threshold) for k, v in counts.items()}
 
 
+def suppress_confusion(tp: int, fp: int, fn: int, tn: int,
+                       threshold: int = MIN_CELL_COUNT) -> dict:
+    """The 2x2 as a publishable dict, with SECONDARY suppression applied.
+
+    Masking cells one at a time is not enough here, because the four cells are
+    not independent of what the report publishes alongside them:
+
+        tp + fp + fn + tn == n            (the stratum size)
+        tp + fp           == n_flagged    (recoverable from flag_rate x n)
+
+    So a single masked cell is recoverable by subtraction, and the mask
+    accomplishes nothing. This applies the standard second step: whenever a cell
+    is masked, mask its PARTNER in the same total as well — tp with fp, fn with
+    tn — so each published total is short two unknowns and neither can be solved
+    for.
+
+    A cell of exactly 0 is published as 0 and never triggers partner masking. A
+    true zero identifies nobody (the same rule `table1._prevalence` applies to a
+    0.0 prevalence), and hiding it would be pointless anyway: with the totals in
+    the clear, "the other three sum to n" gives it away immediately.
+
+    Returns {"tp", "fp", "fn", "tn"}, each an int or the string '<threshold'.
+    """
+    cells = {"tp": int(tp), "fp": int(fp), "fn": int(fn), "tn": int(tn)}
+    disclosive = {k: 0 < v < threshold for k, v in cells.items()}
+    masked = {
+        k
+        for a, b in (("tp", "fp"), ("fn", "tn"))
+        if disclosive[a] or disclosive[b]
+        for k in (a, b)
+        if cells[k] > 0
+    }
+    return {k: (f"<{threshold}" if k in masked else v) for k, v in cells.items()}
+
+
 # ===========================================================================
 # Part 2 — Generalized percentile bootstrap for 95% confidence intervals
 #

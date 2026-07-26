@@ -89,7 +89,12 @@ import polars as pl
 from flair_benchmark.cohort.clif import base_icu_cohort, load_respiratory_support, read_clif_config
 from flair_benchmark.cohort.encounter import as_encounter_keyed, encounter_attributes
 from flair_benchmark.cohort.events import detect_imv_episodes
-from flair_benchmark.cohort.stitch import assign_split, load_or_build_encounter_index
+from flair_benchmark.cohort.stitch import (
+    JOIN_ID,
+    assign_split,
+    load_or_build_encounter_index,
+    members_of_joins,
+)
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 HORIZON_HOURS = 24
@@ -159,7 +164,12 @@ def build(clif_config: str, train_end: str | None,
     cohort, _adt = base_icu_cohort(cfg)
     idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
 
-    hosp_ids = cohort["hospitalization_id"].to_list()
+    # Load respiratory support for every hospitalization in a cohort ENCOUNTER,
+    # not just the cohort's own ids. The relabel below reasons across the whole
+    # stitched encounter, so a sibling admission whose rows were never loaded
+    # would leave that encounter's ventilation history silently incomplete —
+    # a reintubation in the sibling stay simply would not exist.
+    hosp_ids = members_of_joins(idx, cohort[JOIN_ID].cast(pl.Utf8).unique().to_list())
     resp = load_respiratory_support(cfg, hospitalization_ids=hosp_ids)
 
     # Encounter grain: relabel respiratory support to the stitched encounter so

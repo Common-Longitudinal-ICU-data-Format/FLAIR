@@ -1,13 +1,16 @@
 """Read a CLIF table, clean it, and emit MEDS event rows. Shared by every domain.
 
 One emit loop plus small per-domain hooks (unit conversion, column drops,
-null-skip, outlier clamping), replacing the near-identical per-domain processors
-CLIF_MEDS had. Per-domain behaviour is preserved exactly; only the duplication is
-gone.
+null-skip, outlier nulling), replacing the near-identical per-domain processors
+CLIF_MEDS had.
 
 Every returned frame has the MEDS event schema:
-    subject_id (Int64), time (Datetime), code (Utf8),
-    numeric_value (Float32), text_value (Utf8), hospitalization_id (Int64)
+    subject_id (Utf8), time (Datetime), code (Utf8),
+    numeric_value (Float32), text_value (Utf8), hospitalization_id (Utf8)
+
+IDs ARE STRINGS. CLIF types patient_id and hospitalization_id as strings in
+mCIDE, and real sites use alphanumeric ('P101', 'HOSP_0012') or zero-padded
+('007') values. Anything else here loses rows or silently renumbers patients.
 
 The load path is: clifpy DuckDB scan -> pandas -> polars -> strip timezone ->
 normalize categories. Both cleaning steps matter and are easy to skip by
@@ -41,12 +44,12 @@ _PUSHDOWN_MAX_IDS = int(os.environ.get("FLAIR_PUSHDOWN_MAX_IDS", "50000"))
 _T = TypeVar("_T")
 
 MEDS_SCHEMA = {
-    "subject_id": pl.Int64,
+    "subject_id": pl.Utf8,
     "time": pl.Datetime,
     "code": pl.Utf8,
     "numeric_value": pl.Float32,
     "text_value": pl.Utf8,
-    "hospitalization_id": pl.Int64,
+    "hospitalization_id": pl.Utf8,
 }
 
 
@@ -259,20 +262,35 @@ def _code_expr(code_spec, available: set[str]) -> pl.Expr:
     return pl.concat_str(parts, separator="//")
 
 
+def _outside(base: pl.Expr, lo: float, hi: float) -> pl.Expr:
+    """`base` with out-of-range values replaced by null (never by the limit)."""
+    return pl.when(base.is_between(lo, hi)).then(base).otherwise(None)
+
+
 def _numeric_expr(nv_col: str, clamp_limits: dict, clamp_category_col: str | None,
                   available: set[str]) -> pl.Expr:
-    """Float numeric value with optional outlier clamping (by category or per-column)."""
+    """Float numeric value, with out-of-range values NULLED (by category or per-column).
+
+    Out-of-range means "we do not believe this measurement", so it becomes
+    missing — the same thing clifpy's own outlier handling does. It must not be
+    winsorised to the limit: clipping turns an implausible value into a
+    plausible-looking one, and a downstream model cannot tell the difference. A
+    single wrong limit then rewrites a whole column (a `height_cm: [30, 96]` typo
+    silently reports every adult as 96 cm) instead of just emptying it, which is
+    at least visible.
+    """
     base = pl.col(nv_col).cast(pl.Float64, strict=False)
     if not clamp_limits:
         return base
     if clamp_category_col and clamp_category_col in available:
         acc = base
         for key, (lo, hi) in clamp_limits.items():
-            acc = pl.when(pl.col(clamp_category_col) == key).then(base.clip(lo, hi)).otherwise(acc)
+            acc = (pl.when(pl.col(clamp_category_col) == key)
+                   .then(_outside(base, lo, hi)).otherwise(acc))
         return acc
     if nv_col in clamp_limits:
         lo, hi = clamp_limits[nv_col]
-        return base.clip(lo, hi)
+        return _outside(base, lo, hi)
     return base
 
 
@@ -286,9 +304,11 @@ def emit_events(df: pl.DataFrame, concepts: dict, subject_id_col: str, *,
     if subject_id_col not in available:
         return pl.DataFrame(schema=MEDS_SCHEMA)
 
-    subj = pl.col(subject_id_col).cast(pl.Int64, strict=False)
-    hosp = (pl.col("hospitalization_id").cast(pl.Int64, strict=False)
-            if "hospitalization_id" in available else pl.lit(None, dtype=pl.Int64))
+    # Utf8, never Int64: a numeric cast turns every alphanumeric site id into null
+    # and the is_not_null filter below would then drop the entire table silently.
+    subj = pl.col(subject_id_col).cast(pl.Utf8, strict=False)
+    hosp = (pl.col("hospitalization_id").cast(pl.Utf8, strict=False)
+            if "hospitalization_id" in available else pl.lit(None, dtype=pl.Utf8))
 
     frames: list[pl.DataFrame] = []
     for concept_name, mapping in concepts.items():

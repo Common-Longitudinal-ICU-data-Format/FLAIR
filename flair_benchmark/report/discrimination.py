@@ -23,12 +23,14 @@ import polars as pl
 
 from flair_benchmark.report._basis import action_mask, alarm_mask
 from flair_benchmark.report._stats import (
+    MIN_CELL_COUNT,
     bootstrap_ci,
     confusion_counts,
     confusion_metric,
     mk_stat,
     r1,
     suppress,
+    suppress_confusion,
 )
 
 # Backward-compatible private aliases (other report modules import these).
@@ -147,7 +149,8 @@ def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
     action fires on LOW risk) lives in the separate `action` block.
 
     Each rate carries a 95% bootstrap CI; confusion counts pass through
-    suppress() for PHI safety.
+    suppress_confusion() for PHI safety — see there for why masking a cell on
+    its own is not enough when n and n_flagged are published beside it.
 
     ``extra_stats`` ({name: stat_fn}) piggyback on the SAME bootstrap loop
     (one resample stream for everything); their CIs come back under the
@@ -181,14 +184,28 @@ def _operating_point(y_true: np.ndarray, y_prob: np.ndarray, meta: dict,
         # clinical_direction — these are the standard model-performance numbers.
         **{k: _r1(v) for k, v in point.items()},
         **{f"{k}_ci": ci[k] for k in point},
-        "flag_rate": round(n_flag / n, 4) if n else None,
-        "tp": suppress(tp), "fp": suppress(fp),
-        "fn": suppress(fn), "tn": suppress(tn),
-        "n_flagged": n_flag,
+        # flag_rate x n recovers n_flagged exactly, so the two are suppressed
+        # together or not at all.
+        "flag_rate": (round(n_flag / n, 4)
+                      if n and not _flag_count_disclosive(n_flag, n) else None),
+        # suppress_confusion, not suppress: n_flagged below (== tp + fp) and the
+        # cohort n make any single masked cell recoverable by subtraction.
+        **suppress_confusion(tp, fp, fn, tn),
+        "n_flagged": (suppress(n_flag) if _flag_count_disclosive(n_flag, n)
+                      else n_flag),
         # the actual clinical decision (direction-aware): act on p<t when the
         # action fires for LOW risk (e.g. extubate when failure risk < t).
         "action": _action_block(y_true, y_prob, t, direction),
     }
+
+
+def _flag_count_disclosive(n_flag: int, n: int) -> bool:
+    """True when either arm of the flag split is a small NONZERO count.
+
+    Both arms matter: `n - n_flag` is as recoverable as `n_flag` once `n` is
+    published. A true zero is not disclosive (see `suppress_confusion`).
+    """
+    return (0 < n_flag < MIN_CELL_COUNT) or (0 < n - n_flag < MIN_CELL_COUNT)
 
 
 def _action_block(y_true: np.ndarray, y_prob: np.ndarray, t: float,
@@ -202,9 +219,10 @@ def _action_block(y_true: np.ndarray, y_prob: np.ndarray, t: float,
     acted = action_mask(y_prob, t, direction)
     n = len(y_true)
     n_act = int(acted.sum())
+    n_not = n - n_act
     ev_act = float(y_true[acted].mean()) if n_act else None
-    ev_not = float(y_true[~acted].mean()) if (n - n_act) else None
-    return {
+    ev_not = float(y_true[~acted].mean()) if n_not else None
+    out = {
         "acts_on": "y_prob < threshold" if direction == "below"
                    else "y_prob >= threshold",
         "n_acted": suppress(n_act),
@@ -212,6 +230,18 @@ def _action_block(y_true: np.ndarray, y_prob: np.ndarray, t: float,
         "event_rate_in_acted": None if ev_act is None else round(ev_act, 4),
         "event_rate_in_not_acted": None if ev_not is None else round(ev_not, 4),
     }
+    # DISCLOSURE: a masked n_acted next to a published act_rate hides nothing —
+    # act_rate x n gives it straight back. Drop the rate with the count. A true
+    # zero is exempt (see _stats.suppress_confusion).
+    if 0 < n_act < MIN_CELL_COUNT or 0 < n_not < MIN_CELL_COUNT:
+        out["act_rate"] = None
+    # STABILITY: an event rate computed from a tiny arm means nothing, zero
+    # included. Same split as operating_points._decision_row.
+    if n_act < MIN_CELL_COUNT:
+        out["event_rate_in_acted"] = None
+    if n_not < MIN_CELL_COUNT:
+        out["event_rate_in_not_acted"] = None
+    return out
 
 
 def _multiclass_curves(test: pl.DataFrame, label_col: str,

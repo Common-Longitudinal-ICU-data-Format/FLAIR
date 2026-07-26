@@ -16,8 +16,19 @@ medication_admin_intermittent:
 
     unit_conversion:
       enabled: true
+      # override: a preferred-unit key naming a med this site never charts is
+      # normal, so downgrade clifpy's error to a log line.
       override: true
-      allow_other_meds: false
+      # allow_other_meds MUST stay true. preferred_units is a CONVERSION table,
+      # not a vocabulary: false makes its key set a row filter, and every mCIDE
+      # med_category without an entry here is dropped from the extract. clifpy
+      # already falls back to base units (mcg/min, ml/min, u/min) for a category
+      # with no preferred unit, so nothing is lost by letting those rows through.
+      allow_other_meds: true
+      # Keys must be exact CLIF 2.1 mCIDE med_category values — a misspelled key
+      # matches nothing and the intended conversion silently never happens. Keys
+      # naming continuous-only categories (amiodarone, insulin, ...) are inert
+      # here; they stay so the two MED files read the same way.
       preferred_units:
         acetaminophen: mg
         acyclovir: dose
@@ -79,8 +90,8 @@ medication_admin_intermittent:
         propofol: mg
         rifampin: dose
         rocuronium: mg
-        sodium bicarbonate: ml
-        sodium chloride: ml
+        sodium_bicarbonate: ml
+        sodium_chloride: ml
         tigecycline: dose
         tobramycin: dose
         vancomycin: dose

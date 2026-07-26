@@ -306,6 +306,16 @@ def _validate_preds_schema(preds: pl.DataFrame, meta: dict) -> None:
                 f"probability in [0, 1], but {n_null} of {preds.height} values are "
                 f"null. Drop those rows or fill in a probability."
             )
+        # NaN is neither null nor range-detectable: null_count() ignores it and
+        # min()/max() skip it, so a NaN score clears both other guards here and
+        # then dies deep inside sklearn with an unrelated-looking message.
+        n_nan = int(preds["y_prob"].cast(pl.Float64, strict=False).is_nan().sum())
+        if n_nan > 0:
+            raise ValueError(
+                f"Predictions parquet for task '{meta['name']}': y_prob must be a "
+                f"probability in [0, 1], but {n_nan} of {preds.height} values are "
+                f"NaN. Drop those rows or fill in a probability."
+            )
         lo, hi = preds["y_prob"].min(), preds["y_prob"].max()
         if lo < -1e-6 or hi > 1 + 1e-6:
             raise ValueError(

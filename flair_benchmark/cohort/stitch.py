@@ -12,10 +12,12 @@ hospitalization_ids. clifpy's `stitch_encounters` links such records into one
 `encounter_block`; we rename it `hospitalization_join_id` and thread it through
 every FLAIR stage.
 
-The split is then decided once per join id and broadcast to all of that
-encounter's rows, so a single encounter can never span train and test. That is
-what prevents leakage in count-feature and time-series models — and it only works
-because the split is keyed on the stitched id rather than the raw one.
+The split is then decided once per PATIENT and broadcast to every row of every
+encounter that patient has, so neither a stitched encounter nor a patient's
+separate admissions can span train and test. That is what prevents leakage in
+count-feature and time-series models. Stitching alone is not enough: it only
+joins admissions hours apart, and the same patient readmitted a month later has a
+second join id that a join-id split would happily deal into the other arm.
 
 The index is built ONCE per (config, time_interval) and cached to parquet, so the
 same stitched mapping is reused by every task, feature and metadata run.
@@ -66,8 +68,35 @@ def _cache_dir(cfg: dict) -> Path:
     return base
 
 
+def source_fingerprint(cfg: dict) -> str:
+    """Short digest of the CLIF source files an index/score cache was built from.
+
+    Covers path, size and mtime of every file directly under `data_directory`.
+    A cache keyed on `path.exists()` alone is stale the moment a site re-ETLs its
+    data or repoints `data_directory`, and nothing about the stale result looks
+    wrong — the split just silently belongs to yesterday's cohort. Folding this
+    into the filename means a changed source builds a new cache instead of
+    quietly reusing the old one.
+
+    Directory listing only (never file contents), so it stays O(number of files)
+    on a multi-GB data directory.
+    """
+    root = Path(cfg["data_directory"])
+    parts = [str(root)]
+    try:
+        for p in sorted(root.iterdir()):
+            if p.is_file():
+                st = p.stat()
+                parts.append(f"{p.name}:{st.st_size}:{st.st_mtime_ns}")
+    except OSError:
+        # Unreadable directory: fall back to the path alone rather than failing.
+        pass
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
+
+
 def _cache_path(cfg: dict, time_interval: int) -> Path:
-    return _cache_dir(cfg) / f"encounter_index_{time_interval}h.parquet"
+    return (_cache_dir(cfg)
+            / f"encounter_index_{time_interval}h_{source_fingerprint(cfg)}.parquet")
 
 
 def build_encounter_index(cfg: dict, time_interval: int = 6) -> pl.DataFrame:
@@ -130,7 +159,9 @@ def load_or_build_encounter_index(cfg: dict, time_interval: int = 6,
     """Read the cached encounter index, building (and saving) it on first use.
 
     This is the "run before all tasks, saved" step: the first cohort build writes
-    the parquet, every later run reads it.
+    the parquet, every later run reads it. The filename carries a fingerprint of
+    the source files (`source_fingerprint`), so re-ETL'd data rebuilds rather
+    than silently reusing the previous stitching.
     """
     if cache_dir is not None:
         cfg = {**cfg, "cache_directory": cache_dir}
@@ -200,7 +231,11 @@ def members_of_joins(idx: pl.DataFrame, join_ids: list[str]) -> list[str]:
 # Every cohort always carries BOTH 'train' and 'test', whether or not the site
 # will fit a model, so the cohort and Table 1 schemas are identical across sites.
 #
-# Regimes, in priority order (all at block grain):
+# GRAIN: the patient (`patient_id`), falling back to the stitched encounter when
+# the cohort has no patient column. See `assign_split` for why the encounter is
+# not a wide enough boundary.
+#
+# Regimes, in priority order (all at that grain):
 #   1. train_end AND test_start given -> date cutoff on the block's earliest
 #      admission_col (the production temporal split).
 #   2. site == 'mimic', no dates      -> RANDOM 75/25 over blocks. MIMIC admission
@@ -212,6 +247,20 @@ def members_of_joins(idx: pl.DataFrame, join_ids: list[str]) -> list[str]:
 # Data cutoff: for non-mimic sites, rows after constants.DATA_CUTOFF are dropped
 # before splitting (the current year is not fully ETL'd). MIMIC is exempt.
 # ===========================================================================
+
+
+def _split_cutoff(n: int, train_ratio: float) -> int:
+    """Index of the first test group: how many of `n` ordered groups go to train.
+
+    Clamped to [1, n-1] so both arms are non-empty whenever that is possible at
+    all. A bare `int(n * train_ratio)` is 0 for n == 1 and for any n below
+    1/train_ratio, which hands a small cohort ZERO training rows — the exact
+    opposite of this module's "always carries BOTH" contract, and it fails
+    silently. n == 1 cannot honour the contract; that lone group goes to train.
+    """
+    if n <= 1:
+        return n
+    return min(max(1, int(n * train_ratio)), n - 1)
 
 
 def _stable_digest(group_id: str) -> str:
@@ -230,14 +279,23 @@ def assign_split(cohort: pl.DataFrame, site: str,
                  train_end: str | None, test_start: str | None,
                  *, admission_col: str = "admission_dttm",
                  split_col: str = "hospitalization_join_id",
+                 patient_col: str = "patient_id",
                  train_ratio: float = 0.75) -> pl.DataFrame:
     """Add a 'split' column in {'train', 'test', null}; always produces train + test.
 
-    `split_col` is the grain at which train/test is decided (default
-    `hospitalization_join_id`); `admission_col` orders blocks for the temporal
-    regime and drives the date cutoff for production sites.
+    THE GRAIN IS THE PATIENT, falling back to `split_col` (the stitched encounter)
+    only when the cohort has no `patient_col`. Stitching joins admissions that are
+    hours apart, but a patient readmitted weeks later gets a second, unrelated
+    join id — and splitting on the join id alone would happily put one of that
+    patient's stays in train and the other in test. Comorbidities, baseline labs
+    and chronic-condition signal are all shared across a patient's admissions, so
+    that is leakage even though no single encounter is torn in half.
+
+    `admission_col` orders groups for the temporal regime and drives the date
+    cutoff for production sites.
     """
     is_mimic = bool(site) and site.lower() == "mimic"
+    grain = patient_col if patient_col in cohort.columns else split_col
 
     # Global data cutoff — drop rows after DATA_CUTOFF so partially-ETL'd
     # current-year data never enters the cohort. Skipped for mimic
@@ -247,14 +305,14 @@ def assign_split(cohort: pl.DataFrame, site: str,
 
     # 1. Explicit production cutoff dates take precedence at any site.
     if train_end is not None and test_start is not None:
-        return _date_split(cohort, train_end, test_start, admission_col, split_col)
+        return _date_split(cohort, train_end, test_start, admission_col, grain)
 
     # 2. MIMIC, no dates -> deterministic random split (dates de-identified).
     if is_mimic:
-        return _random_split_by_group(cohort, split_col, train_ratio)
+        return _random_split_by_group(cohort, grain, train_ratio)
 
     # 3. Other site, no dates -> temporal split (oldest 75% train, newest 25% test).
-    return _ratio_split_by_group(cohort, split_col, admission_col, train_ratio)
+    return _ratio_split_by_group(cohort, grain, admission_col, train_ratio)
 
 
 def _date_split(cohort: pl.DataFrame, train_end: str, test_start: str,
@@ -291,13 +349,15 @@ def _random_split_by_group(cohort: pl.DataFrame, split_col: str,
     digest-ordered groups are 'train'. Falls back to a per-row split only if
     `split_col` is absent.
 
-    Split-version note: builds before 2026-07 ordered by `pl.Expr.hash(seed=0)`;
-    this deal supersedes them.
+    Split-version note: builds before 2026-07 ordered by `pl.Expr.hash(seed=0)`,
+    and dealt at encounter grain rather than patient grain. This deal supersedes
+    both — a cohort regenerated on this version will not reproduce an earlier
+    train/test assignment, so re-score any model trained against one.
     """
     if split_col not in cohort.columns:
         # No block key (rare): deterministic per-row split by row order.
         ranked = cohort.with_row_index("_row_num")
-        cutoff = int(ranked.height * train_ratio)
+        cutoff = _split_cutoff(ranked.height, train_ratio)
         return ranked.with_columns(
             pl.when(pl.col("_row_num") < cutoff).then(pl.lit("train"))
             .otherwise(pl.lit("test")).alias("split")
@@ -311,7 +371,7 @@ def _random_split_by_group(cohort: pl.DataFrame, split_col: str,
         .sort(["_h", split_col])
         .with_row_index("_gi")
     )
-    cutoff = int(groups.height * train_ratio)
+    cutoff = _split_cutoff(groups.height, train_ratio)
     groups = groups.with_columns(
         pl.when(pl.col("_gi") < cutoff).then(pl.lit("train"))
         .otherwise(pl.lit("test"))
@@ -337,7 +397,7 @@ def _ratio_split_by_group(cohort: pl.DataFrame, split_col: str, order_col: str,
         .sort(["_g_order", split_col])
         .with_row_index("_gi")
     )
-    cutoff = int(groups.height * train_ratio)
+    cutoff = _split_cutoff(groups.height, train_ratio)
     groups = groups.with_columns(
         pl.when(pl.col("_gi") < cutoff).then(pl.lit("train"))
         .otherwise(pl.lit("test"))
@@ -349,7 +409,7 @@ def _ratio_split_by_group(cohort: pl.DataFrame, split_col: str, order_col: str,
 def _ratio_split_per_row(cohort: pl.DataFrame, order_col: str,
                          train_ratio: float) -> pl.DataFrame:
     sorted_df = cohort.sort(order_col).with_row_index("_row_num")
-    cutoff = int(sorted_df.height * train_ratio)
+    cutoff = _split_cutoff(sorted_df.height, train_ratio)
     return (
         sorted_df.with_columns(
             pl.when(pl.col("_row_num") < cutoff).then(pl.lit("train"))

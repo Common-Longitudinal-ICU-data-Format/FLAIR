@@ -36,8 +36,10 @@ WHAT EACH MODE ADDS:
               on either — build_dca has exactly one caller, episodic.py — so a
               continuous task simply has no decision curve.
 
-Privacy: every confusion / burden count passes ``suppress()``; a rate derived from
-fewer than ``MIN_CELL_COUNT`` flagged/acted stays is nulled with a reason.
+Privacy: every burden count passes ``suppress()`` and every 2x2 passes
+``suppress_confusion()`` (which masks in PAIRS, since the published totals make a
+lone masked cell recoverable by subtraction); a rate derived from fewer than
+``MIN_CELL_COUNT`` flagged/acted stays is nulled with a reason.
 """
 
 from __future__ import annotations
@@ -59,6 +61,7 @@ from flair_benchmark.report._stats import (
     r1,
     scalar_ci,
     suppress,
+    suppress_confusion,
 )
 from flair_benchmark.report._sweep import (
     RATE_KEYS,
@@ -76,6 +79,8 @@ from flair_benchmark.report.fairness import (
     _bin_age,
     encode_levels,
     gap_triplet,
+    gap_triplet_by_threshold,
+    threshold_bins,
 )
 
 _BLOCK = "hospitalization_join_id"
@@ -105,11 +110,16 @@ def _clinical_index(t0: float) -> int:
 
 def _confusion_row(tp: np.ndarray, fp: np.ndarray, fn: np.ndarray,
                    tn: np.ndarray, i: int) -> dict:
-    """FULL alert x label 2x2 at grid row i — all four cells, suppressed."""
+    """FULL alert x label 2x2 at grid row i — all four cells, suppressed.
+
+    `n` stays in the clear (it is the same stratum size published everywhere
+    else), which is exactly why the cells go through `suppress_confusion` rather
+    than `suppress`: with n known, masking one cell alone leaves it recoverable
+    by subtracting the other three.
+    """
     return {
         "n": int(tp[i] + fp[i] + fn[i] + tn[i]),
-        "tp": suppress(int(tp[i])), "fp": suppress(int(fp[i])),
-        "fn": suppress(int(fn[i])), "tn": suppress(int(tn[i])),
+        **suppress_confusion(tp[i], fp[i], fn[i], tn[i]),
     }
 
 
@@ -299,12 +309,26 @@ def _decision_row(tp: np.ndarray, fp: np.ndarray, fn: np.ndarray, tn: np.ndarray
         "net_benefit_treat_none": 0.0,
         "clinically_useful": useful,
     }
-    if n_acted < MIN_CELL_COUNT:                    # net benefit derives from this arm
+    # Two different rules, because two different risks.
+    #
+    # DISCLOSURE — suppressing n_acted alone is theatre: act_rate x n recovers it
+    # exactly. So the rate goes with the count. A true zero is exempt (it
+    # identifies nobody); see _stats.suppress_confusion.
+    if 0 < n_acted < MIN_CELL_COUNT or 0 < n_not < MIN_CELL_COUNT:
+        out["act_rate"] = None
+        out["event_rate_in_acted"] = None
+        out["event_rate_in_not_acted"] = None
+    # STABILITY — a number computed FROM an arm is meaningless when that arm is
+    # tiny, zero very much included. Net benefit is the acted arm's own quantity.
+    if n_acted < MIN_CELL_COUNT:
+        out["event_rate_in_acted"] = None
         out["net_benefit"] = None
         out["net_benefit_ci"] = None
         out["clinically_useful"] = None
         out["suppressed_reason"] = (
             f"fewer than {MIN_CELL_COUNT} stays acted on at this threshold")
+    if n_not < MIN_CELL_COUNT:
+        out["event_rate_in_not_acted"] = None
     return out
 
 
@@ -617,6 +641,11 @@ def _fairness_by_threshold(preds: pl.DataFrame, meta: dict,
     label = (df[meta["label_column"]].to_numpy() > 0).astype(int)
     prob = df["y_prob"].to_numpy().astype(float)
     preds_at = [prob >= t for t in thresholds]
+    # Same flag decisions as `preds_at`, in the form the vectorized gap function
+    # wants: one bin index per row instead of one boolean array per threshold.
+    grid = np.asarray(thresholds, dtype=float)
+    bins = threshold_bins(prob, grid)
+    n_t = len(thresholds)
 
     pinned: dict[str, tuple[np.ndarray, list[str]]] = {}
     for col in cols:
@@ -629,21 +658,25 @@ def _fairness_by_threshold(preds: pl.DataFrame, meta: dict,
     if not pinned:
         return None
 
+    # Point estimates: one vectorized call per column covers the whole grid.
+    point_gaps = {col: _gaps_grid(codes, label, bins, len(levels), n_t)
+                  for col, (codes, levels) in pinned.items()}
+
     per_threshold: list[dict] = []
-    for pred in preds_at:
+    for ti, pred in enumerate(preds_at):
         subgroups, parity = {}, {}
         for col, (codes, levels) in pinned.items():
             subgroups[col] = {
                 lv: _level_rates(label[codes == k], pred[codes == k])
                 for k, lv in enumerate(levels)
             }
-            dp, tg, fg = _gaps(codes, label, pred, len(levels))
+            dp, tg, fg = (g[ti] for g in point_gaps[col])
             parity[col] = {
                 "reference_group": max(
                     levels, key=lambda lv: (int((codes == levels.index(lv)).sum()), lv)),
-                "demographic_parity_gap": _r1(dp),
-                "equalized_odds_tpr_gap": _r1(tg),
-                "equalized_odds_fpr_gap": _r1(fg),
+                "demographic_parity_gap": _r1(_none_if_nan(dp)),
+                "equalized_odds_tpr_gap": _r1(_none_if_nan(tg)),
+                "equalized_odds_fpr_gap": _r1(_none_if_nan(fg)),
             }
         per_threshold.append({"subgroups": subgroups, "parity": parity})
 
@@ -653,17 +686,15 @@ def _fairness_by_threshold(preds: pl.DataFrame, meta: dict,
     samples: dict[tuple[int, str, str], list[float]] = {}
     for _ in range(BOOT_REPS):
         idx = rng.integers(0, n, n)
-        lab_b = label[idx]
-        preds_b = [pred[idx] for pred in preds_at]
-        codes_b = {col: codes[idx] for col, (codes, _lv) in pinned.items()}
-        for ti, pred_b in enumerate(preds_b):
-            for col, (_codes, levels) in pinned.items():
-                dp, tg, fg = _gaps(codes_b[col], lab_b, pred_b, len(levels))
-                for name, val in (("demographic_parity_gap", dp),
-                                  ("equalized_odds_tpr_gap", tg),
-                                  ("equalized_odds_fpr_gap", fg)):
-                    if val is not None:
-                        samples.setdefault((ti, col, name), []).append(val)
+        lab_b, bins_b = label[idx], bins[idx]
+        for col, (codes, levels) in pinned.items():
+            triplet = _gaps_grid(codes[idx], lab_b, bins_b, len(levels), n_t)
+            for name, arr in zip(("demographic_parity_gap",
+                                  "equalized_odds_tpr_gap",
+                                  "equalized_odds_fpr_gap"), triplet):
+                for ti in np.flatnonzero(~np.isnan(arr)):
+                    samples.setdefault((int(ti), col, name), []).append(
+                        float(arr[ti]))
 
     for ti, block in enumerate(per_threshold):
         for col in block["parity"]:
@@ -686,6 +717,13 @@ def _level_rates(label: np.ndarray, pred: np.ndarray) -> dict:
     }
 
 
-# parity-gap arithmetic is single-sourced in fairness.py (gap_triplet) — the
-# per-threshold sweep here and fairness.json must agree by construction.
+# parity-gap arithmetic is single-sourced in fairness.py — the per-threshold
+# sweep here and fairness.json must agree by construction. `_gaps_grid` is the
+# whole-grid form of `_gaps`; both live there.
 _gaps = gap_triplet
+_gaps_grid = gap_triplet_by_threshold
+
+
+def _none_if_nan(x) -> float | None:
+    """NaN is how the vectorized gap function spells 'undefined'."""
+    return None if x is None or np.isnan(x) else float(x)

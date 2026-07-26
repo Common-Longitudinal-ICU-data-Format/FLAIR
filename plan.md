@@ -1,7 +1,8 @@
 # plan.md — `flair_benchmark/` restructure
 
 **Status:** EXECUTED. See §11 for what actually happened, including two
-deviations from this plan.
+deviations from this plan. The 15 code-review findings this restructure deferred
+were fixed in a later commit — see the Appendix.
 **Goal:** fewer files, clearer grouping, plainer comments — with the CLI surface unchanged.
 **Branch:** `add_new_task`
 **Verification gate:** `pytest tests/` must report **169 passed** before and after.
@@ -64,7 +65,7 @@ into `_viz.py` or `operating_points.py`.**
 |---|---|---|
 | Aggressiveness | **Grouped** | Fixes all three problems; no new module over ~460 lines. |
 | Concept YAMLs | **Keep all 10 separate** | Per-domain clinical review matters — see Appendix findings 4 and 5, both content bugs in a single domain YAML. |
-| Bug fixes | **Excluded** | Structural change only. The 15 review findings are recorded in the Appendix as separate follow-up work. |
+| Bug fixes | **Excluded from this commit** | Structural change only. The 15 review findings were recorded in the Appendix and fixed in a **follow-up commit** — see the Appendix for the resolution of each. |
 | Back-compat | **Clean break, no shims** | Package is at `0.0.1`. Shims would add ~8 files back, defeating the goal. Old paths raise `ModuleNotFoundError` immediately and greppably. |
 | Commits | **One single commit** | Chosen deliberately; note the cost in §7. |
 | Stale `.pyc` | **Delete** | 14 stale `.pyc` files for task modules that no longer exist. |
@@ -430,11 +431,31 @@ laziness bought nothing.
 
 ---
 
-## Appendix — code-review findings (separate work, NOT in this plan)
+## Appendix — code-review findings (fixed in a follow-up commit)
 
 A `/code-review` pass over `git diff main...HEAD` plus the working tree returned 15
-findings. They are **content** bugs, unrelated to layout, and are deliberately excluded
-so the restructure diff stays purely mechanical. Recorded here so they are not lost.
+findings. They are **content** bugs, unrelated to layout, and were deliberately excluded
+from the restructure so that diff stayed purely mechanical.
+
+**All 15 are now fixed**, plus the five unranked notes, in a separate commit. File paths
+below are the PRE-restructure names the review used; the resolution line gives the
+current one. Regression tests live in `tests/test_review_fixes.py` — 5 of the 6
+behavioural bugs there were confirmed to reproduce against the pre-fix code before the
+fix landed (the sixth, the `.replace()` note, has no reachable failing input today).
+
+### Changes to published output — re-run affected artifacts
+
+Four fixes change numbers a site has already produced:
+
+| change | effect |
+|---|---|
+| Split grain is now the **patient**, not the encounter | Every cohort's train/test assignment is re-dealt. A model trained on an older cohort must be re-scored, not just re-reported. |
+| Outliers are **nulled**, not clipped | `height_cm` (whole column was 96), `pao2` and every other limited value now go missing instead of sitting at the boundary. |
+| `allow_other_meds: true` | 31 of 75 MED_CON and 116 of 165 MED_INT categories re-enter the extract. MEDS/ELF tables get materially bigger. |
+| MEDS ids are **Utf8** | `MEDS.parquet` `subject_id` / `hospitalization_id` change dtype (they already matched the documented ELF schema — the MEDS writer was the outlier). |
+
+The encounter-index and cohort-score caches are now fingerprinted on the source files,
+so the first run after this commit rebuilds them rather than reusing a stale one.
 
 ### Critical
 
@@ -525,3 +546,33 @@ so the restructure diff stays purely mechanical. Recorded here so they are not l
   rows despite the module's "always carries BOTH" contract.
 - `report/operating_points.py:595` — `_fairness_by_threshold` recomputes `gap_triplet`
   500 × 99 × n_columns times; measured at 207 s for 20k stays.
+
+### Resolutions
+
+| # | where it lives now | fix |
+|---|---|---|
+| 1 | `meds_etl/_emit.py` | `MEDS_SCHEMA` ids are `Utf8`; `emit_events` casts to `Utf8`. Matches the ELF schema `features/_config.py` already documented. |
+| 2 | `cohort/clif.py` | New `_id_filter()` keeps `None` ("load all") and `[]` ("load nothing") distinct, via a sentinel id that matches no row. Applied at all 9 loader call sites, not just the 4 flagged. |
+| 3 | `cohort/events.py` | Steps reordered: merge same-location runs FIRST, then drop sandwiched procedural GROUPS, then re-merge. New `_merge_runs()` helper, called twice. |
+| 4 | `concepts/VITAL.yaml` | `height_cm: [70, 255]`, matching clifpy's `vitals_schema`. |
+| 5 | `concepts/MED_CON.yaml`, `MED_INT.yaml` | `allow_other_meds: true` — the conversion table stops acting as a vocabulary filter. clifpy already falls back to base units for an unlisted category. Seven MED_CON keys corrected to real mCIDE spellings (`angiotension`→`angiotensin`, `sodium chloride`→`sodium_chloride`, …); the remaining inert keys are documented in place. |
+| 6 | `report/_stats.py` | New `suppress_confusion()` applies **secondary suppression**: masking a cell also masks its partner in the same published total, so no cell is recoverable by subtraction. A true zero is exempt and published as 0. Used by `operating_points._confusion_row` and `discrimination._operating_point`; `n_flagged` / `act_rate` / the arm event rates now follow their counts. |
+| 7 | `cohort/table1.py` | `_slim()`'s failure path returns the TWO columns its caller joins on. The score cache is additionally pinned to `_SCORES_SCHEMA` on write. |
+| 8 | `cohort/clif.py`, `tasks/extubation_failure_24h.py` | Both expand through `members_of_joins()` before loading, so encounter-grain detectors see the whole encounter. |
+| 9 | `report/__init__.py` | Explicit `is_nan()` guard with its own error message. |
+| 10 | `cohort/events.py` | `first_trach_idx <= first_imv_idx`. A trached patient ventilated through the trach now yields the sentinel row instead of nothing. |
+| 11 | `cohort/stitch.py` | `assign_split` decides at `patient_id` grain when the column is present, falling back to the join id. **Re-deals every existing split.** |
+| 12 | `meds_etl/_emit.py` | `_numeric_expr` nulls out-of-range values (new `_outside()`); it no longer winsorises them to the limit. |
+| 13 | `cohort/table1.py` | `_continuous_stats` returns all-None below `MIN_CELL_COUNT` non-null values, so a stratum can no longer publish two patients' exact ages next to an `n` of `"<10"`. |
+| 14 | `features/extractors.py`, `features/_scope.py` | Docs corrected: the bound is per-ENCOUNTER, and neither output is safe to model without the downstream per-row cut. The behaviour was already intentional; the docstring claimed otherwise. |
+| 15 | `cohort/stitch.py`, `cohort/table1.py` | New `source_fingerprint()` (path + size + mtime of the source files) is folded into both cache filenames, so re-ETL'd data rebuilds instead of silently reusing yesterday's. |
+
+Unranked notes: `.replace()` → `replace_strict(default="Other")`; the no-conversion
+fallback keeps the raw `med_dose_unit` instead of stamping `"UNK"`; the 70/30 help text
+and two doc pages corrected to 75/25; `_split_cutoff()` clamps to `[1, n-1]` so a small
+cohort cannot get an empty arm; `_fairness_by_threshold` vectorized over the grid via
+`fairness.gap_triplet_by_threshold` — **207 s → 2.0 s** at 20k stays, verified
+bit-identical to the scalar `gap_triplet` over 300 random cohorts × 99 thresholds.
+
+Suite after the fixes: **189 passed** (169 before, +20 new regression tests). Lint
+unchanged at 9 pre-existing violations, none in a touched file.

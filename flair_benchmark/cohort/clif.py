@@ -83,6 +83,28 @@ def pd_to_pl(pdf) -> pl.DataFrame:
     return df
 
 
+# An id that cannot exist in any CLIF table, used to build a filter that matches
+# nothing. See `_id_filter`.
+_NO_MATCH_ID = "__flair_no_such_id__"
+
+
+def _id_filter(column: str, ids: Optional[list[str]]) -> Optional[dict]:
+    """clifpy ``filters=`` entry for an id list, keeping None and [] distinct.
+
+    ``None``  -> no filter at all: load the whole table.
+    ``[]``    -> a filter matching nothing: load an EMPTY table.
+
+    The distinction is the whole point. Writing ``{...} if ids else None`` treats
+    an empty list as "no filter", so a caller that found zero matching stays gets
+    the entire table back instead of nothing — e.g. a site charting its ICU as
+    'micu' yields no icu ids in `base_icu_cohort`, and the adult ICU cohort
+    silently becomes every adult inpatient.
+    """
+    if ids is None:
+        return None
+    return {column: list(ids) if ids else [_NO_MATCH_ID]}
+
+
 def _load(table_cls, cfg: dict, filters: Optional[dict] = None,
           columns: Optional[list[str]] = None) -> pl.DataFrame:
     """Internal: instantiate a clifpy table class and return a polars DataFrame."""
@@ -102,30 +124,30 @@ def load_hospitalization(cfg: dict, hospitalization_ids: Optional[list[str]] = N
                          columns: Optional[list[str]] = None) -> pl.DataFrame:
     """clifpy Hospitalization → polars."""
     from clifpy.tables import Hospitalization
-    filters = {"hospitalization_id": hospitalization_ids} if hospitalization_ids else None
-    return _load(Hospitalization, cfg, filters=filters, columns=columns)
+    return _load(Hospitalization, cfg,
+                 filters=_id_filter("hospitalization_id", hospitalization_ids),
+                 columns=columns)
 
 
 def load_patient(cfg: dict, patient_ids: Optional[list[str]] = None,
                  columns: Optional[list[str]] = None) -> pl.DataFrame:
     """clifpy Patient → polars."""
     from clifpy.tables import Patient
-    filters = {"patient_id": patient_ids} if patient_ids else None
-    return _load(Patient, cfg, filters=filters, columns=columns)
+    return _load(Patient, cfg, filters=_id_filter("patient_id", patient_ids),
+                 columns=columns)
 
 
 def load_adt(cfg: dict, hospitalization_ids: Optional[list[str]] = None) -> pl.DataFrame:
     """clifpy Adt → polars."""
     from clifpy.tables import Adt
-    filters = {"hospitalization_id": hospitalization_ids} if hospitalization_ids else None
-    return _load(Adt, cfg, filters=filters)
+    return _load(Adt, cfg, filters=_id_filter("hospitalization_id", hospitalization_ids))
 
 
 def load_respiratory_support(cfg: dict, hospitalization_ids: list[str],
                              device_categories: Optional[list[str]] = None) -> pl.DataFrame:
     """clifpy RespiratorySupport → polars. Long table — always filter by hospitalization_id."""
     from clifpy.tables import RespiratorySupport
-    filters: dict = {"hospitalization_id": hospitalization_ids}
+    filters: dict = _id_filter("hospitalization_id", hospitalization_ids)
     if device_categories:
         filters["device_category"] = device_categories
     return _load(RespiratorySupport, cfg, filters=filters)
@@ -137,7 +159,7 @@ def load_vitals(cfg: dict, hospitalization_ids: list[str],
     Pass vital_categories=None to load all vital categories (used when the
     first-recorded-vital timestamp matters and the category is irrelevant)."""
     from clifpy.tables import Vitals
-    filters: dict = {"hospitalization_id": hospitalization_ids}
+    filters: dict = _id_filter("hospitalization_id", hospitalization_ids)
     if vital_categories is not None:
         filters["vital_category"] = vital_categories
     return _load(Vitals, cfg, filters=filters)
@@ -155,7 +177,7 @@ def load_medication_admin_intermittent(
     be robust against site-level casing drift in CLIF mCIDE enum values."""
     from clifpy.tables import MedicationAdminIntermittent
     df = _load(MedicationAdminIntermittent, cfg,
-               filters={"hospitalization_id": hospitalization_ids})
+               filters=_id_filter("hospitalization_id", hospitalization_ids))
     if med_categories is not None:
         wanted = [s.lower() for s in med_categories]
         df = df.filter(pl.col("med_category").str.to_lowercase().is_in(wanted))
@@ -176,7 +198,7 @@ def load_medication_admin_continuous(
     case-insensitively (see load_medication_admin_intermittent)."""
     from clifpy.tables import MedicationAdminContinuous
     df = _load(MedicationAdminContinuous, cfg,
-               filters={"hospitalization_id": hospitalization_ids})
+               filters=_id_filter("hospitalization_id", hospitalization_ids))
     if med_categories is not None:
         wanted = [s.lower() for s in med_categories]
         df = df.filter(pl.col("med_category").str.to_lowercase().is_in(wanted))
@@ -190,7 +212,8 @@ def load_labs(cfg: dict, hospitalization_ids: list[str],
               lab_categories: list[str]) -> pl.DataFrame:
     """clifpy Labs → polars. Long table — always filter by hospitalization_id AND lab_category."""
     from clifpy.tables import Labs
-    filters = {"hospitalization_id": hospitalization_ids, "lab_category": lab_categories}
+    filters = {**_id_filter("hospitalization_id", hospitalization_ids),
+               "lab_category": lab_categories}
     return _load(Labs, cfg, filters=filters)
 
 
@@ -198,8 +221,8 @@ def load_hospital_diagnosis(cfg: dict,
                             hospitalization_ids: Optional[list[str]] = None) -> pl.DataFrame:
     """clifpy HospitalDiagnosis → polars. Filter by hospitalization_id when provided."""
     from clifpy.tables import HospitalDiagnosis
-    filters = {"hospitalization_id": hospitalization_ids} if hospitalization_ids else None
-    return _load(HospitalDiagnosis, cfg, filters=filters)
+    return _load(HospitalDiagnosis, cfg,
+                 filters=_id_filter("hospitalization_id", hospitalization_ids))
 
 
 def base_icu_cohort(cfg: dict, min_age: int = 18,
@@ -220,8 +243,9 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         hospitalization_id, hospitalization_join_id, patient_id,
         admission_dttm, discharge_dttm, age_at_admission, sex_category,
         race_category, ethnicity_category, discharge_category, death_dttm
-      adt columns: as loaded by clifpy (filtered to final cohort
-        hospitalization_ids) plus hospitalization_join_id.
+      adt columns: as loaded by clifpy plus hospitalization_join_id, filtered to
+        every hospitalization belonging to a cohort encounter — which is a
+        SUPERSET of the cohort's own hospitalization_ids.
     """
     adt = load_adt(cfg)
     icu_hosp_ids = (
@@ -262,12 +286,23 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         ])
     )
 
-    final_ids = cohort["hospitalization_id"].to_list()
-    adt = adt.filter(pl.col("hospitalization_id").is_in(final_ids))
-
     # Stitch encounters once (cached) and tag both frames with the block key.
-    from flair_benchmark.cohort.stitch import attach_join_id, load_or_build_encounter_index
+    from flair_benchmark.cohort.stitch import (
+        JOIN_ID,
+        attach_join_id,
+        load_or_build_encounter_index,
+        members_of_joins,
+    )
     idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
     cohort = attach_join_id(cohort, idx)
-    adt = attach_join_id(adt, idx)
+
+    # Keep ADT at ENCOUNTER grain, not cohort grain. Trimming it to the cohort's
+    # own hospitalization_ids would drop sibling admissions that belong to the
+    # same stitched encounter but have no cohort row of their own (a non-ICU
+    # transfer, say) — and every ADT-based detector downstream reasons over the
+    # whole encounter, so it would be reading a partial location history.
+    member_ids = members_of_joins(idx, cohort[JOIN_ID].cast(pl.Utf8).unique().to_list())
+    adt = attach_join_id(adt, idx).filter(
+        pl.col("hospitalization_id").is_in(member_ids)
+    )
     return cohort, adt

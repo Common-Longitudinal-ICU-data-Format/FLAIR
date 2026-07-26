@@ -5,7 +5,7 @@ outlier_shaping:
   enabled: true
   category_col: vital_category
   limits:
-    height_cm: [30, 96]
+    height_cm: [70, 255]      # cm, matching clifpy vitals_schema (NOT inches)
     weight_kg: [30, 1100]
     sbp: [0, 300]
     dbp: [0, 200]

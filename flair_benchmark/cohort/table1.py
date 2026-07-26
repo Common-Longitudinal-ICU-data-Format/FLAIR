@@ -36,6 +36,8 @@ Output JSON shape:
                                # {level: proportion_or_None}; regression: None.
     "continuous":  { "age_at_admission": {mean, std, median, q25, q75, min, max, n_missing},
                      "sofa_max": {...}, "charlson_score": {...}, "elix_score": {...} },
+                   # every stat is None where the stratum has < 10 non-null
+                   # values; n_missing is 0 or a suppressed count.
     "categorical": { "sex_category": {level: count_or_"<10"}, ... },
     "by_split":  { "total": {n, date_range, prevalence, continuous, categorical},
                    "train": {...}, "test": {...} },   # ALWAYS 3 keys; empty -> n=0
@@ -60,7 +62,7 @@ from pathlib import Path
 import polars as pl
 
 from flair_benchmark.cohort.clif import load_hospital_diagnosis, load_hospitalization
-from flair_benchmark.cohort.stitch import JOIN_ID, _cache_dir
+from flair_benchmark.cohort.stitch import JOIN_ID, _cache_dir, source_fingerprint
 from flair_benchmark.constants import task_script_sha256
 from flair_benchmark.report._stats import MIN_CELL_COUNT, suppress, suppress_dict
 
@@ -138,7 +140,10 @@ _COMORBIDITY_SCHEMA = {
 
 
 def _scores_cache_path(cfg: dict) -> Path:
-    return _cache_dir(cfg) / "cohort_scores.parquet"
+    # Fingerprinted like the encounter index: SOFA and the comorbidity scores are
+    # derived from the raw CLIF files, so a re-ETL must not be answered out of a
+    # cache built from the previous extract.
+    return _cache_dir(cfg) / f"cohort_scores_{source_fingerprint(cfg)}.parquet"
 
 
 def load_or_build_cohort_scores(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
@@ -155,8 +160,13 @@ def load_or_build_cohort_scores(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
     missing = [h for h in hosp_ids if h not in cached]
     if missing:
         new = _compute_scores(cfg, missing)
-        have = pl.concat([have, new], how="diagonal_relaxed").unique(
-            subset=["hospitalization_id"], keep="first"
+        # Pin the cache to the declared schema. Without the select, any extra
+        # column a backend happens to emit is carried by diagonal_relaxed into
+        # the parquet and never leaves again.
+        have = (
+            pl.concat([have, new], how="diagonal_relaxed")
+            .select(list(_SCORES_SCHEMA))
+            .unique(subset=["hospitalization_id"], keep="first")
         )
         path.parent.mkdir(parents=True, exist_ok=True)
         have.write_parquet(path)
@@ -273,13 +283,19 @@ def compute_cci_elix(cfg: dict, hospitalization_ids: list[str]) -> pl.DataFrame:
 def _slim(df, score_col: str, out_name: str) -> pl.DataFrame:
     """Reduce a clifpy comorbidity output to [hospitalization_id, <out_name>].
 
-    Accepts both polars and pandas DataFrames (clifpy returns pandas).
+    Accepts both polars and pandas DataFrames (clifpy returns pandas). The
+    failure path must return those TWO columns and no more: handing back the
+    full three-column comorbidity schema makes the caller's join see
+    charlson_score (or elix_score) on both sides, so polars suffixes one to
+    `..._right` — and that stray column is then written permanently into the
+    cohort_scores.parquet cache.
     """
     import pandas as pd
     if isinstance(df, pd.DataFrame):
         df = pl.from_pandas(df)
     if "hospitalization_id" not in df.columns or score_col not in df.columns:
-        return _empty_comorbidity_frame()
+        return pl.DataFrame(schema={"hospitalization_id": pl.Utf8,
+                                    out_name: pl.Float64})
     return df.select([
         "hospitalization_id",
         pl.col(score_col).cast(pl.Float64).alias(out_name),
@@ -439,13 +455,25 @@ def _stratum(df: pl.DataFrame, label_col: str | None = None,
     }
 
 
+_EMPTY_CONTINUOUS = ("mean", "std", "median", "q25", "q75", "min", "max")
+
+
 def _continuous_stats(df: pl.DataFrame, var: str) -> dict:
+    """Summary stats for one continuous variable, suppression-aware.
+
+    Below MIN_CELL_COUNT non-null values every statistic is withheld. `min` and
+    `max` are literally one patient's value each, and on a stratum of 4 the
+    quartiles are barely more aggregated — publishing them next to an `n` that
+    reads "<10" suppresses the count while disclosing the individuals it was
+    hiding. `n_missing` survives because it is itself a count, so it goes
+    through the same `suppress()` as every other published count.
+    """
     series = df[var]
-    n_missing = int(series.null_count())
+    n_null = int(series.null_count())
+    n_missing = 0 if n_null == 0 else suppress(n_null)   # a true zero is not PHI
     nn = series.drop_nulls()
-    if nn.len() == 0:
-        return {"mean": None, "std": None, "median": None, "q25": None,
-                "q75": None, "min": None, "max": None, "n_missing": n_missing}
+    if nn.len() < MIN_CELL_COUNT:
+        return {**{k: None for k in _EMPTY_CONTINUOUS}, "n_missing": n_missing}
     return {
         "mean": round(float(nn.mean()), 2),
         "std": round(float(nn.std()), 2) if nn.len() > 1 else 0.0,

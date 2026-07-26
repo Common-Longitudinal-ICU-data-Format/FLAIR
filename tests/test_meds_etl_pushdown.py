@@ -29,7 +29,7 @@ def clif_dir(tmp_path):
     data.mkdir()
     pl.DataFrame({
         "hospitalization_id": ["1", "2", "3"],
-        "patient_id": ["101", "102", "103"],  # MEDS subject_id must cast to Int64
+        "patient_id": ["P101", "P102", "P103"],  # CLIF ids are STRINGS, not numbers
         "admission_dttm": ["2024-01-01T00:00:00Z"] * 3,
     }).with_columns(
         pl.col("admission_dttm").str.to_datetime(time_zone="UTC")
@@ -131,5 +131,8 @@ def test_serial_equals_parallel(clif_cfg, elf_cfg):
 
 def test_cohort_restriction(clif_cfg, elf_cfg):
     events, _ = build_meds_events(clif_cfg, elf_cfg, ["2"])
-    assert set(events["hospitalization_id"].to_list()) == {2}
+    assert set(events["hospitalization_id"].to_list()) == {"2"}
     assert events.height == 2
+    # Alphanumeric ids survive: casting them to Int64 would null every row and
+    # the null-filter in emit_events would then write an EMPTY table, silently.
+    assert set(events["subject_id"].to_list()) == {"P102"}

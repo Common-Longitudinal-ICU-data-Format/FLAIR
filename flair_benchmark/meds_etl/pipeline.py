@@ -281,8 +281,18 @@ def run_med(domain: str, clif_cfg: dict, domain_cfg: dict,
                 preferred_units=preferred, override=uc.get("override", False),
             )
     else:
+        # No conversion configured (or nothing to convert): carry the RAW dose
+        # and its RAW unit forward. Stamping "UNK" here instead would erase the
+        # one thing that makes an unconverted dose interpretable — mcg/kg/min and
+        # mg/hr would collapse into the same code with incomparable numbers under
+        # it, and nothing downstream could tell them apart. 'UNK' stays reserved
+        # for a dose that genuinely has no unit charted.
         med_pdf["med_dose_converted"] = med_pdf["med_dose"]
-        med_pdf["med_dose_unit_converted"] = "UNK"
+        if "med_dose_unit" in med_pdf.columns:
+            med_pdf["med_dose_unit_converted"] = (
+                med_pdf["med_dose_unit"].fillna("UNK"))
+        else:
+            med_pdf["med_dose_unit_converted"] = "UNK"
 
     df = normalize_categories(strip_tz(pl.from_pandas(med_pdf)))
     df = _apply_category_filter(df, opts)

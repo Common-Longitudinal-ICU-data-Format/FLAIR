@@ -263,6 +263,65 @@ def gap_triplet(codes: np.ndarray, label: np.ndarray, pred: np.ndarray,
     return dp, tpr_gap, fpr_gap
 
 
+def threshold_bins(prob: np.ndarray, thresholds: np.ndarray) -> np.ndarray:
+    """Per-row bin index for an ASCENDING threshold grid: how many thresholds it clears.
+
+    Row i is flagged at ``thresholds[j]`` (i.e. ``prob[i] >= thresholds[j]``)
+    exactly when ``j < bins[i]``. Computing this once turns "flag every row at
+    each of 99 thresholds" into a single sort-free lookup, which is what lets
+    `gap_triplet_by_threshold` do the whole grid in one pass over the data.
+    """
+    return np.searchsorted(thresholds, prob, side="right")
+
+
+def gap_triplet_by_threshold(
+    codes: np.ndarray, label: np.ndarray, bins: np.ndarray,
+    n_levels: int, n_thresholds: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """`gap_triplet` evaluated at EVERY threshold at once. NaN where undefined.
+
+    Returns three arrays of length ``n_thresholds`` — (dp_gap, tpr_gap, fpr_gap).
+    Semantics are identical to :func:`gap_triplet` one threshold at a time,
+    including the pinned-level rule: if any pinned level has zero rows, all three
+    are NaN so the caller discards that resample whole.
+
+    Why vectorized: the per-threshold sweep calls this inside the bootstrap, so
+    the naive form runs 500 replicates x 99 thresholds x one pass over the data
+    per subgroup column. Here a single ``bincount`` over (level, threshold-bin)
+    plus a reverse cumulative sum gives every level's flagged count at every
+    threshold in one pass, so the cost stops scaling with the grid size.
+    """
+    n_bins = n_thresholds + 1
+    nan_row = np.full(n_thresholds, np.nan)
+
+    def counts(sel: np.ndarray | None) -> tuple[np.ndarray, np.ndarray]:
+        """(level sizes, flagged counts per level per threshold) over `sel` rows."""
+        c, b = (codes, bins) if sel is None else (codes[sel], bins[sel])
+        keep = c >= 0                      # -1 = not one of the pinned levels
+        c, b = c[keep], b[keep]
+        hist = np.bincount(c * n_bins + b,
+                           minlength=n_levels * n_bins).reshape(n_levels, n_bins)
+        # flagged at threshold j == rows whose bin index exceeds j.
+        flagged = np.cumsum(hist[:, ::-1], axis=1)[:, ::-1][:, 1:]
+        return hist.sum(axis=1), flagged
+
+    sizes, flagged = counts(None)
+    if (sizes == 0).any():
+        return nan_row, nan_row, nan_row
+    rates = flagged / sizes[:, None]
+    dp = rates.max(axis=0) - rates.min(axis=0)
+
+    def gap_within(sel: np.ndarray) -> np.ndarray:
+        s, f = counts(sel)
+        ok = s > 0                         # levels with no row in this label arm
+        if int(ok.sum()) < 2:
+            return nan_row
+        r = f[ok] / s[ok][:, None]
+        return r.max(axis=0) - r.min(axis=0)
+
+    return dp, gap_within(label == 1), gap_within(label == 0)
+
+
 def _parity_gaps(df: pl.DataFrame, group_col: str, label_col: str,
                  task_type: str) -> dict:
     if task_type != "binary":

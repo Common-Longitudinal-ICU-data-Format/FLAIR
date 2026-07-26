@@ -39,7 +39,7 @@ This runs the task's `build()` and writes:
 - `cohort.parquet` — the cohort (one row per `prediction_id`)
 - `cohort.table1.json` — cohort characteristics (auto-generated alongside)
 
-Omit `--train-end`/`--test-start` to use MIMIC's deterministic 70/30 split (when
+Omit `--train-end`/`--test-start` to use MIMIC's deterministic 75/25 split (when
 `site="mimic"`).
 
 ### The cohort contract

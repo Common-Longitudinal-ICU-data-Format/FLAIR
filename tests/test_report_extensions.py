@@ -558,13 +558,23 @@ def test_scorecard_suppresses_a_threshold_that_flags_almost_nobody():
     card = build_episodic_operating_points(df, {**META, "clinical_threshold": 0.85})
     sparse = [e for e in card["by_threshold"] if e.get("suppressed")]
     assert sparse, "expected at least one near-empty threshold on the sweep tail"
+    saw_masked = False
     for e in sparse:
         # a PPV from <10 flagged stays is unstable and disclosive
         assert e["metrics"]["ppv"] is None
-        assert isinstance(e["confusion"]["tp"], str)   # "<10"
+        c = e["confusion"]
+        # tp and fp are the flagged arm. A small NONZERO count is masked, and its
+        # partner goes with it (else n_flagged - fp would recover tp). A true
+        # zero is published as 0 — it identifies nobody and the other three cells
+        # summing to n would give it away regardless.
+        assert c["tp"] == 0 or c["tp"] == "<10", c
+        if c["tp"] == "<10":
+            saw_masked = True
+            assert c["fp"] == "<10", c                 # partner masked too
         # net benefit is suppressed on its OWN arm (n_acted), which for an "above"
         # task is the flagged arm — so it is nulled here too.
         assert e["decision"]["net_benefit"] is None
+    assert saw_masked, "expected a threshold with a small nonzero flagged cell"
 
 
 def test_scorecard_non_binary_task_degrades_to_a_reason():

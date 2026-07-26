@@ -70,9 +70,9 @@ def load_task(
                                     help="Path to clif_config.json"),
     out: str = typer.Option(..., "--out", help="Output parquet path"),
     train_end: Optional[str] = typer.Option(None, "--train-end",
-                                            help="YYYY-MM-DD (omit for MIMIC 70/30 split)"),
+                                            help="YYYY-MM-DD (omit for MIMIC 75/25 split)"),
     test_start: Optional[str] = typer.Option(None, "--test-start",
-                                             help="YYYY-MM-DD (omit for MIMIC 70/30 split)"),
+                                             help="YYYY-MM-DD (omit for MIMIC 75/25 split)"),
 ) -> None:
     """Run a task's build() function and write the cohort parquet + Table 1 JSON."""
     import json

@@ -10,7 +10,10 @@ cohort's own ids would silently drop those siblings' events, so the id set is
 expanded back through the stitch index.
 
 HOW FAR: the no-future cutoff is applied at hospitalization_join_id grain, not
-per row — see `feature_scope` for why the widest row in a block governs.
+per row — see `feature_scope` for why the widest row in a block governs. This is
+a LOADING bound, not the leakage guard: a caller that stops here and feeds the
+result to a model has leaked, because an early prediction row of a multi-window
+encounter sees the last window's events.
 
 Depends on: cohort/stitch.py.
 Used by: features/extractors.py.

@@ -12,11 +12,18 @@ convert later. The full path runs the real ETL and writes MEDS-standard tables.
 
 THE LEAKAGE RULE, which differs between them and is the thing to get right:
 
-  - get_meds_stream BOUNDS events at the cohort's feature horizon
-    (`time <= feature_cutoff_dttm`) inside this module.
-  - build_meds_tables leaves the table UNBOUNDED on purpose. Its point-in-time
-    filter runs downstream in the count featurizer, which keeps one MEDS table
-    reusable across every prediction of an encounter instead of one per row.
+  - get_meds_stream bounds events at the ENCOUNTER's feature horizon —
+    `time <= max(feature_cutoff_dttm)` over the whole hospitalization_join_id
+    block, not each prediction row's own cutoff.
+  - build_meds_tables leaves the table UNBOUNDED on purpose.
+
+NEITHER OUTPUT IS SAFE TO FEED A MODEL AS-IS. Both are keyed on the encounter,
+not on a prediction row, so for a daily task an encounter's events run up to its
+LAST day's cutoff — a row predicting on day 2 can see day 5's events. The
+per-prediction cut is the downstream featurizer's job: join on
+hospitalization_join_id and keep `time <= feature_cutoff_dttm` for that row.
+Bounding here would mean re-extracting per prediction row instead of once per
+encounter, which is the whole reason the table is shaped this way.
 
 The cutoff column is `feature_cutoff_dttm`, stamped by tasks/_finalize.py. It
 defaults to `prediction_dttm` and is set EARLIER by any task whose prediction
