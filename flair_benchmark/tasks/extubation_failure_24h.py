@@ -5,6 +5,51 @@ Clinical question:
   After the first confirmed extubation, will the patient be reintubated
   in the next 24h?
 
+The decision this supports:
+  Two-sided — EXTUBATE, or KEEP THE PATIENT INTUBATED. It is anchored at the
+  extubation itself, so it fires on LOW risk (clinical_direction "below"): pull
+  the tube when P(failure) < 0.10, otherwise leave it in. Nothing else is on the
+  table at this timestamp. A tracheostomy in particular is not — it is a decision
+  made in a still-intubated patient around vent day 7-14, and you would have to
+  reintubate this patient before you could trach them. That decision is a
+  different task (icu_daily_ltach).
+
+Threshold — why 0.10:
+  The threshold is not a cutoff, it is the exchange rate between the two harms.
+  You are indifferent when
+
+      t / (1-t) = harm(one unnecessary continued intubation)
+                  / harm(one failed extubation)
+
+  so 0.10 encodes 1:9 — a failed extubation is 9x worse than keeping a ready
+  patient intubated. Epstein & Ciubotaru report 43% mortality in reintubated
+  patients vs 12% in successfully extubated; discounted heavily for confounding
+  by indication, 9x is defensible where 1:4 (t = 0.20) is not.
+
+  Note the horizon. The familiar "acceptable reintubation rate is 10-15%" figure
+  is a 48-72h number (Thille HIGH-WEAN, Frutos-Vivar, Epstein); this label is 24h
+  and roughly half of reintubations fall outside it, which is why the observed
+  rate here is ~5.4%, not ~12%. A threshold anchored to 72h intuition is
+  inflated. 0.10 is ~1.85x this cohort's base rate: discriminating, but reaching
+  a real fraction of patients.
+
+  Do not confuse the two quantities that land in this range. The population
+  reintubation rate is what happens across all extubations; the threshold is the
+  individual risk at which the action changes.
+
+LIMITATION — the counterfactual is unobserved:
+  100% of this cohort WAS extubated, so "do not extubate" is a recommendation the
+  data cannot validate: there are no held-back patients to observe. On the
+  decision curve this makes treat-all equal to observed current practice, which
+  is the right comparator — but any net benefit above that line assumes the
+  failures of the patients the model would have held back would have been avoided
+  by waiting, and this dataset cannot test that assumption. Read the DCA as "does
+  selective extubation beat extubating everyone, under that assumption", never as
+  an estimate of realized benefit.
+
+  Features are cut STRICTLY before prediction_dttm for the same reason — see
+  feature_cutoff_dttm below.
+
 Row shape: one row per stitched encounter (hospitalization_join_id) with a
 confirmed first extubation. Ventilation episodes are detected across the whole
 encounter, so a reintubation in a later member hospitalization counts.
@@ -33,6 +78,8 @@ Pipeline:
   9. drop ambiguous censoring (discharged alive < 24h post-extubation,
      no death, no reintubation)
  10. assign_split()
+ 11. feature_cutoff_dttm = prediction_dttm - 1us (STRICT: features may not see
+     the respiratory_support row that announces the extubation)
 """
 
 from __future__ import annotations
@@ -63,12 +110,15 @@ META = {
     "prediction_unit": "one-per-stay",
     "task_type": "binary",
     # Clinical policy — this task owns it; value-validated in tasks/__init__.py.
-    "clinical_threshold": 0.80,
-    "clinical_action": "perform a tracheostomy",
-    "clinical_direction": "above",
+    # The decision is two-sided and fires on LOW risk: extubate when P(failure) is
+    # under 0.10, otherwise leave the tube in. See "Threshold" in the docstring.
+    "clinical_threshold": 0.10,
+    "clinical_action": "extubate; otherwise keep the patient intubated",
+    "clinical_direction": "below",
     "report_mode": "episodic",
-    "dca_axis": {"event": "extubation failure",
-                 "action": "perform a tracheostomy"},
+    "dca_axis": {"event": "successful extubation",
+                 "action": "extubate",
+                 "inaction": "keep the patient intubated"},
     "label_column": "label_extubation_failure_24h",
     "positive_class": "reintubation_within_24h_post_extubation",
     "input_window_hours": None,
@@ -98,6 +148,7 @@ META = {
 
 OUTPUT_COLS = [
     "hospitalization_id", "hospitalization_join_id", "prediction_dttm",
+    "feature_cutoff_dttm",
     META["label_column"], "split",
     "age_at_admission", "sex_category", "race_category", "ethnicity_category",
 ]
@@ -192,6 +243,25 @@ def build(clif_config: str, train_end: str | None,
     df = assign_split(df, cfg["site"], train_end, test_start,
                       admission_col="prediction_dttm")
     df = df.filter(pl.col("split").is_not_null())
+
+    # STRICT feature cutoff — this task only. prediction_dttm is episode_end_dttm,
+    # the timestamp of the FIRST non-IMV respiratory_support row
+    # (_ventilation_episodes.detect_imv_episodes), i.e. the row that ANNOUNCES the
+    # extubation. feature_config.yaml feeds respiratory_support device_category /
+    # mode_category / fio2_set / peep_set into the wide extractor, so the default
+    # inclusive cutoff would hand a "should we extubate?" model the row saying the
+    # patient is already extubated.
+    #
+    # The 1us is NOT the exact representable predecessor — cohort datetimes arrive
+    # as Datetime("ns") through _clif.pd_to_pl. It is a step far below CLIF's
+    # charting resolution that reliably excludes the boundary sample, and it is NOT
+    # a clinical blanking gap: everything up to the decision stays in, including the
+    # SBT (RSI, pressure-support tidal volumes, the last vent settings), which is
+    # the most predictive signal this task has.
+    df = df.with_columns(
+        (pl.col("prediction_dttm") - pl.duration(microseconds=1))
+        .alias("feature_cutoff_dttm")
+    )
     return finalize_cohort(df, OUTPUT_COLS, META)
 
 

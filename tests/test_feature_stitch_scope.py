@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 import polars as pl
+import pytest
 
 from flair_benchmark._stitch import JOIN_ID
 
@@ -21,11 +22,18 @@ def _idx() -> pl.DataFrame:
     })
 
 
-def _task_df() -> pl.DataFrame:
+def _task_df(cutoff: datetime | None = None) -> pl.DataFrame:
+    """A finalized cohort row.
+
+    ``feature_cutoff_dttm`` is a cohort-contract column (tasks/_finalize.py) and
+    defaults to prediction_dttm — the inclusive cutoff every task but one uses.
+    Pass ``cutoff`` to model a task that cuts strictly before its own anchor.
+    """
     return pl.DataFrame({
         "hospitalization_id": ["h1"],
         JOIN_ID: ["e1"],
         "prediction_dttm": [_dt(10)],
+        "feature_cutoff_dttm": [cutoff if cutoff is not None else _dt(10)],
     })
 
 
@@ -175,3 +183,139 @@ def test_direct_meds_builder_expands_sibling_hospitalizations(monkeypatch, tmp_p
     assert seen_hosp_ids == ["h1", "h2"]
     assert set(out["hospitalization_id"].to_list()) == {"h1", "h2"}
     assert set(out[JOIN_ID].to_list()) == {"e1"}
+
+
+# ==================================================== THE FEATURE-CUTOFF BOUNDARY
+#
+# The cutoff was untested in BOTH directions: every fixture above puts events at
+# hours 9 and 11 against a horizon of 10, so nothing ever landed ON the boundary
+# and neither an inclusive nor a strict filter could be distinguished. That matters
+# because extubation_failure_24h anchors prediction_dttm on the respiratory_support
+# row that ANNOUNCES the extubation — the boundary sample is the outcome.
+
+_STRICT = _dt(10) - timedelta(microseconds=1)
+
+
+def _fake_meds(monkeypatch):
+    """Monkeypatch the meds loader with an event exactly ON the horizon."""
+    import flair_benchmark.features.meds_stream as meds_mod
+
+    def fake_loader(cfg, hospitalization_ids, med_categories=None, med_groups=None):
+        return pl.DataFrame({
+            "hospitalization_id": ["h1", "h1", "h1"],
+            "admin_dttm": [_dt(9), _dt(10), _dt(11)],       # before / ON / after
+            "med_category": ["norepinephrine"] * 3,
+            "med_dose": [1.0, 2.0, 3.0],
+            "med_dose_unit": ["mg"] * 3,
+        })
+
+    monkeypatch.setattr(meds_mod, "load_medication_admin_continuous", fake_loader)
+    monkeypatch.setitem(meds_mod._TABLES, "medication_admin_continuous",
+                        ("MED_CON", fake_loader))
+    monkeypatch.setattr(meds_mod, "attach_subject_id",
+                        lambda df, cfg: df.with_columns(pl.lit("p1").alias("subject_id")))
+    return meds_mod
+
+
+def _fake_wide(monkeypatch):
+    """Monkeypatch clifpy with a wide row exactly ON the horizon."""
+    import clifpy
+
+    import flair_benchmark.features.wide as wide_mod
+
+    class FakeClifOrchestrator:
+        def __init__(self, data_directory, filetype, timezone):
+            self.wide_df = pd.DataFrame()
+
+        def create_wide_dataset(self, tables_to_load, category_filters,
+                                hospitalization_ids, output_format, show_progress):
+            self.wide_df = pd.DataFrame({
+                "hospitalization_id": ["h1", "h1", "h1"],
+                "patient_id": ["p1", "p1", "p1"],
+                "event_time": [_dt(9), _dt(10), _dt(11)],   # before / ON / after
+                "heart_rate": [80.0, 90.0, 95.0],
+            })
+
+    monkeypatch.setattr(clifpy, "ClifOrchestrator", FakeClifOrchestrator)
+    return wide_mod
+
+
+_WIDE_CFG = {"data_directory": "/tmp/unused", "filetype": "parquet",
+             "timezone": "US/Eastern", "stitch_time_interval_hours": 6}
+
+
+def test_default_cutoff_keeps_the_boundary_sample(monkeypatch):
+    """cutoff == prediction_dttm is inclusive — unchanged behaviour for 3 of 4 tasks."""
+    _patch_scope_index(monkeypatch)
+    meds_mod = _fake_meds(monkeypatch)
+    out = meds_mod.get_meds_stream(
+        _task_df(),
+        {"meds_stream": {"medication_admin_continuous": {"categories": ["norepinephrine"]}}},
+        {"stitch_time_interval_hours": 6})
+    assert _dt(10) in out["time"].to_list()
+
+    wide_mod = _fake_wide(monkeypatch)
+    out = wide_mod.get_wide_feature_dataset(
+        _task_df(), {"wide": {"vitals": {"categories": ["heart_rate"]}}}, _WIDE_CFG)
+    assert _dt(10) in out["time"].to_list()
+
+
+def test_strict_cutoff_drops_the_boundary_sample(monkeypatch):
+    """A cutoff 1us earlier excludes the anchor row itself, in BOTH extractors.
+
+    wide.py and meds_stream.py still compare `time <= end_time`; only the value
+    they compare against moved. That is the point of carrying the cutoff as a
+    timestamp rather than a flag — no extractor had to learn about strictness.
+    """
+    _patch_scope_index(monkeypatch)
+    meds_mod = _fake_meds(monkeypatch)
+    out = meds_mod.get_meds_stream(
+        _task_df(_STRICT),
+        {"meds_stream": {"medication_admin_continuous": {"categories": ["norepinephrine"]}}},
+        {"stitch_time_interval_hours": 6})
+    assert out["time"].to_list() == [_dt(9)]
+
+    wide_mod = _fake_wide(monkeypatch)
+    out = wide_mod.get_wide_feature_dataset(
+        _task_df(_STRICT), {"wide": {"vitals": {"categories": ["heart_rate"]}}}, _WIDE_CFG)
+    assert out["time"].to_list() == [_dt(9)]
+
+
+def test_feature_scope_rejects_a_stale_cohort(monkeypatch):
+    """A cohort predating the contract column must fail LOUDLY, not fall back.
+
+    Silently defaulting to prediction_dttm is the exact failure this design exists
+    to prevent: a site would get an inclusive cutoff on a task that needs a strict
+    one and never know.
+    """
+    from flair_benchmark.features._scope import feature_scope
+
+    _patch_scope_index(monkeypatch)
+    stale = _task_df().drop("feature_cutoff_dttm")
+    with pytest.raises(ValueError, match="feature_cutoff_dttm"):
+        feature_scope(stale, {"stitch_time_interval_hours": 6})
+
+    # ...but fe_meds deliberately takes no horizon at all, so it stays legal there
+    scope = feature_scope(stale, {"stitch_time_interval_hours": 6},
+                          require_horizon=False)
+    assert scope.hospitalization_ids == ["h1", "h2"]
+
+
+def test_feature_scope_coalesces_a_null_cutoff_per_row(monkeypatch):
+    """A null cutoff falls back to THAT row's prediction time, not a sibling's.
+
+    A bare .max() over the column would skip the null and let h2's later cutoff
+    govern h1 — widening h1's window past its own prediction.
+    """
+    from flair_benchmark.features._scope import HORIZON_COL, feature_scope
+
+    _patch_scope_index(monkeypatch)
+    df = pl.DataFrame({
+        "hospitalization_id": ["h1", "h2"],
+        JOIN_ID: ["e1", "e1"],
+        "prediction_dttm": [_dt(10), _dt(12)],
+        "feature_cutoff_dttm": [None, _STRICT],
+    }, schema_overrides={"feature_cutoff_dttm": pl.Datetime("us")})
+    scope = feature_scope(df, {"stitch_time_interval_hours": 6})
+    # max(coalesce) = max(10:00, 09:59:59.999999) = 10:00, not 09:59:59.999999
+    assert scope.horizons.to_dicts() == [{JOIN_ID: "e1", HORIZON_COL: _dt(10)}]

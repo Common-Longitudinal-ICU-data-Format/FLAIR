@@ -284,13 +284,13 @@ Sensitivity, specificity, PPV, NPV, F1, net benefit, alert burden, number needed
 
 **What FLAIR does today**
 
-FLAIR ships one fixed threshold per task, written down as clinical policy in `flair_benchmark/_constants.py`:
+FLAIR ships one fixed threshold per task, written down as clinical policy inline in each task's `META` (it used to live in `flair_benchmark/_constants.py`):
 
 | Task | Threshold | Direction | Plain meaning |
 |----------------|------------------|------------------|------------------|
 | ICU daily mortality | 0.95 | above | act when the model is very sure |
 | ICU daily LTACH | 0.5 | above | act on more-likely-than-not |
-| Extubation failure 24h | 0.80 | above | perform a tracheostomy when failure risk is high |
+| Extubation failure 24h | 0.10 | **below** | extubate when failure risk is low; otherwise keep the patient intubated |
 | ICU readmission | 0.2 | above | flag the top slice of risk |
 
 This is a good default. It is fixed, it is the same at every site, and it is folded into the audit hash, so two sites reporting sensitivity at 0.2 are reporting the same number. Cross-site comparability comes from the threshold not moving.
@@ -339,9 +339,9 @@ Two rules the report follows, and states in its own output:
 
 **What "direction" does to all this**
 
-A task can act on *low* risk (`clinical_direction: "below"`) — none of FLAIR's live tasks currently do, but the reporting supports it. Take a hypothetical "extubate when failure risk is below t" task: the action fires on the low-risk side. This does not change threshold selection at all. Sensitivity and specificity are always computed in the usual risk-classifier sense (predicted positive means the score is at or above the threshold, label means the event happened), so Youden, F1-max and top-left separate events from non-events regardless of which side the clinician acts on.
+A task can act on *low* risk (`clinical_direction: "below"`). `extubation_failure_24h` is the live one: its decision is two-sided — extubate, or keep the patient intubated — so the action fires on the low-risk side. This does not change threshold selection at all. Sensitivity and specificity are always computed in the usual risk-classifier sense (predicted positive means the score is at or above the threshold, label means the event happened), so Youden, F1-max and top-left separate events from non-events regardless of which side the clinician acts on.
 
-Direction only changes who gets acted on. Each threshold therefore also reports an action view: for above-tasks like extubation failure (perform a tracheostomy when failure risk ≥ 0.80), how many patients were trached and what fraction of them would have failed.
+Direction only changes who gets acted on. Each threshold therefore also reports an action view: for a below-task like extubation failure (extubate when failure risk < 0.10), how many patients were extubated and what fraction of them would have failed.
 
 **How this works in each mode**
 
@@ -374,7 +374,7 @@ Two things.
 | Read the model | at the threshold we ship, what does this model actually do to patients — and what would it do somewhere else? |
 | Read the policy | across sites, where does the data keep putting the cutpoint, and is the shipped threshold near it? |
 
-The second is the long game. `_constants.py` currently holds four thresholds chosen by clinical reasoning. Once every site's report carries where the data would have put each one, that table stops being an assumption and starts being a claim with evidence for or against it. If four sites independently put the mortality cutpoint at 0.78 and FLAIR ships 0.95, that is worth a conversation.
+The second is the long game. FLAIR currently ships four thresholds chosen by clinical reasoning. Once every site's report carries where the data would have put each one, that table stops being an assumption and starts being a claim with evidence for or against it. If four sites independently put the mortality cutpoint at 0.78 and FLAIR ships 0.95, that is worth a conversation.
 
 Data-driven thresholds do not replace the clinical threshold. They give it a second opinion.
 

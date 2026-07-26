@@ -1,0 +1,54 @@
+p is always P(extubation failure). The model outputs one number: "chance this patient needs the tube back within 24h." That is true before this change and after it. Nothing about the model, the training, or the predictions file changes.
+
+1−p is P(successful extubation). Your model never computes it. The report computes it, in one place, for one purpose: drawing the decision curve. That's it.
+
+So when I said "flip the frame, not the score" — the score stays p forever. 1−p exists only inside report/_basis.py.
+
+Why not just have the model output 1−p? Two reasons. AUROC literally cannot tell the difference (it's rank-based, flipping is a no-op), so you'd gain nothing. But AUPRC very much can: failure is 5.4% of cases, success is 94.6%. Score "success" and you'd report an AUPRC around 0.95 that means nothing — a model predicting "everyone succeeds" would get it. Keeping the rare bad thing as the positive class is what makes that number honest.
+
+Direction = which side of the line triggers the action
+
+Threshold t = 0.10.
+
+┌───────────────────┬───────────────────────────────────────┬────────────────────────────────┐
+│                   │      above (your other 3 tasks)       │       below (this task)        │
+├───────────────────┼───────────────────────────────────────┼────────────────────────────────┤
+│ Rule              │ act when p ≥ t                        │ act when p < t                 │
+├───────────────────┼───────────────────────────────────────┼────────────────────────────────┤
+│ Example           │ mortality ≥ 0.95 → palliative consult │ failure risk < 0.10 → extubate │
+├───────────────────┼───────────────────────────────────────┼────────────────────────────────┤
+│ Who gets acted on │ the high-risk minority                │ the low-risk majority          │
+└───────────────────┴───────────────────────────────────────┴────────────────────────────────┘
+
+That's the whole meaning of "direction." It's one boolean: does the action fire on the high side or the low side of the threshold.
+
+For this task, low risk → pull the tube. High risk → leave it in. So below.
+
+"Side" — three of them, and they're not the same
+
+This is the part that trips people, and it's why _basis.py exists. Three patients, t = 0.10:
+
+┌─────┬──────┬──────┬───────────────┬────────────────┬───────────────────────┐
+│     │  p   │ 1−p  │ alarm (p ≥ t) │ action (p < t) │ decision (1−p > 0.90) │
+├─────┼──────┼──────┼───────────────┼────────────────┼───────────────────────┤
+│ A   │ 0.03 │ 0.97 │ quiet         │ extubate       │ extubate              │
+├─────┼──────┼──────┼───────────────┼────────────────┼───────────────────────┤
+│ B   │ 0.35 │ 0.65 │ ALARM         tubated        │
+├─────┼──────┼──────┼───────────────┼────────────────┼───────────────────────┤
+│ C   │ 0.10 │ 0.90 │ ALARM         tubated        │
+└─────┴──────┴──────┴───────────────┴────────────────┴───────────────────────┘
+
+- Alarm side — p ≥ t, always, in both directions. This is "did the model correctly spot the bad
+thing?" Your confusion matrix, sensill live here. It never flips.
+- Action side — who actually got done to them. Here it's the opposite group from the alarm.
+- Decision side — the same thing as essed on the 1−p scale so thedecision curve's x-axis reads "how sure of success do I need to be before pulling the tube?" Your
+0.10 policy sits at 0.90 on that axi
+
+Why keep alarm separate from action.ion matrix on the action side. A"true positive" would become "we extubated them AND they failed." That number goes up as the model gets worse. Your codebase already way:5-11 — I'm not fixing that, it'salready right.
+
+Now look at patient C, sitting exactly on the line. Action side says keep intubated (0.10 < 0.10 is
+false). Decision side should agree (. They agree here. But 1.0 − p isn't exact in floating point below 0.5, so at 20 of the 99 thresholds C lands on opposite sides in two
+different files — one says extubatedthe same patient. That's the rounding bug. My fix is to stop asking the question on the 1−p scale at all: decide membership using p < t,
+and use 1−t only to weight the math.
+
+Arms. "Acted arm" = everyone extubatyone kept intubated. The tworeference lines on your decision curve are just the extremes: extubate everyone (0.460 net benefit) vs extubate nobody (0). Your model h

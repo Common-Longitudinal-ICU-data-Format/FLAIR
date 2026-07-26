@@ -28,7 +28,7 @@ thresholds instead of one.
 
   dca              : the ONE deliberate exception. It keeps its net-benefit curve
                      AND its verdict at the shipped policy, because for a task like
-                     task3 the decision curve is the primary analysis and a curve
+                     extubation_failure_24h it is the primary analysis and a curve
                      whose conclusion lives in a different file invites the
                      conclusion to be missed. The scorecard reports the same net
                      benefit at all five thresholds, through the same primitives

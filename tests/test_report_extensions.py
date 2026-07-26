@@ -33,6 +33,7 @@ from flair_benchmark.report.discrimination import build_discrimination
 from flair_benchmark.report.fairness import build_fairness
 from flair_benchmark.report._sweep import SWEEP_GRID
 from flair_benchmark.report._locators import _CI_KEYS, _attach_ci, locate_band
+from flair_benchmark.report._suppress import suppress
 from flair_benchmark.report.operating_points import build_episodic_operating_points
 from flair_benchmark.tasks._finalize import finalize_cohort
 
@@ -474,6 +475,83 @@ def test_scorecard_net_benefit_matches_the_dca_curve():
                 v = dca["metrics"]["verdict"]
                 assert dec["net_benefit"] == v["model"]
                 assert dec["clinically_useful"] == v["clinically_useful"]
+
+
+def _make_grid_tied(k: int = 12, seed: int = 17) -> pl.DataFrame:
+    """k stays sitting EXACTLY on each of the 99 sweep thresholds.
+
+    Real models emit ties constantly (tree ensembles, 2-dp exports), and a tie is
+    where the acted arm can be defined two ways. make_synth's continuous logits
+    never land on a grid point, so the sweep is never asked the hard question.
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    for gi, t in enumerate(SWEEP_GRID):
+        for j in range(k):
+            i = gi * k + j
+            rows.append({
+                "patient_id": f"p{i}",
+                "hospitalization_join_id": f"h{i}",
+                "hospitalization_id": f"h{i}",
+                "prediction_dttm": datetime(2020, 1, 1, 7, 0),
+                "label": int(rng.random() < float(t)),
+                "split": "test",
+                "age_at_admission": int(rng.integers(18, 95)),
+                "sex_category": "Female" if rng.random() < 0.5 else "Male",
+                "race_category": "White",
+                "ethnicity_category": "Non-Hispanic",
+                "y_prob": float(t),
+                "y_pred": int(float(t) >= 0.5),
+            })
+    output_cols = ["hospitalization_id", "hospitalization_join_id",
+                   "prediction_dttm", "label", "split",
+                   "age_at_admission", "sex_category", "race_category",
+                   "ethnicity_category", "y_prob", "y_pred"]
+    return finalize_cohort(pl.DataFrame(rows), output_cols, META)
+
+
+@pytest.mark.parametrize("direction", ["above", "below"])
+def test_decision_arm_is_exact_at_every_grid_tie(direction):
+    """A patient at p == t must land on the same side in BOTH files.
+
+    The acted arm used to be defined twice on two different number scales:
+    dca.py/_sweep.py compared `(1-p) > (1-t)`, operating_points.py compared
+    `p < t`. `1.0 - x` is exact in float64 only for x in [0.5, 1] (Sterbenz), so
+    the two disagreed about a tied patient at 20 of the 99 thresholds (0.18,
+    0.41-0.43, 0.57-0.59, 0.69-0.71, 0.82-0.85, 0.94-0.99) — publishing a
+    `net_benefit` that was not the net benefit of the arm `n_acted` described.
+    Both now cut on the label scale, so the complement never decides membership.
+    """
+    meta = {**META, "clinical_direction": direction}
+    df = _make_grid_tied()
+    prob = df["y_prob"].to_numpy()
+    label = df["label"].to_numpy()
+    n = len(label)
+    y_dec = (1 - label) if direction == "below" else label
+
+    dca = build_dca(df, meta)
+    thr, nb_model = dca["curves"]["thresholds"], dca["curves"]["net_benefit_model"]
+
+    for e in build_episodic_operating_points(df, meta)["by_threshold"]:
+        t, dec = e["threshold"], e["decision"]
+        acted = (prob < t) if direction == "below" else (prob >= t)
+        ctx = (direction, t)
+
+        # (a) the reported arm IS the shipped action, tie included
+        assert dec["n_acted"] == suppress(int(acted.sum())), ctx
+        if dec["net_benefit"] is None:
+            continue
+
+        # (b) net benefit is the net benefit OF THAT ARM, weighed on the axis
+        x = dec["dca_threshold"]
+        tp = int((acted & (y_dec == 1)).sum())
+        fp = int(acted.sum()) - tp
+        assert dec["net_benefit"] == round(tp / n - (fp / n) * (x / (1 - x)), 6), ctx
+
+        # (c) and it is the number dca.json publishes at the same x
+        i = min(range(len(thr)), key=lambda j: abs(thr[j] - x))
+        if nb_model[i] is not None:
+            assert dec["net_benefit"] == nb_model[i], ctx
 
 
 def test_scorecard_suppresses_a_threshold_that_flags_almost_nobody():

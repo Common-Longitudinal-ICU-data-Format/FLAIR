@@ -3,7 +3,7 @@
 [← back to FLAIR 101](../101.md)
 
 FLAIR gives you **three ways** to turn CLIF data into model inputs. All three honor the
-per-row `prediction_dttm` cutoff (no data after the prediction point). Pick by how much
+per-row `feature_cutoff_dttm` (no data after the prediction point). Pick by how much
 control vs. convenience you want.
 
 | mode | how | output | when to use |
@@ -26,7 +26,7 @@ flair fe-meds \
   --out meds.parquet
 ```
 
-Both read `cohort.parquet` (for `hospitalization_id`s and per-stay `prediction_dttm`),
+Both read `cohort.parquet` (for `hospitalization_id`s and per-stay `feature_cutoff_dttm`),
 load CLIF via clifpy, truncate at the prediction point, and write **ELF-long** parquet.
 
 ## The ELF long schema
@@ -37,7 +37,7 @@ row per clinical event — so downstream code works with either:
 | column | type | notes |
 |---|---|---|
 | `subject_id` | str | = `patient_id` |
-| `time` | datetime (tz-naive) | always `≤ prediction_dttm` |
+| `time` | datetime (tz-naive) | always `≤ feature_cutoff_dttm` |
 | `code` | str | `<DOMAIN>//<category>//<unit>` |
 | `numeric_value` | float | nullable (numeric events) |
 | `unit` | str | required where `numeric_value` is set |
@@ -108,6 +108,6 @@ The reference baseline counts ELF codes into a sparse matrix. Before counting, c
 - **numeric** codes → 2 levels: `LAB//lactate//mmol/l//bmp` → `LAB//lactate`
 - **categorical** codes → 3 levels: `RESP//device_category//imv` (unchanged)
 
-Then events with `time < prediction_dttm` are counted per `prediction_id`, and the
+Then events with `time ≤ feature_cutoff_dttm` are counted per `prediction_id`, and the
 **vocabulary is fit on the train split only**. Every lactate measurement counts as one
 feature regardless of unit; every vancomycin dose counts as one regardless of action.

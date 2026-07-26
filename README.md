@@ -58,11 +58,16 @@ Configure -> Build a cohort -> Get features -> Train -> Report
 
 The most important rule is the prediction time:
 
-> For each row, a model may use data with `time <= prediction_dttm` and nothing
-> after `prediction_dttm`.
+> For each row, a model may use data with `time <= feature_cutoff_dttm` and
+> nothing after it.
 
-That timestamp is the no-future-data boundary for the row. FLAIR task builders
-create it, feature extractors honor it, and reports assume predictions respect it.
+That timestamp is the no-future-data boundary for the row. Every cohort carries it,
+and it equals `prediction_dttm` for all but one task. A task sets it *earlier* when
+its own prediction timestamp would leak the outcome — `extubation_failure_24h`
+anchors on the respiratory-support row that announces the extubation, so it cuts
+strictly before, and a model asked "should we extubate?" never sees the extubation.
+FLAIR task builders create the cutoff, feature extractors honor it, and reports
+assume predictions respect it.
 
 ## Installation
 
@@ -320,17 +325,21 @@ Depending on mode, the report directory can include JSON files for:
 - lead time
 - threshold or operating-point behavior
 
-For a task whose action fires on LOW risk (`clinical_direction: "below"` — none of
-the live tasks today, but the report code supports it), the decision curve is built
-on the **complement** of the label: e.g. a task that predicts extubation *failure*
-but whose action is to *extubate* would act when failure risk is low, so its DCA
-event is *successful extubation* and its x-axis is the probability of success a
-clinician would require before extubating — 0 (extubate everyone) to 1 (extubate
-nobody), placing a policy of 0.15 at x = 0.85. For an `"above"` task (all live
-tasks, e.g. T3 "perform a tracheostomy when failure risk ≥ 0.80") the DCA event is
-the label event itself and the policy threshold appears directly on the x-axis.
-`dca.json`'s `metadata.x_axis` names the axis and its `metrics.verdict` states
-whether the model beats acting on everyone / no one at that point.
+For a task whose action fires on LOW risk (`clinical_direction: "below"`), the
+decision curve is built on the **complement** of the label. `extubation_failure_24h`
+is the live example: it predicts extubation *failure*, but the decision is whether
+to *extubate*, which fires when failure risk is low. Its DCA event is therefore
+*successful extubation* and its x-axis is the probability of success a clinician
+would require before extubating — 0 (extubate everyone) to 1 (keep everyone
+intubated), placing its 0.10 policy at x = 0.90. Note that only the frame is
+complemented: the model still emits P(failure), and AUROC / AUPRC / calibration /
+the confusion matrix all stay on the failure label.
+
+For an `"above"` task (e.g. `icu_readmission` "keep in ICU when readmission risk
+≥ 0.20") the DCA event is the label event itself and the policy threshold appears
+directly on the x-axis. `dca.json`'s `metadata.x_axis` names the axis, its
+`metadata.action` / `metadata.inaction` name the two arms of the decision, and its
+`metrics.verdict` states whether the model beats acting on everyone / no one.
 
 When visualization support is installed, `--viz` writes local PNGs from the same
 JSON data. These PNGs are for site review; the portable artifact is the JSON

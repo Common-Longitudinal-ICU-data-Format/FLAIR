@@ -20,6 +20,7 @@ from flair_benchmark._stitch import (
 )
 
 HORIZON_COL = "end_time"
+CUTOFF_COL = "feature_cutoff_dttm"
 
 
 @dataclass(frozen=True)
@@ -38,8 +39,14 @@ def feature_scope(
     """Return expanded member hospitalizations + join-level horizons.
 
     ``hospitalization_ids`` is the full raw hospitalization set to load from CLIF.
-    ``horizons`` has one row per hospitalization_join_id and a max
-    ``prediction_dttm`` cutoff in ``end_time``.
+    ``horizons`` has one row per hospitalization_join_id and, in ``end_time``, the
+    last instant whose data may be used — ``max(feature_cutoff_dttm)``, the
+    cohort-contract column stamped by ``tasks/_finalize.py`` (see there for why the
+    cutoff travels as a value). It equals ``prediction_dttm`` for every task except
+    one whose prediction timestamp would itself leak the outcome.
+
+    Callers filter INCLUSIVELY against it (``time <= end_time``); a task wanting a
+    strict cutoff moves the value, not the comparison.
     """
     idx = load_or_build_encounter_index(
         clif_cfg, clif_cfg.get("stitch_time_interval_hours", 6)
@@ -54,10 +61,26 @@ def feature_scope(
     hosp_ids = members_of_joins(idx, join_ids)
 
     if "prediction_dttm" in df.columns:
-        horizons = (
-            df.group_by(JOIN_ID)
-            .agg(pl.col("prediction_dttm").max().alias(HORIZON_COL))
-        )
+        if CUTOFF_COL not in df.columns:
+            if require_horizon:
+                raise ValueError(
+                    f"cohort is missing {CUTOFF_COL!r} — regenerate it with "
+                    f"`flair load-task` on this version of FLAIR. Falling back to "
+                    f"prediction_dttm would silently give an INCLUSIVE feature "
+                    f"cutoff, which leaks the outcome for tasks anchored on the "
+                    f"event itself (e.g. extubation_failure_24h)."
+                )
+            cutoff = pl.col("prediction_dttm")
+        else:
+            # Coalesce per ROW before aggregating. A bare .max() over a partly-null
+            # column skips nulls, which would let a sibling row's cutoff govern the
+            # null row instead of that row's own prediction time.
+            cutoff = pl.coalesce([pl.col(CUTOFF_COL), pl.col("prediction_dttm")])
+        # max() over the join block: end_time is a LOADING bound for the whole
+        # encounter (the per-prediction cut happens downstream in the count
+        # featurizer), so the widest row governs. Safe while a task's cutoff is
+        # monotone in prediction_dttm, which is true of every cutoff shipped.
+        horizons = df.group_by(JOIN_ID).agg(cutoff.max().alias(HORIZON_COL))
     elif require_horizon:
         raise ValueError("feature extraction requires prediction_dttm in task_df")
     else:

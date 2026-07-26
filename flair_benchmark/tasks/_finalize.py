@@ -3,6 +3,22 @@
 Every task's build() ends with `finalize_cohort(df, OUTPUT_COLS, META)`,
 which selects the task's contract columns and appends:
 
+  feature_cutoff_dttm  datetime  The last instant whose data may be used as a
+                         feature for this row. Defaults to prediction_dttm.
+                         A task sets it EARLIER when its own prediction timestamp
+                         would leak the outcome — extubation_failure_24h anchors
+                         at the first non-IMV respiratory-support row, i.e. the
+                         row announcing the extubation, so a model asked "should
+                         we extubate?" must not see it.
+
+                         Stamped on EVERY cohort on purpose. Feature extraction
+                         (`flair fe-wide` / `fe-meds`) receives a cohort parquet
+                         and never imports the task module, so the cutoff has to
+                         travel as data. Making it a value rather than a flag also
+                         means features/wide.py and features/meds_stream.py keep
+                         one comparison (`time <= end_time`) and are correct
+                         without knowing per-task strictness exists.
+
   window_number  Int32   1-based k-th prediction timestep per stitched
                          encounter (hospitalization_join_id), ordered by
                          prediction_dttm. Only for one-per-window tasks;
@@ -45,7 +61,16 @@ def finalize_cohort(df: pl.DataFrame, output_cols: list[str], meta: dict) -> pl.
         keep = ["patient_id", *keep]
     if block_key == "hospitalization_join_id" and block_key not in keep:
         keep = [*keep, "hospitalization_join_id"]
+    if "feature_cutoff_dttm" in df.columns and "feature_cutoff_dttm" not in keep:
+        keep = [*keep, "feature_cutoff_dttm"]
     df = df.select(keep)
+
+    # Cohort contract, not a task option: a cohort without this column cannot be
+    # distinguished from one whose task simply never set it, and features/_scope.py
+    # would have to guess. Default = prediction_dttm, i.e. today's inclusive cutoff.
+    if "feature_cutoff_dttm" not in df.columns and "prediction_dttm" in df.columns:
+        df = df.with_columns(
+            pl.col("prediction_dttm").alias("feature_cutoff_dttm"))
 
     if multi_row and "prediction_dttm" in df.columns:
         df = df.with_columns(

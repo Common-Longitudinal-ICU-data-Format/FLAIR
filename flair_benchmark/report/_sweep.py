@@ -13,8 +13,9 @@ primitive behind ``operating_points.py``'s universal sweep (design doc §2):
                  F1 / FPR / flag-rate) as vectors, ``nan`` where a denominator is
                  zero. Formulas match ``_confusion.confusion_metric`` exactly.
   nb_curve     : net benefit across a decision-axis grid, vectorized — the same
-                 ``TP/n - FP/n * t/(1-t)`` as ``_basis.net_benefit`` so the sweep
-                 and dca.json agree by construction.
+                 ``TP/n - FP/n * t/(1-t)`` as ``_basis.net_benefit``, cutting the
+                 acted arm on the same LABEL-scale grid, so the sweep and dca.json
+                 agree by construction including at a tie.
   band_ci      : ONE shared bootstrap resample stream produces a 95% CI *band*
                  across the whole grid — a confidence band, not 99 independent
                  CIs. Mirrors ``_ci.bootstrap_ci`` exactly (same seed, one
@@ -24,8 +25,9 @@ primitive behind ``operating_points.py``'s universal sweep (design doc §2):
                  bit-identical to the old single-point bootstrap at that
                  threshold.
 
-ALARM convention throughout the counts (``p >= t`` in both directions); the
-decision-axis grid handed to ``nb_curve`` is where direction is folded in.
+ALARM convention throughout the counts (``p >= t`` in both directions).
+``nb_curve`` is the one direction-aware primitive: it cuts its acted arm with the
+task's own rule and weighs it on the decision axis.
 """
 
 from __future__ import annotations
@@ -98,28 +100,36 @@ def sweep_metrics(tp: np.ndarray, fp: np.ndarray, fn: np.ndarray,
     }
 
 
-def nb_curve(y_true: np.ndarray, y_prob: np.ndarray, axis_grid: np.ndarray,
-             strict: bool) -> np.ndarray:
+def nb_curve(y_true_dec: np.ndarray, y_prob_label: np.ndarray,
+             label_grid: np.ndarray, axis_grid: np.ndarray,
+             direction: str) -> np.ndarray:
     """Net benefit ``TP/n - FP/n * t/(1-t)`` over a DECISION-axis grid, vectorized.
 
-    ``axis_grid`` is ``axis_threshold(t, direction)`` per grid point (``t`` for an
-    "above" task, ``1-t`` for "below"), and ``y_true``/``y_prob`` are already on
-    the decision basis (see ``_basis.to_decision_basis``). ``strict`` counts the
-    acted arm as ``p > t`` (the "below" complement rule) instead of ``p >= t`` —
-    identical to ``_basis.net_benefit(..., strict=strict)`` at each point.
+    The vectorized twin of ``_basis.net_benefit``, and it splits the two
+    thresholds the same way: the acted arm is cut on ``label_grid`` (the LABEL
+    scale, one searchsorted), and ``axis_grid`` — ``axis_threshold(t, direction)``,
+    so ``t`` for "above" and ``1-t`` for "below" — supplies only the odds weight.
+    ``y_true_dec`` is on the decision basis (``_basis.to_decision_basis``).
+
+    Cutting on the label scale is what keeps this identical to ``net_benefit`` at
+    a tie: the complemented probabilities are never compared (see the boundary
+    convention in ``_basis``). For "above" the two grids are the same array and
+    this reduces to the plain ``p >= t`` sweep.
     """
-    n = len(y_true)
+    n = len(y_true_dec)
     if n == 0:
         return np.full(len(axis_grid), np.nan)
-    p_total = int(y_true.sum())
-    order = np.argsort(y_prob, kind="stable")
-    p_sorted = y_prob[order]
-    y_sorted = y_true[order].astype(np.int64)
+    p_total = int(y_true_dec.sum())
+    order = np.argsort(y_prob_label, kind="stable")
+    p_sorted = y_prob_label[order]
+    y_sorted = y_true_dec[order].astype(np.int64)
     cum_pos = np.concatenate(([0], np.cumsum(y_sorted)))
-    side = "right" if strict else "left"          # p > t (strict) vs p >= t
-    idx = np.searchsorted(p_sorted, axis_grid, side=side)
-    tp = p_total - cum_pos[idx]
-    fp = (n - idx) - tp
+    idx = np.searchsorted(p_sorted, label_grid, side="left")   # count of p < t
+    if direction == "below":                      # acted = p < t
+        n_acted, tp = idx, cum_pos[idx]
+    else:                                         # acted = p >= t
+        n_acted, tp = n - idx, p_total - cum_pos[idx]
+    fp = n_acted - tp
     ok = axis_grid < 1.0                          # t/(1-t) diverges at t == 1
     odds = np.where(ok, axis_grid / np.where(ok, 1.0 - axis_grid, 1.0), np.nan)
     nb = tp / n - (fp / n) * odds

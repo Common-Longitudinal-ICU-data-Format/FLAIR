@@ -3,6 +3,13 @@
 > **Status:** design / ideas doc. No code yet. This is the plan we review before
 > touching `flair_benchmark/report/`.
 >
+> **Record note (2026-07-25):** this document describes a `TASK_POLICY` dict in
+> `_constants.py` and a per-task `cost_ratio` key. Neither exists. Clinical policy
+> moved inline into each task's `META` (validated in `tasks/__init__.py`, hashed in
+> `_hash.py`), and `_constants.py` retains only `SELECTION_DEFAULTS`. Those mentions
+> are left in place because they are part of the design record; the policy *tables*
+> below have been kept factually current. `flair list-tasks` is authoritative.
+>
 > **Companion:** `docs/eval_continuous_three_ways.md` §3 already argues *why* FLAIR
 > should report data-driven thresholds next to the shipped clinical policy. This
 > doc is the concrete **how** — one universal sweep, a menu of threshold-selection
@@ -91,7 +98,7 @@ Properties that make this the right primitive:
   so cross-site averaging of any curve (sensitivity vs threshold, PPV vs threshold,
   encounter alert-rate vs threshold) is a clean vertical average with no interpolation.
 - **The clinical threshold is always on the grid.** Every shipped policy threshold is
-  a multiple of 0.01 (`0.95, 0.50, 0.80, 0.10, 0.20`), so exactly one grid row gets
+  a multiple of 0.01 (`0.95, 0.50, 0.10, 0.20`), so exactly one grid row gets
   `is_clinical = true`. Add a one-line validation to `_validate_taxonomy`:
   `clinical_threshold` must be a multiple of the grid step (already constrained to
   `0 < t < 1`). This is the **"clinical intrusion"** highlight — the policy shown as a
@@ -735,11 +742,11 @@ policy?).
 |---|---|---|---|---|
 | icu_daily_mortality | 0.95 | above | continuous (30-day, day) | Is 0.95 near any data-driven pick, or is the useful region far lower? Encounter alert-rate + NNE at 0.95 vs at Youden. No intervention → §4.4 absent. |
 | icu_daily_ltach | 0.50 | above | continuous (30-day, day) | Youden vs the more-likely-than-not policy; encounter burden at 0.50. No intervention → §4.4 absent. |
-| extubation_failure_24h | 0.80 | **above** | episodic | Locators computed on risk (alarm) basis; action view = who gets a tracheostomy. Does 0.80 sit where the data separates fail/no-fail? |
+| extubation_failure_24h | 0.10 | **below** | episodic | Locators computed on risk (alarm) basis; action view = who gets extubated. Does 0.10 sit where the data separates fail/no-fail? |
 | _hypothetical hourly deterioration task_ (illustrative — no such task ships today) | 0.10 | above | continuous (7-day, hour) | The headline case for an intervention task: Youden (prevalence-blind) vs F1/PPV-target (sees the ~2% prevalence). Encounter alert-rate + NNE across the sweep (frac admissions alerting; 1−PPV false-alarm) — the Kamran alarm-fatigue curve. **The one task shape with an intervention** → §4.4 sub_rates + median lead-time apply. |
 | icu_readmission | 0.20 | above | episodic | Where four rules land vs the top-20%-risk policy. |
 
-Note the shipped clinical thresholds `{0.95, 0.50, 0.80, 0.20}` (and the illustrative
+Note the shipped clinical thresholds `{0.95, 0.50, 0.10, 0.20}` (and the illustrative
 hourly task's 0.10) are all multiples of
 0.01 → all land exactly on the grid. The validation in §2.1 guards future edits.
 

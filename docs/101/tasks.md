@@ -14,7 +14,7 @@ flair list-tasks
 |---|---|---|---|---|---|---|
 | `icu_daily_mortality` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.95 (above) | order a palliative care consult |
 | `icu_daily_ltach` | outcome | continuous | one-per-window (daily 07:00) | binary | 0.50 (above) | early tracheostomy |
-| `extubation_failure_24h` | intervention | episode | one-per-stay | binary | 0.80 (above) | perform a tracheostomy |
+| `extubation_failure_24h` | intervention | episode | one-per-stay | binary | 0.10 (**below**) | extubate; otherwise keep the patient intubated |
 | `icu_readmission` | outcome | episode | one-per-stay | binary | 0.20 (above) | keep in ICU |
 
 The **report mode** follows from the temporal pattern: episode tasks → `episodic`;
@@ -50,7 +50,8 @@ Every cohort carries a fixed set of columns (`flair_benchmark/tasks/_finalize.py
 |---|---|
 | `hospitalization_id` | raw hospitalization key |
 | `hospitalization_join_id` | **stitched-encounter (stay) key** |
-| `prediction_dttm` | the no-data-after cutoff for that row |
+| `prediction_dttm` | when the prediction is made |
+| `feature_cutoff_dttm` | the last instant whose data may be used. Defaults to `prediction_dttm`; set **earlier** by a task whose prediction timestamp would itself leak the outcome |
 | `<label_column>` | the task label (e.g. `label_mortality`) |
 | `split` | `train` / `test` |
 | `age_at_admission`, `sex_category`, `race_category`, `ethnicity_category` | demographics (drive fairness) |
@@ -61,8 +62,21 @@ Every cohort carries a fixed set of columns (`flair_benchmark/tasks/_finalize.py
 all four segments always present, so any prediction row traces back to its stitched stay,
 the specific hospitalization, the patient, and the window.
 
-> **Leakage rule.** A row may use **all** data with `time ≤ prediction_dttm` and **nothing**
-> after it. Every `build()` respects this, and the feature extractors enforce it.
+> **Leakage rule.** A row may use **all** data with `time ≤ feature_cutoff_dttm` and
+> **nothing** after it. Every `build()` respects this, and the feature extractors
+> enforce it.
+
+The cutoff travels as a *timestamp*, not a flag, and that is deliberate: `flair
+fe-wide --task` takes a **cohort parquet path** and never imports the task module,
+so a per-task rule expressed any other way would silently fall back to the default.
+Carrying a value instead means `features/wide.py` and `features/meds_stream.py` keep
+a single comparison (`time <= end_time`) and are correct without knowing that
+per-task strictness exists. A cohort predating the column is rejected loudly by
+`features/_scope.py` rather than defaulted.
+
+`extubation_failure_24h` is the one task that sets it: its `prediction_dttm` is the
+first non-IMV respiratory-support row — the row that *announces* the extubation — so
+it cuts 1 µs earlier. Everything up to the decision stays in, including the SBT.
 
 ---
 
@@ -110,8 +124,14 @@ label → `assign_split(...)` → `finalize_cohort(...)`.
 1. **Cohort scope** — all-comers ICU? hospital-wide? specific inclusion/exclusion?
 2. **Label anchor** — what clinical event defines the positive label?
 3. **Prediction timing** — one-per-stay (episode) or one-per-window (continuous)?
-4. **Threshold + direction** — at what risk do you act, and above or below?
-5. **`prediction_dttm`** — the strict no-data-after cutoff for each row.
+4. **Threshold + direction** — at what risk do you act, and above or below? The
+   threshold is not a cutoff; it is the exchange rate between the harm of acting
+   unnecessarily and the harm of the event (`t/(1-t)`). Name the action first — get
+   that wrong and the threshold encodes the wrong trade.
+5. **`prediction_dttm`** — when the prediction is made.
+6. **`feature_cutoff_dttm`** — does your `prediction_dttm` row *itself* leak the
+   outcome? If the anchor is the event (an extubation, a transfer, a procedure),
+   set the cutoff strictly earlier. Otherwise leave it to default.
 
 ### Templates to copy
 

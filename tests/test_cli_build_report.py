@@ -339,3 +339,108 @@ def test_y_prob_null_rejected(tmp_path):
                                  "--mode", "episodic"])
     assert result.exit_code != 0
     assert "y_prob" in str(result.exception) and "null" in str(result.exception)
+
+
+# ======================================================= BELOW-DIRECTION BUNDLE
+#
+# extubation_failure_24h is the first live task whose action fires on LOW risk:
+# the decision is "extubate, or keep the patient intubated", so it acts when
+# P(failure) < 0.10 and its decision curve is drawn on the complement. Every
+# other live task is "above", where the alarm axis and the decision axis are the
+# same numbers — a coincidence that hid real defects in the "below" branches. The
+# whole point of this fixture is to run those branches end-to-end.
+
+BELOW_TASK = "extubation_failure_24h"
+BELOW_LABEL = "label_extubation_failure_24h"
+
+
+@pytest.fixture(scope="module")
+def below_report_dir(tmp_path_factory) -> Path:
+    tmp = tmp_path_factory.mktemp("cli_below")
+    preds_path = tmp / "preds.parquet"
+    out_dir = tmp / "report"
+    make_synth(n_stays=800, seed=42).rename({"label": BELOW_LABEL}) \
+        .write_parquet(preds_path)
+    result = runner.invoke(app, [
+        "build-report", str(preds_path),
+        "--task", BELOW_TASK, "--out", str(out_dir),
+        "--mode", "episodic", "--viz",
+    ])
+    assert result.exit_code == 0, result.output
+    return out_dir
+
+
+def test_below_scorecard_acts_on_the_low_risk_arm(below_report_dir):
+    op = _load(below_report_dir, "operating_points")
+    assert op["metadata"]["clinical_direction"] == "below"
+
+    clinical = [e for e in op["by_threshold"] if e["is_clinical"]]
+    assert len(clinical) == 1
+    assert clinical[0]["threshold"] == 0.10
+
+    for e in op["by_threshold"]:
+        dec = e["decision"]
+        assert dec["acts_on"] == "y_prob < threshold"
+        # the acted arm is the COMPLEMENT of the flagged arm, unlike an above task
+        c = e["confusion"]
+        if all(isinstance(c[k], int) for k in c if k != "n") and \
+                isinstance(dec["n_acted"], int):
+            assert dec["n_acted"] == c["n"] - (c["tp"] + c["fp"])
+        # ...and net benefit is read on the complement axis
+        assert dec["dca_threshold"] == round(1.0 - e["threshold"], 6)
+
+
+def test_below_dca_is_drawn_on_the_complement(below_report_dir):
+    """The event, the prevalence and the axis all flip; the model output does not."""
+    dca = _load(below_report_dir, "dca")
+    md = dca["metadata"]
+    assert dca["direction"] == "below"
+    assert "complement" in dca["basis"]
+
+    # the policy: 0.10 on the failure scale is 0.90 on "P(success) before extubating"
+    assert md["clinical_threshold_on_label_scale"] == 0.10
+    assert md["clinical_threshold_on_axis"] == 0.90
+    assert dca["metrics"]["clinical_threshold"] == 0.90
+
+    # `prevalence` is P(success), NOT the failure rate — prevalence_of says so, and
+    # without that a reader sees 0.8 on a task whose event rate is 0.2 and files a bug
+    assert md["prevalence_of"] == md["event"] == "successful extubation"
+    assert dca["prevalence"] > 0.5
+
+    # both arms of the decision are named; "'extubate' on no one" is a double negative
+    assert md["action"] == "extubate"
+    assert md["inaction"] == "keep the patient intubated"
+    beats = dca["metrics"]["verdict"]["beats"]
+    assert "extubate" in beats and "keep the patient intubated" in beats
+    assert "tracheostomy" not in json.dumps(dca)
+
+
+def test_below_net_benefit_has_one_definition_across_the_bundle(below_report_dir):
+    """The cross-file invariant, on the direction that can actually break it.
+
+    For an "above" task the acted arm is the flagged arm and the two files cannot
+    diverge by accident. Under "below" they are computed from opposite arms on two
+    different threshold scales, so this is where a drift would surface.
+    """
+    dca = _load(below_report_dir, "dca")
+    thr = dca["curves"]["thresholds"]
+    nb_model, nb_all = dca["curves"]["net_benefit_model"], dca["curves"]["net_benefit_all"]
+
+    for e in _load(below_report_dir, "operating_points")["by_threshold"]:
+        dec = e["decision"]
+        i = min(range(len(thr)), key=lambda j: abs(thr[j] - dec["dca_threshold"]))
+        if dec["net_benefit"] is not None and nb_model[i] is not None:
+            assert dec["net_benefit"] == nb_model[i], f"NB drifted at t={e['threshold']}"
+        assert dec["net_benefit_treat_all"] == nb_all[i]
+        if e["is_clinical"]:
+            v = dca["metrics"]["verdict"]
+            assert dec["net_benefit"] == v["model"]
+            assert dec["clinically_useful"] == v["clinically_useful"]
+
+
+def test_below_bundle_renders_the_pngs(below_report_dir):
+    viz = below_report_dir / "viz"
+    written = {p.name for p in viz.glob("*.png")}
+    assert EXPECTED_PNGS <= written
+    for p in viz.glob("*.png"):
+        assert p.stat().st_size > 5_000, p.name

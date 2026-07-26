@@ -122,10 +122,9 @@ alert×label view at clinical ± 0.05.
 
 A `clinical_direction: "below"` task — one whose action fires on LOW risk — has two
 different frames, and conflating them is how a decision curve gets read backwards.
-No live task is "below" today (T3 is now "above": *perform a tracheostomy* when
-failure risk ≥ 0.80), but the report code supports it and the distinction is why the
-scorecard keeps the two bases apart. Take a hypothetical task that predicts
-extubation *failure* but whose action is to *extubate* (act on low risk):
+`extubation_failure_24h` is the live one: it predicts extubation *failure*, but the
+decision it supports is two-sided — *extubate*, or *keep the patient intubated* —
+so it acts on LOW risk, when P(failure) < 0.10.
 
 - **Alarm basis** (`y_prob >= t`, both directions) — `confusion` + `metrics`. The
   *alarm* is always high risk, so sensitivity/PPV always mean "how well do we detect
@@ -133,13 +132,18 @@ extubation *failure* but whose action is to *extubate* (act on low risk):
   TP = "extubated AND failed": a disaster booked as a true positive, with a
   sensitivity that rises as the model gets worse.
 - **Decision basis** — the `decision` block and all of `dca.json`. This is the frame
-  the clinician decides in. For that below task the event is *successful extubation*,
-  the score is `1-p`, and the x-axis is the probability of success required before
-  extubating: 0 = "unworried about failure, worried about the harms of continued
-  intubation → extubate everyone", 1 = "terrified of failure → extubate nobody", so a
-  policy of 0.15 would sit at **x = 0.85**. For an "above" task like T3 the score is
-  `p` and the policy sits directly on the x-axis (0.80) —
-  `decision.dca_threshold`, `metadata.clinical_threshold_on_axis`.
+  the clinician decides in. For that below task the event is *successful extubation*
+  and the x-axis is the probability of success required before extubating: 0 =
+  "unworried about failure, worried about the harms of continued intubation →
+  extubate everyone", 1 = "terrified of failure → keep everyone intubated", so its
+  0.10 policy sits at **x = 0.90**. For an "above" task like `icu_readmission` the
+  policy sits directly on the x-axis (0.20) — `decision.dca_threshold`,
+  `metadata.clinical_threshold_on_axis`.
+
+  Only the **labels** and the **axis** complement. The model still emits P(failure),
+  and the acted arm is cut on the label scale (`p < t`) in every file — comparing
+  `1-p` is not exact at a tie, which is how the curve and the scorecard once
+  disagreed about who had been acted on.
 
 `decision.net_benefit` is *the same number* as `dca.json`'s curve at
 `dca_threshold` — both go through `dca.to_decision_basis` / `dca.axis_threshold`, so
@@ -147,9 +151,12 @@ the two files cannot drift apart. It is deliberately **not** derivable from the
 entry's alarm-basis TP/FP.
 
 `dca.json` keeps its own `verdict` (net benefit vs act-on-all vs act-on-none at the
-shipped policy) rather than surrendering it to the scorecard: for a task like T3 the
-decision curve *is* the primary analysis, and a curve whose conclusion lives in
-another file invites the conclusion to be missed.
+shipped policy) rather than surrendering it to the scorecard: for a task like
+`extubation_failure_24h` the decision curve *is* the primary analysis, and a curve
+whose conclusion lives in another file invites the conclusion to be missed. Both
+defaults are named from the task's `dca_axis`, so a two-sided decision reads as
+"…vs 0.46 for extubating everyone and 0 for keeping everyone intubated" rather than
+the double negative "'extubate' on no one".
 
 Every metric carries a **500-replicate bootstrap 95% CI** (deterministic seed). Cell
 suppression (`<10`) and subgroup dropping (`n < 10`) are applied so nothing identifying

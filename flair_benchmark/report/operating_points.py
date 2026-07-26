@@ -32,7 +32,9 @@ WHAT EACH MODE ADDS:
               ``intervention`` column — per-threshold treatment ``sub_rates`` plus a
               single median lead-time scalar at the named thresholds. Net benefit is
               deliberately OMITTED here: DCA on the peak (max-of-many) surface is the
-              peak-calibration trap (docs §2), so it lives in dca.json's landmarks.
+              peak-calibration trap (docs §2). There is no landmark DCA to fall back
+              on either — build_dca has exactly one caller, episodic.py — so a
+              continuous task simply has no decision curve.
 
 Privacy: every confusion / burden count passes ``suppress()``; a rate derived from
 fewer than ``MIN_CELL_COUNT`` flagged/acted stays is nulled with a reason.
@@ -207,22 +209,24 @@ def build_episodic_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
 
     # decision basis: transform once; the net-benefit curve rides the same seeded
     # resample stream as the alarm rates (one band bootstrap for the whole row).
-    below = direction == "below"
-    yt_dec, yp_dec = to_decision_basis(label, prob, direction)
+    # Only the LABELS complement; the scores stay on the label scale because that
+    # is where nb_curve cuts the acted arm — the same cut _decision_row derives
+    # n_acted from, so the two can no longer disagree at a tie.
+    yt_dec, _ = to_decision_basis(label, prob, direction)
     axis_grid = np.array([axis_threshold(float(t), direction) for t in SWEEP_GRID])
 
     def _epi_compute(lab: np.ndarray, arrs: dict) -> dict:
         ctp, cfp, cfn, ctn = sweep_counts(lab, arrs["alarm"])
         res = {k: v for k, v in sweep_metrics(ctp, cfp, cfn, ctn).items()
                if k in RATE_KEYS}
-        res["net_benefit"] = nb_curve(arrs["ytd"], arrs["ypd"], axis_grid, below)
+        res["net_benefit"] = nb_curve(arrs["ytd"], arrs["alarm"], SWEEP_GRID,
+                                      axis_grid, direction)
         return res
 
     band_keys = RATE_KEYS + ("net_benefit",)
-    band = band_ci(label, {"alarm": prob, "ytd": yt_dec, "ypd": yp_dec},
-                   _epi_compute, band_keys)
+    band = band_ci(label, {"alarm": prob, "ytd": yt_dec}, _epi_compute, band_keys)
 
-    nb_point = nb_curve(yt_dec, yp_dec, axis_grid, below)
+    nb_point = nb_curve(yt_dec, prob, SWEEP_GRID, axis_grid, direction)
     prev_dec = float(yt_dec.mean()) if n else None
     nb_all = [None if prev_dec is None else net_benefit_all(prev_dec, float(t))
               for t in axis_grid]
@@ -308,7 +312,8 @@ def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
 
     Confusion, metrics, alert burden, locators and (intervention) treatment sub-rates all
     ride the one-row-per-stay peak collapse. Net benefit is NOT reported here (peak
-    DCA trap — it lives in dca.json's landmarks).
+    DCA trap), and there is no landmark DCA either — a continuous task has no
+    decision curve anywhere in its bundle.
     """
     t0 = meta.get("clinical_threshold")
     direction = meta.get("clinical_direction", "above")
@@ -321,7 +326,8 @@ def build_operating_points(preds: pl.DataFrame, meta: dict) -> dict:
         "unit_of_analysis": "encounter (peak)",
         "net_benefit_omitted_reason": (
             "net benefit is not reported on the peak (max-of-many) surface — the "
-            "peak-calibration trap; the decision curve lives in dca.json's landmarks"),
+            "peak-calibration trap. Continuous tasks have no decision curve; DCA is "
+            "built only for episodic (one-row-per-stay) tasks"),
     })
     out: dict = {"metadata": md}
     if meta["task_type"] != "binary" or "y_prob" not in preds.columns or t0 is None:

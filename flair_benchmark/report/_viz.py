@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from flair_benchmark.report._basis import axis_threshold
+
 
 def _import_plt():
     try:
@@ -104,7 +106,7 @@ def render_sanity_pngs(reports: dict[str, dict], out_dir: Path) -> list[Path]:
 
     ops = reports.get("operating_points")
     _render_roc_pr(reports.get("discrimination", {}), _save, plt, ops=ops)
-    _render_scorecard(ops, _save, plt)
+    _render_scorecard(ops, reports.get("dca", {}), _save, plt)
 
     cal = reports.get("calibration", {})
     cal_curves, cal_metrics = cal.get("curves", {}), cal.get("metrics", {})
@@ -232,13 +234,15 @@ def _render_dca(dca: dict, _save, plt) -> None:
         return
     md = dca.get("metadata", {})
     action = md.get("action", "treat")
+    # the treat-none line is the OTHER policy, not the absence of one
+    inaction = md.get("inaction") or f"not {action}"
     thr = curves["thresholds"]
 
     fig, ax = plt.subplots(figsize=(6.6, 4.4))
     ax.plot(thr, [v if v is not None else float("nan")
                   for v in curves["net_benefit_model"]], label="model")
     ax.plot(thr, curves["net_benefit_all"], label=f"'{action}' on all")
-    ax.axhline(0.0, color="k", lw=0.8, label=f"'{action}' on none")
+    ax.axhline(0.0, color="k", lw=0.8, label=f"'{inaction}' on all")
     if metrics.get("useful_range"):
         lo, hi = metrics["useful_range"]["low"], metrics["useful_range"]["high"]
         ax.axvspan(lo, hi, alpha=0.15, color="green",
@@ -265,7 +269,11 @@ def _render_dca(dca: dict, _save, plt) -> None:
     xlabel = md.get("x_axis", "threshold probability")
     ax.set(xlabel=xlabel[:1].upper() + xlabel[1:],
            ylabel="Net benefit", title="Decision curve analysis",
-           xlim=(0.0, 1.0),
+           # Honour the payload's own zoom hint. At 5% prevalence the decisions all
+           # live in a narrow band (near 0 for "above", near 1 for "below"), and a
+           # fixed 0-1 window crushes the whole curve into one edge. The hint always
+           # contains the shipped policy, so the red marker cannot fall outside.
+           xlim=tuple(curves.get("focus_range") or (0.0, 1.0)),
            # y is clamped so the treat-all line diving to large negatives at high
            # thresholds doesn't crush the detail.
            ylim=(min(-0.01, -prev * 0.5), max(0.01, prev * 1.2)))
@@ -322,7 +330,11 @@ _SCORECARD_PANELS = [
 _SCORECARD_TABLE = [("sensitivity", "sens"), ("specificity", "spec"),
                     ("ppv", "PPV"), ("npv", "NPV"), ("f1", "F1"),
                     ("fpr", "FPR"), ("nne", "NNE"), ("flag_rate", "alert")]
-_DECISION_TABLE = [("net_benefit", "net ben"), ("net_benefit_treat_all", "vs all")]
+# dca_threshold leads: for a "below" task the net benefit in this table was read at
+# 1-t, so a column headed "clin 0.10" carries a number evaluated at 0.90. Naming the
+# x it was read at is the cheapest way to stop that looking like an error.
+_DECISION_TABLE = [("dca_threshold", "@ x"), ("net_benefit", "net ben"),
+                   ("net_benefit_treat_all", "vs all")]
 
 
 def _named_columns(rows: list[dict], clinical, locators: list[dict]) -> list[tuple]:
@@ -348,17 +360,29 @@ def _named_columns(rows: list[dict], clinical, locators: list[dict]) -> list[tup
     return cols
 
 
-def _render_scorecard(ops: dict | None, _save, plt) -> None:
+def _render_scorecard(ops: dict | None, dca: dict, _save, plt) -> None:
     """operating_points.png — every KPI as a trend over the 99-point sweep + a table.
 
     One trend panel per KPI (line + 95% CI band) with the clinical threshold and the
     named data-driven locators marked; the exact numbers at the named thresholds are
     tabulated underneath. This is the picture the JSON is for: the whole shape of the
     trade-off, and where each rule would stand on it.
+
+    TWO X-AXES, and they are not interchangeable. The KPI panels are ALARM basis and
+    indexed by the label-scale threshold. The net-benefit panel is DECISION basis:
+    each row's value was evaluated at ``decision.dca_threshold`` (1-t for a "below"
+    task), so it is plotted against THAT — otherwise the panel comes out mirrored
+    relative to dca.png and the two red policy lines disagree about the same policy.
+    For an "above" task the axes coincide and nothing moves.
+
+    ``dca`` is read only for its axis label; nothing is added to the exported JSON
+    (PNGs are local site-validation artifacts, see report/__init__.py).
     """
     rows = [e for e in (ops or {}).get("by_threshold", []) if e.get("metrics")]
     if not rows:
         return
+    md = (ops or {}).get("metadata") or {}
+    direction = md.get("clinical_direction", "above")
     thr = [e["threshold"] for e in rows]
     clinical = next((e["threshold"] for e in rows if e.get("is_clinical")), None)
     locators = (ops or {}).get("data_driven_thresholds", [])
@@ -386,13 +410,24 @@ def _render_scorecard(ops: dict | None, _save, plt) -> None:
     i = len(_SCORECARD_PANELS)
     ax = fig.add_subplot(gs[i // ncol, i % ncol])
     dec = [e.get("decision", {}) for e in rows]
-    _panel(ax, thr, dec, "net_benefit", "net_benefit_ci", clinical, vlines)
-    ref = [(t, d.get("net_benefit_treat_all")) for t, d in zip(thr, dec)]
+    # Re-index onto the decision axis, and sort: for a "below" task 1-t reverses the
+    # sweep, so the unsorted sequence would zig-zag the fill_between band.
+    pairs = sorted(zip([d.get("dca_threshold", t) for t, d in zip(thr, dec)], dec),
+                   key=lambda p: p[0])
+    dec_x, dec = [p[0] for p in pairs], [p[1] for p in pairs]
+    clinical_dec = next((e.get("decision", {}).get("dca_threshold")
+                         for e in rows if e.get("is_clinical")), clinical)
+    vlines_dec = [(lbl, axis_threshold(t, direction), c) for lbl, t, c in vlines]
+    _panel(ax, dec_x, dec, "net_benefit", "net_benefit_ci", clinical_dec, vlines_dec)
+    ref = [(t, d.get("net_benefit_treat_all")) for t, d in zip(dec_x, dec)]
     ref = [(t, v) for t, v in ref if v is not None]
     if ref:
         ax.plot(*zip(*ref), "--", color="#c25b5b", lw=1.0, label="act on all")
         ax.legend(fontsize=6.5, loc="best")
     ax.set_title("Net benefit (decision basis)", fontsize=9)
+    xlabel = (dca or {}).get("metadata", {}).get("x_axis")
+    if xlabel:
+        ax.set_xlabel(xlabel[:1].upper() + xlabel[1:], fontsize=6.5)
 
     tax = fig.add_subplot(gs[nrow, :])
     tax.axis("off")
@@ -412,11 +447,13 @@ def _render_scorecard(ops: dict | None, _save, plt) -> None:
             for rr in range(len(table_rows) + 1):
                 table[rr, c].set_facecolor("#d6e6f2")   # the shipped policy
 
-    md = ops.get("metadata") or {}
     note = (f"clinical {clinical:g}" if clinical is not None
             else "no clinical threshold on the grid")
+    axes_note = ("KPI panels on the alarm axis (p >= t), net benefit on the "
+                 "decision axis (x = 1-t)" if direction == "below"
+                 else "all panels on the alarm axis (p >= t)")
     fig.suptitle(f"Operating-points scorecard — trend over 99 thresholds ({note}, "
-                 f"direction: {md.get('clinical_direction', 'above')}); "
+                 f"direction: {direction}); {axes_note}; "
                  f"table columns = clinical + data-driven locators", fontsize=10)
     _save(fig, "operating_points.png", tight=False)
 

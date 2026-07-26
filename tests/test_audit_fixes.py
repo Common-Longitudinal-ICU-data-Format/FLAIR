@@ -149,6 +149,56 @@ def test_every_live_task_owns_its_clinical_policy_inline():
         assert meta["clinical_direction"] in ("above", "below"), name
 
 
+def test_finalize_cohort_always_stamps_a_feature_cutoff():
+    """feature_cutoff_dttm is a cohort CONTRACT column, not a task option.
+
+    Feature extraction reads a cohort parquet and never imports the task module
+    (`flair fe-wide --task` is a path), so the cutoff has to travel as data. If it
+    were optional, features/_scope.py could not tell a task that wants the default
+    from a stale cohort that predates the column — and would have to guess.
+    """
+    from flair_benchmark.tasks._finalize import finalize_cohort
+
+    df = pl.DataFrame({
+        "hospitalization_id": ["h1", "h2"],
+        "hospitalization_join_id": ["e1", "e2"],
+        "patient_id": ["p1", "p2"],
+        "prediction_dttm": [datetime(2020, 1, 1, 7), datetime(2020, 1, 2, 7)],
+    })
+    cols = ["hospitalization_id", "hospitalization_join_id", "prediction_dttm"]
+
+    out = finalize_cohort(df, cols, {"prediction_unit": "one-per-stay"})
+    assert "feature_cutoff_dttm" in out.columns
+    # default is the inclusive cutoff — unchanged behaviour for every task but T3
+    assert out["feature_cutoff_dttm"].to_list() == out["prediction_dttm"].to_list()
+
+    # a task that sets its own keeps it, even without listing it in OUTPUT_COLS
+    strict = df.with_columns(
+        (pl.col("prediction_dttm") - pl.duration(microseconds=1))
+        .alias("feature_cutoff_dttm"))
+    kept = finalize_cohort(strict, cols, {"prediction_unit": "one-per-stay"})
+    assert kept["feature_cutoff_dttm"].to_list() != kept["prediction_dttm"].to_list()
+
+
+def test_at_least_one_live_task_acts_on_low_risk():
+    """A shipped 'below' task is what keeps the below branches honest.
+
+    The report layer carries a full act-on-LOW-risk path (report/_basis.py's
+    action/decision bases, dca.py's complement frame, the dense _HIGH threshold
+    tail, _viz.py's decision axis). It once had no live task, was exercised only
+    by synthetic METAs, and quietly accumulated defects — a mirrored scorecard
+    panel, a dead focus_range, and two files disagreeing about who was acted on.
+    If this assert ever fails, those branches are unexercised again.
+    """
+    from flair_benchmark.tasks import get_task, list_tasks
+
+    directions = {n: get_task(n).META.get("clinical_direction")
+                  for n in list_tasks()
+                  if get_task(n).META.get("task_type") == "binary"}
+    assert "below" in directions.values(), directions
+    assert "above" in directions.values(), directions
+
+
 def _kpi_frame(n_stays: int, seed: int = 3) -> tuple[pl.DataFrame, list[dict]]:
     """Continuous frame + matching scored-landmark entries for kpi CI tests."""
     rng = np.random.default_rng(seed)

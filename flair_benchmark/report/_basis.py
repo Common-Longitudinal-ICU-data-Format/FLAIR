@@ -19,14 +19,19 @@ by construction instead of by remembering to thread ``clinical_direction``:
                   net benefit describes the act (extubate) rather than reading
                   backwards; the x-axis threshold maps to 1-t.
 
-BOUNDARY CONVENTION (p exactly == t): the action for a "below" task is STRICT
-(``p < t`` — e.g. "extubate when P(failure) < t"), so on the complement basis
-the acted arm is ``P(success) > 1-t``, also strict. Above tasks act non-strictly
-(``p >= t``), matching the alarm convention and the standard DCA rule — this is
-what all live tasks use, including task3 ("perform a tracheostomy when
-P(failure) >= 0.80"). ``net_benefit(..., strict=True)`` is how the complement
-basis expresses that; the curve and the scorecard both route through it, so
-they cannot disagree at the boundary.
+BOUNDARY CONVENTION (p exactly == t). The acted arm is ALWAYS
+``action_mask(p, t_label, direction)`` — ``p < t`` for a "below" task (its action
+is STRICT: "extubate when P(failure) < t"), ``p >= t`` otherwise, matching the
+alarm convention and the standard DCA rule. Every consumer computes it that way,
+on the LABEL scale, in the operands the task author actually wrote; the decision
+axis only rescales the odds weight inside the net-benefit formula.
+
+NEVER derive the arm from ``1-p``. ``1.0 - x`` is exact in float64 only for
+x in [0.5, 1] (Sterbenz), so a patient sitting exactly on t lands on the wrong
+side of ``(1-p) > (1-t)`` at 20 of the 99 sweep thresholds — which is how dca.py
+and operating_points.py used to publish two different numbers for the same
+quantity. ``to_decision_basis`` still complements the probabilities, but only for
+display; arm membership never reads them.
 
 Both a polars-expression and a numpy-mask form are provided for each mask so
 frame-level and array-level code share one definition.
@@ -77,10 +82,21 @@ def axis_threshold(t: float, direction: str) -> float:
     """Where a clinical threshold t (label scale) sits on the DECISION-CURVE axis.
 
     An "act on LOW risk" task decides on the complement, so its threshold maps to
-    1-t: e.g. an extubate-on-low-failure-risk task's 0.15 (P failure) is 0.85
+    1-t: e.g. an extubate-on-low-failure-risk task's 0.10 (P failure) is 0.90
     (P successful extubation).
     """
     return round(1.0 - t, 6) if direction == "below" else t
+
+
+def label_threshold(x: float, direction: str) -> float:
+    """Inverse of :func:`axis_threshold`: the LABEL-scale threshold behind axis x.
+
+    Exact on the 0.01 sweep grid in both directions, so a consumer walking the
+    decision axis can recover the operand the task author wrote and compare
+    against it directly. This is what lets net benefit be evaluated at an axis
+    threshold while its acted arm is still cut on the label scale.
+    """
+    return round(1.0 - x, 6) if direction == "below" else x
 
 
 def to_decision_basis(y_true: np.ndarray, y_prob: np.ndarray,
@@ -91,6 +107,11 @@ def to_decision_basis(y_true: np.ndarray, y_prob: np.ndarray,
     successful extubation for an extubate-on-low-risk task) and the score becomes
     P(that event). Net benefit then describes treating-the-low-risk — extubating —
     instead of reading backwards.
+
+    The returned LABELS are the decision-basis event and are used in every
+    downstream count. The returned PROBABILITIES are for display only — never
+    derive the acted arm from them (see the boundary convention in the module
+    docstring); use :func:`action_mask` on the original label-scale scores.
     """
     if direction == "below":
         return 1 - y_true, 1.0 - y_prob
@@ -112,19 +133,25 @@ def net_benefit_all(prevalence: float, t: float) -> float | None:
     return round(float(prevalence - (1 - prevalence) * odds), 6)
 
 
-def net_benefit(y_true: np.ndarray, y_prob: np.ndarray, t: float,
-                strict: bool = False) -> float | None:
-    """Model net benefit at threshold t: TP/n - FP/n * t/(1-t).
+def net_benefit(y_true_dec: np.ndarray, y_prob_label: np.ndarray,
+                t_label: float, t_axis: float, direction: str) -> float | None:
+    """Model net benefit on the decision axis: TP/n - FP/n * t_axis/(1-t_axis).
 
-    ``strict=True`` counts the acted arm as ``y_prob > t`` instead of ``>= t``
-    — pass it on the COMPLEMENT basis of a "below" task so the acted arm is
-    exactly the shipped action (``P(fail) < t``; see module docstring). Above
-    tasks keep the standard non-strict rule.
+    Two thresholds, two jobs, and keeping them separate is the whole point:
+
+      ``t_label``  cuts the acted arm, via :func:`action_mask`, on the LABEL scale
+                   — the operand the task author wrote (``p < t`` / ``p >= t``).
+      ``t_axis``   weighs a false action against a missed one, and is the only
+                   place the complement enters for a "below" task.
+
+    ``y_true_dec`` is on the decision basis (:func:`to_decision_basis`), so TP is
+    "acted, and the decision-basis event happened" — for an extubate task, "we
+    extubated and they stayed extubated".
     """
-    n = len(y_true)
-    if n == 0 or t >= 1:
+    n = len(y_true_dec)
+    if n == 0 or t_axis >= 1:
         return None
-    pred_pos = (y_prob > t) if strict else (y_prob >= t)
-    tp = int((pred_pos & (y_true == 1)).sum())
-    fp = int(pred_pos.sum()) - tp
-    return tp / n - (fp / n) * (t / (1 - t))
+    acted = action_mask(y_prob_label, t_label, direction)
+    tp = int((acted & (y_true_dec == 1)).sum())
+    fp = int(acted.sum()) - tp
+    return tp / n - (fp / n) * (t_axis / (1 - t_axis))

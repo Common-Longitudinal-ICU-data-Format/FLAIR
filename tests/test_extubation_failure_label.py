@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import polars as pl
 
@@ -109,6 +109,15 @@ def test_t3_labels_reintubation_only_and_drops_death_only(monkeypatch):
     }
     assert "e_death" not in labels
     assert "e_censor" not in labels
+
+    # STRICT feature cutoff: prediction_dttm is the respiratory_support row that
+    # announces the extubation, so a "should we extubate?" model must not see it.
+    # The cutoff rides in the cohort because `flair fe-wide` takes a parquet path,
+    # never the task module — see tasks/_finalize.py.
+    for row in out.to_dicts():
+        assert row["feature_cutoff_dttm"] < row["prediction_dttm"]
+        assert (row["prediction_dttm"] - row["feature_cutoff_dttm"]
+                == timedelta(microseconds=1))
 
 
 def test_t3_post_discharge_death_does_not_defeat_censoring(monkeypatch):

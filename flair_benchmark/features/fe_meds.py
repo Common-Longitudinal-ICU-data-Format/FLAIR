@@ -10,9 +10,15 @@ ETL over the cohort's hospitalizations and emit two MEDS-standard tables:
   out_dir/metadata/codes.parquet — code registry (description, version, counts).
 
 The data table is **not** stamped with prediction_id / prediction_dttm: the
-prediction-row join (on ``hospitalization_join_id``) and the ``time < prediction_dttm``
-point-in-time filter happen in the downstream count featurizer, keeping this table
-compact and reusable across every prediction of an encounter.
+prediction-row join (on ``hospitalization_join_id``) and the point-in-time filter
+happen in the downstream count featurizer, keeping this table compact and reusable
+across every prediction of an encounter.
+
+That downstream filter is ``time <= feature_cutoff_dttm`` — the cohort-contract
+column stamped by ``tasks/_finalize.py``, which defaults to ``prediction_dttm`` and
+is set EARLIER by a task whose prediction timestamp would itself leak the outcome.
+Reading the cutoff column rather than ``prediction_dttm`` is what keeps this path
+agreeing with ``wide.py`` / ``meds_stream.py`` per task.
 """
 from __future__ import annotations
 

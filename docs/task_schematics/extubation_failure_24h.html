@@ -44,6 +44,17 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     <a class="cite" href="references.html#ref-thille2011extubation">[Thille&nbsp;2011]</a>.
   </p>
 
+  <p class="lead">
+    The decision this supports is <strong>two-sided</strong>: extubate, or keep the
+    patient intubated. It therefore acts on <em>low</em> risk
+    (<code>clinical_direction: "below"</code>) with a shipped policy of
+    <code>0.10</code> — pull the tube when P(failure)&nbsp;&lt;&nbsp;10%, otherwise
+    leave it in. Nothing else is actionable at this timestamp; a tracheostomy in
+    particular is a decision made in a <em>still-intubated</em> patient around
+    ventilator day 7–14, and lives in <a href="icu_daily_ltach.html">a different
+    task</a>.
+  </p>
+
   <div class="audit">
     <span class="tag">Code note</span>
     Implemented in <code>extubation_failure_24h.py</code> on the
@@ -273,8 +284,57 @@ flowchart TD
     (5.4%). Reporting AUPRC alongside AUROC is mandatory.
   </p>
 
+  <h4>Why the threshold is 0.10</h4>
+  <p>
+    A decision threshold is not a cutoff, it is the exchange rate between the two
+    harms. You are indifferent between the arms when
+    <code>t / (1&minus;t) = harm(one unnecessary continued intubation) /
+    harm(one failed extubation)</code>, so <code>0.10</code> encodes
+    <strong>1:9</strong> — a failed extubation is nine times worse than keeping a
+    ready patient intubated. Epstein &amp; Ciubotaru report 43% mortality in
+    reintubated patients against 12% in successfully extubated; discounted heavily
+    for confounding by indication, 9× is defensible where 1:4
+    (<code>t = 0.20</code>) is not.
+  </p>
+  <p>
+    Mind the horizon. The familiar &ldquo;acceptable reintubation rate is
+    10&ndash;15%&rdquo; figure is a <strong>48&ndash;72h</strong> number; this label
+    is <strong>24h</strong> and roughly half of reintubations fall outside it, which
+    is why the observed rate above is 5.4% rather than ~12%. A threshold anchored to
+    72h intuition is inflated for a 24h label. At 0.10 the policy sits at ~1.85× the
+    base rate: discriminating, but reaching a real fraction of patients.
+  </p>
+  <p>
+    Two quantities land in this numeric range and must not be conflated. The
+    <em>population reintubation rate</em> is what happens across all extubations; the
+    <em>threshold</em> is the individual risk at which the action changes. They
+    connect only through revealed preference — a unit running at 10% and calling that
+    acceptable is saying its marginal extubated patient carries ~10% risk.
+  </p>
+
+  <h4>Limitation — the unobserved counterfactual</h4>
+  <p>
+    <strong>100% of this cohort was extubated.</strong> &ldquo;Do not extubate&rdquo;
+    is therefore a recommendation the data cannot validate: there are no held-back
+    patients to observe. On the decision curve this makes <em>treat-all</em> equal to
+    observed current practice, which is the right comparator and a demanding one — at
+    a 5.4% failure rate, extubating everyone is correct 94.6% of the time. But any
+    net benefit above that line assumes the failures of the patients the model would
+    have held back would have been <em>avoided by waiting</em>, and this dataset
+    cannot test that assumption. Read the decision curve as &ldquo;does selective
+    extubation beat extubating everyone, under that assumption&rdquo;, never as an
+    estimate of realized benefit.
+  </p>
+  <p>
+    For the same reason the feature window is cut <strong>strictly before</strong>
+    <code>prediction_dttm</code> (<code>feature_cutoff_dttm</code>): that timestamp is
+    the first non-IMV respiratory-support row, i.e. the row announcing the extubation.
+    A model asked &ldquo;should we extubate?&rdquo; must not be shown the extubation.
+  </p>
+
   <h2>Out of scope</h2>
   <ul>
+    <li>Validation of a withhold-extubation policy — see the limitation above.</li>
     <li>Second-, third-, and later-extubation decision points.</li>
     <li>Death without reintubation as a failure mode (dropped to exclude palliative extubations).</li>
     <li>Non-invasive ventilation (NIV) as a failure mode (currently only reintubation counts).</li>
