@@ -1,0 +1,99 @@
+elf_version: "1.0.0"
+subject_id_col: patient_id
+
+medication_admin_intermittent:
+  medication:
+    code:
+      - MED_INT
+      - col(med_category)
+      - col(med_dose_unit_converted)
+      - col(mar_action_category)
+    time: col(admin_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    numeric_value: med_dose_converted
+    med_route_category: med_route_category
+    hospitalization_id: hospitalization_id
+
+    unit_conversion:
+      enabled: true
+      # override: a preferred-unit key naming a med this site never charts is
+      # normal, so downgrade clifpy's error to a log line.
+      override: true
+      # allow_other_meds MUST stay true. preferred_units is a CONVERSION table,
+      # not a vocabulary: false makes its key set a row filter, and every mCIDE
+      # med_category without an entry here is dropped from the extract. clifpy
+      # already falls back to base units (mcg/min, ml/min, u/min) for a category
+      # with no preferred unit, so nothing is lost by letting those rows through.
+      allow_other_meds: true
+      # Keys must be exact CLIF 2.1 mCIDE med_category values — a misspelled key
+      # matches nothing and the intended conversion silently never happens. Keys
+      # naming continuous-only categories (amiodarone, insulin, ...) are inert
+      # here; they stay so the two MED files read the same way.
+      preferred_units:
+        acetaminophen: mg
+        acyclovir: dose
+        adenosine: mg
+        amikacin: dose
+        amiodarone: mg
+        ampicillin: dose
+        ampicillin_sulbactam: dose
+        azithromycin: dose
+        aztreonam: dose
+        bumetanide: mg
+        caspofungin: dose
+        cefazolin: dose
+        cefepime: dose
+        ceftaroline: dose
+        ceftazidime: dose
+        ceftriaxone: dose
+        ciprofloxacin: dose
+        cisatracurium: mg
+        clindamycin: dose
+        colistin: dose
+        daptomycin: dose
+        dextrose: ml
+        dextrose_in_water_d5w: ml
+        diazepam: mg
+        diltiazem: mg
+        doxycycline: dose
+        epinephrine: mg
+        ertapenem: dose
+        erythromycin: dose
+        esomeprazole: dose
+        fentanyl: mcg
+        fluconazole: dose
+        foscarnet: dose
+        furosemide: mg
+        gentamicin: dose
+        heparin: dose
+        hydromorphone: mg
+        imipenem: dose
+        insulin: units
+        ketamine: mcg
+        labetalol: mg
+        levofloxacin: dose
+        lidocaine: mg
+        linezolid: dose
+        lorazepam: mg
+        magnesium: grams
+        meropenem: dose
+        metronidazole: dose
+        micafungin: dose
+        midazolam: mg
+        morphine: mg
+        moxifloxacin: dose
+        nafcillin: dose
+        naloxone: mg
+        pantoprazole: dose
+        penicillin: dose
+        piperacillin_tazobactam: dose
+        propofol: mg
+        rifampin: dose
+        rocuronium: mg
+        sodium_bicarbonate: ml
+        sodium_chloride: ml
+        tigecycline: dose
+        tobramycin: dose
+        vancomycin: dose
+        vecuronium: mg
+        voriconazole: dose

@@ -1,0 +1,45 @@
+elf_version: "1.0.0"
+subject_id_col: patient_id
+
+crrt_therapy:
+  crrt_mode_category:
+    code: [CRRT, crrt_mode_category, col(crrt_mode_category)]
+    time: col(recorded_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    text_value: crrt_mode_name
+    hospitalization_id: hospitalization_id
+
+  blood_flow_rate:
+    code: CRRT//blood_flow_rate
+    time: col(recorded_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    numeric_value: blood_flow_rate
+    hospitalization_id: hospitalization_id
+
+  pre_filter_replacement_fluid_rate:
+    code: CRRT//pre_filter_replacement_fluid_rate
+    time: col(recorded_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    numeric_value: pre_filter_replacement_fluid_rate
+    hospitalization_id: hospitalization_id
+
+  post_filter_replacement_fluid_rate:
+    code: CRRT//post_filter_replacement_fluid_rate
+    time: col(recorded_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    numeric_value: post_filter_replacement_fluid_rate
+    hospitalization_id: hospitalization_id
+
+  dialysate_flow_rate:
+    code: CRRT//dialysate_flow_rate
+    time: col(recorded_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    numeric_value: dialysate_flow_rate
+    hospitalization_id: hospitalization_id
+
+  ultrafiltration_out:
+    code: CRRT//ultrafiltration_out
+    time: col(recorded_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    numeric_value: ultrafiltration_out
+    hospitalization_id: hospitalization_id

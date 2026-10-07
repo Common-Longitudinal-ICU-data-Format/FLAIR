@@ -1,0 +1,15 @@
+# FLAIR feature-engineering config (drives `flair fe-meds`).
+# Categories are CLIF 2.1 mCIDE values; unknown ones warn but don't fail.
+#
+# For wide time-series data (vitals, labs, assessments, respiratory support) use
+# clifpy's ClifOrchestrator.create_wide_dataset directly — and filter its output
+# to `time <= feature_cutoff_dttm` yourself; clifpy applies no leakage guard.
+clif_config: clif_config_mimic.json        # existing JSON clif config (site/data_dir/tz)
+output_directory: ./output/features        # convention; --out overrides
+
+# Lightweight med event stream: raw dose + raw unit, NO unit-conversion ETL.
+meds_stream:
+  medication_admin_continuous:
+    categories: [norepinephrine, propofol]
+  medication_admin_intermittent:
+    categories: [vancomycin, cefepime, piperacillin_tazobactam]

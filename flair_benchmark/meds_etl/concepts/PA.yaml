@@ -1,0 +1,13 @@
+elf_version: "1.0.0"
+subject_id_col: patient_id
+
+patient_assessments:
+  assessment:
+    code:
+      - PA
+      - col(assessment_category)
+    time: col(recorded_dttm)
+    time_format: "%Y-%m-%d %H:%M:%S"
+    numeric_value: numerical_value
+    text_value: text_value
+    hospitalization_id: hospitalization_id

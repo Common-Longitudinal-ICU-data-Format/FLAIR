@@ -1,0 +1,52 @@
+.DS*
+/clif_config*.json
+*.parquet
+*.log
+presentation/
+#paper/
+tests/artifacts/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# ---- Run outputs / pipeline artifacts (regenerated, large) ----
+out/
+out_external/
+output/
+
+# ---- Datasets / data files (raw data lives outside the repo) ----
+*.csv
+*.tsv
+*.feather
+*.arrow
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.parquet
+data/
+**/MEDS.parquet
+**/data/MEDS.parquet
+
+# ---- Vendored external repos (not part of this codebase) ----
+CLIF_MEDS/
+ehrshot-benchmark/
+femr/
+# Local scratch checkout used for testing against the library. It has its own
+# git repo and is NOT part of flair-benchmark — never commit it here.
+flair_baseline/
+
+# ---- Generated documents ----
+*.docx
+
+# ---- Agent tooling scratch (recreated by tooling, not part of the repo) ----
+docs/superpowers/

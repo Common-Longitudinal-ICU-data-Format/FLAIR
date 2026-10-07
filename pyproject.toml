@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flair-benchmark"
+dynamic = ["version"]
+description = "Federated Learning Assessment for ICU Research - CLIF-based ICU benchmark"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "CLIF Consortium", email = "clif_consortium@uchicago.edu" }
+]
+keywords = [
+    "healthcare",
+    "icu",
+    "benchmark",
+    "federated-learning",
+    "clif",
+    "machine-learning",
+    "clinical-research"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+dependencies = [
+    "polars>=0.20.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+    "threadpoolctl>=3.0.0",
+    "clifpy>=0.4.9",
+    "typer>=0.12.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+flair = "flair_benchmark.cli:main"
+
+[project.optional-dependencies]
+viz = [
+    "matplotlib>=3.7.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://clif-icu.com"
+Repository = "https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR"
+Documentation = "https://clif-icu.com/flair"
+
+# Version is single-sourced from flair_benchmark/constants.py (__version__).
+# Bump it there; this reads it dynamically for the wheel/sdist.
+[tool.hatch.version]
+path = "flair_benchmark/constants.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["flair_benchmark"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the source distribution lean: ship the package, license, readme and
+# pyproject only. Without this, hatchling sweeps in every VCS-tracked file
+# (docs/paper PDFs, assets GIF/MP4, lock file) and the sdist balloons to ~17 MB.
+include = [
+    "/flair_benchmark",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
