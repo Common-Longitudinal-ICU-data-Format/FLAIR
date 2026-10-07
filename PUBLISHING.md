@@ -9,6 +9,16 @@
 
 ------------------------------------------------------------------------
 
+## Quick release
+
+``` bash
+./publish.sh --check   # build + verify only
+./publish.sh --test    # TestPyPI dry-run (prompts for token)
+./publish.sh           # real PyPI + git tag v<version>
+```
+
+------------------------------------------------------------------------
+
 ## What ships to the library (and what does NOT)
 
 The package is **source only** — no docs, no data, no notebooks. Controlled by `pyproject.toml`:
