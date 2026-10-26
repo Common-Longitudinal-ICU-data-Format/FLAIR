@@ -49,7 +49,8 @@ Output JSON shape:
     "by_label":  { "1": {...positive...}, "0": {...negative...} },
     "by_grain":  { "encounter": {n_total, continuous, categorical, by_split, by_label},
                    "row":       {... same shape at prediction-row grain ...} },
-    "metadata":  { ... audit fields stamped by generate_table1 ... }
+    "metadata":  { ... audit fields stamped by generate_table1, incl.
+                   cohort_sha256 / train_cohort_sha256 / test_cohort_sha256 ... }
     "attrition": [ {step, n_rows, n_encounters, ...}, ... ]   # STROBE flow, added
                    # by cli.py load-task from cohort/strobe.py; suppressed
   }
@@ -61,6 +62,7 @@ Used by: cli.py `load-task`.
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -118,8 +120,30 @@ def generate_table1(cfg: dict, cohort: pl.DataFrame, task_module) -> dict:
         "flair_version": __version__,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "min_cell_count": MIN_CELL_COUNT,
+        "cohort_sha256": cohort_sha256(cohort, meta["label_column"]),
+        "train_cohort_sha256": cohort_sha256(
+            cohort.filter(pl.col("split") == "train"), meta["label_column"]),
+        "test_cohort_sha256": cohort_sha256(
+            cohort.filter(pl.col("split") == "test"), meta["label_column"]),
     }
     return t1
+
+
+HASH_COLS = ["hospitalization_join_id", "prediction_dttm", "feature_cutoff_dttm",
+             "label", "split"]
+
+
+def cohort_sha256(cohort: pl.DataFrame, label_col: str) -> str:
+    """SHA-256 fingerprint of a cohort: same rows/labels/split -> same hash, at any site.
+
+    Rows sorted by (hospitalization_join_id, prediction_dttm); the task's label
+    column is renamed to "label" and every value cast to its string form (ISO
+    datetimes), so the digest is independent of row order, dtype and time unit.
+    """
+    df = (cohort.rename({label_col: "label"}).select(HASH_COLS)
+          .sort(["hospitalization_join_id", "prediction_dttm"])
+          .with_columns(pl.all().cast(pl.Utf8)))
+    return hashlib.sha256(df.write_csv().encode()).hexdigest()
 
 
 # ===========================================================================

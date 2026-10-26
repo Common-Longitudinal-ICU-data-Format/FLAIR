@@ -123,14 +123,15 @@ flair list-tasks
 ``` bash
 flair load-task icu_daily_mortality \
   --clif-config clif_config.json \
-  --out cohort.parquet
+  --out output
 ```
 
-You get two files:
+`--out` is a root folder (relative to where you run `flair`). It gets two site-prefixed folders:
 
-- `cohort.parquet` — one row per prediction point
-- `cohort.table1.json` — aggregate cohort characteristics, plus `attrition`: STROBE counts after each inclusion/exclusion step
-- `cohort.strobe.png` / `cohort.strobe_attrition.png` — the STROBE flow diagram and per-step attrition chart (needs `[viz]`; `--no-viz` to skip)
+- `output/<site>_flair_phi/icu_daily_mortality/cohort.parquet` — one row per prediction point. **PHI: stays at the site.**
+- `output/<site>_flair_non_phi_for_upload/icu_daily_mortality/` — safe to share:
+  - `table1.json` — aggregate cohort characteristics; `attrition` (STROBE counts after each inclusion/exclusion step); and `metadata.cohort_sha256` / `train_cohort_sha256` / `test_cohort_sha256` (SHA-256 over `hospitalization_join_id, prediction_dttm, feature_cutoff_dttm, label, split`, sorted by join id + prediction time)
+  - `strobe.png` / `strobe_attrition.png` — the STROBE flow diagram and per-step attrition chart (needs `[viz]`; `--no-viz` to skip)
 
 **5. Train your model, your way**
 
@@ -139,7 +140,7 @@ The simplest valid output is the cohort with one extra probability column:
 ``` python
 import polars as pl
 
-cohort = pl.read_parquet("cohort.parquet")
+cohort = pl.read_parquet("output/<site>_flair_phi/icu_daily_mortality/cohort.parquet")
 
 # y_prob must line up row-for-row with the cohort.
 preds = cohort.with_columns(pl.Series("y_prob", y_prob))
@@ -205,7 +206,7 @@ Optional performance settings for the vendored CLIF→MEDS ETL (`flair_benchmark
 |---------|--------------|
 | `flair init-config [--out DIR] [--force]` | Write the `clif_config.json` and `feature_config.yaml` templates. |
 | `flair list-tasks` | List the benchmark tasks. |
-| `flair load-task TASK --clif-config PATH --out cohort.parquet [--train-end DATE --test-start DATE]` | Build a task cohort plus `cohort.table1.json` (with STROBE `attrition`) and the STROBE PNGs. |
+| `flair load-task TASK --clif-config PATH --out DIR [--train-end DATE --test-start DATE]` | Build a task cohort into `DIR/<site>_flair_phi/TASK/`, and `table1.json` (STROBE `attrition`, cohort hashes) + STROBE PNGs into `DIR/<site>_flair_non_phi_for_upload/TASK/`. |
 | `flair fe-meds --feature-config PATH --task cohort.parquet --out meds.parquet` | Extract a medication event table, cut per encounter at its latest `feature_cutoff_dttm`. |
 | `flair build-report PREDS --task TASK --out DIR [--cohort cohort.parquet] [--mode episodic\|continuous] [--viz/--no-viz]` | Score predictions into the aggregate JSON report bundle. |
 
@@ -286,7 +287,7 @@ flair load-task icu_daily_mortality \
   --clif-config clif_config.json \
   --train-end 2022-12-31 \
   --test-start 2023-01-01 \
-  --out cohort.parquet
+  --out output
 ```
 
 ## Features

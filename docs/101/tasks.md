@@ -31,14 +31,15 @@ numbers over `META['landmark_horizon']` forward landmarks — 30 days for T1/T2)
 ```bash
 flair load-task icu_daily_mortality \
   --clif-config clif_config.json \
-  --out cohort.parquet \
+  --out output \
   [--train-end YYYY-MM-DD] [--test-start YYYY-MM-DD]
 ```
 
-This runs the task's `build()` and writes:
-- `cohort.parquet` — the cohort (one row per `prediction_id`)
-- `cohort.table1.json` — cohort characteristics (auto-generated alongside); its `attrition` key is the STROBE flow, counts after each inclusion/exclusion step (cells < 10 suppressed)
-- `cohort.strobe.png`, `cohort.strobe_attrition.png` — flow diagram + attrition chart drawn from Table 1's `attrition`
+This runs the task's `build()` and writes two site-prefixed folders under `--out`
+(the same convention as flair_baseline; only the non-PHI one leaves the site):
+- `<site>_flair_phi/<task>/cohort.parquet` — the cohort (one row per `prediction_id`)
+- `<site>_flair_non_phi_for_upload/<task>/table1.json` — cohort characteristics; its `attrition` key is the STROBE flow (counts after each inclusion/exclusion step, cells < 10 suppressed), and `metadata` carries `cohort_sha256`, `train_cohort_sha256`, `test_cohort_sha256` — SHA-256 over `hospitalization_join_id, prediction_dttm, feature_cutoff_dttm, label, split`, rows sorted by `(hospitalization_join_id, prediction_dttm)`, values as strings
+- `<site>_flair_non_phi_for_upload/<task>/strobe.png`, `strobe_attrition.png` — flow diagram + attrition chart drawn from Table 1's `attrition`
 
 ### The train/test split
 
@@ -67,7 +68,7 @@ in both arms.
 Expect a small overlap even on a correct split: a stay open across the boundary
 belongs wholly to one arm, so its later rows land past `test_start` legitimately.
 Days to a few weeks is normal; **months means the deal was wrong**.
-`cohort.table1.json` publishes `temporal_overlap` (`overlap_days`,
+`table1.json` publishes `temporal_overlap` (`overlap_days`,
 `train_rows_after_test_start`, `train_frac_after_test_start`) so this is checkable
 without touching PHI, and `flair build-report` warns past 60 days.
 

@@ -1,6 +1,6 @@
 """STROBE cohort flow — the count left after every inclusion/exclusion step.
 
-Published as `attrition` in `cohort.table1.json` at `flair load-task` time, so
+Published as `attrition` in Table 1 (`table1.json`, non-PHI folder) at `flair load-task` time, so
 each Table 1 carries its own flow record. Like the rest of Table 1 it is
 publishable: every count passes through `suppress()`.
 

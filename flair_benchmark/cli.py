@@ -2,8 +2,9 @@
 
 Commands:
   flair init-config  [--out DIR] [--force]
-  flair load-task    <task_name>  --clif-config ... [--train-end ...] [--test-start ...] --out cohort.parquet
-                     (also writes cohort.table1.json, with the STROBE `attrition` steps)
+  flair load-task    <task_name>  --clif-config ... [--train-end ...] [--test-start ...] --out DIR
+                     writes DIR/<site>_flair_phi/<task>/cohort.parquet           (stays at site)
+                        and DIR/<site>_flair_non_phi_for_upload/<task>/table1.json (+ STROBE PNGs)
   flair build-report <preds.pq>   --task <task_name>  --out ./report/
   flair fe-meds      --feature-config feature_config.yaml --task cohort.parquet --out meds.parquet
   flair list-tasks
@@ -75,7 +76,9 @@ def load_task(
     task: str = typer.Argument(..., help="Task name, e.g. icu_daily_mortality"),
     clif_config: str = typer.Option(..., "--clif-config",
                                     help="Path to clif_config.json"),
-    out: str = typer.Option(..., "--out", help="Output parquet path"),
+    out: str = typer.Option(..., "--out",
+                            help="Output root; gets <site>_flair_phi/<task>/ and "
+                                 "<site>_flair_non_phi_for_upload/<task>/"),
     train_end: Optional[str] = typer.Option(None, "--train-end",
                                             help="YYYY-MM-DD (omit for a 75/25 split: random for mimic, temporal otherwise)"),
     test_start: Optional[str] = typer.Option(None, "--test-start",
@@ -85,8 +88,9 @@ def load_task(
         help="Render the STROBE flow + attrition PNGs next to the JSON (default "
              "on). Requires `pip install flair-benchmark[viz]`."),
 ) -> None:
-    """Run a task's build() and write the cohort parquet + Table 1 JSON (with attrition)."""
+    """Run a task's build(); write the cohort (PHI folder) + Table 1 and STROBE plots (non-PHI folder)."""
     import json
+    import re
 
     from flair_benchmark.cohort import strobe
     from flair_benchmark.cohort.clif import read_clif_config
@@ -94,27 +98,35 @@ def load_task(
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
+    cfg = read_clif_config(clif_config)
+    # Same folder convention as flair_baseline: site-prefixed, split by sensitivity.
+    # Only the non-PHI folder is meant to leave the site.
+    site = re.sub(r"[^a-z0-9]+", "_", cfg["site"].strip().lower()).strip("_")
+    phi = Path(out) / f"{site}_flair_phi" / task
+    nonphi = Path(out) / f"{site}_flair_non_phi_for_upload" / task
+    phi.mkdir(parents=True, exist_ok=True)
+    nonphi.mkdir(parents=True, exist_ok=True)
+
     strobe.reset()
     df = task_module.build(clif_config=clif_config,
                            train_end=train_end,
                            test_start=test_start)
-    out_path = Path(out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = phi / "cohort.parquet"
     df.write_parquet(out_path)
     typer.echo(f"Wrote {df.height:,} rows → {out_path}")
 
-    # Table 1 (cohort characteristics, overall + by positive/negative label) is
-    # generated alongside every cohort, written next to the parquet for the website.
-    table1 = generate_table1(read_clif_config(clif_config), df, task_module)
+    # Table 1 (cohort characteristics, overall + by positive/negative label, plus
+    # cohort hashes) is generated alongside every cohort for the website.
+    table1 = generate_table1(cfg, df, task_module)
     # STROBE attrition: counts after every inclusion/exclusion step build() recorded.
     table1["attrition"] = strobe.steps()
-    t1_path = out_path.with_suffix(".table1.json")
+    t1_path = nonphi / "table1.json"
     t1_path.write_text(json.dumps(table1, indent=2, default=str))
     typer.echo(f"Wrote Table 1 → {t1_path}")
     if viz:
         try:
             from flair_benchmark.report._viz import render_strobe_pngs
-            for png in render_strobe_pngs(table1, out_path):
+            for png in render_strobe_pngs(table1, nonphi):
                 typer.echo(f"Wrote STROBE plot → {png}")
         except ImportError:
             # matplotlib is the optional [viz] extra; the JSON is already written.

@@ -278,3 +278,24 @@ def test_prevalence_multiclass_per_level():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+def test_cohort_sha256_order_free_and_label_sensitive():
+    from datetime import datetime
+
+    from flair_benchmark.cohort.table1 import cohort_sha256
+
+    t = [datetime(2020, 1, d) for d in (1, 2, 3, 4)]
+    df = pl.DataFrame({"hospitalization_join_id": ["a", "a", "b", "c"],
+                       "prediction_dttm": t, "feature_cutoff_dttm": t,
+                       "label_x": [0, 1, 0, 1], "split": ["train", "train", "test", "test"],
+                       "age_at_admission": [50, 50, 60, 70]})   # not hashed
+    h = cohort_sha256(df, "label_x")
+    assert len(h) == 64 and int(h, 16) >= 0
+    assert cohort_sha256(df.reverse(), "label_x") == h                      # row order free
+    assert cohort_sha256(df.drop("age_at_admission"), "label_x") == h       # only hash cols
+    flipped = df.with_columns(pl.Series("label_x", [1, 1, 0, 1]))
+    assert cohort_sha256(flipped, "label_x") != h                           # label sensitive
+    tr = cohort_sha256(df.filter(pl.col("split") == "train"), "label_x")
+    te = cohort_sha256(df.filter(pl.col("split") == "test"), "label_x")
+    assert len({h, tr, te}) == 3

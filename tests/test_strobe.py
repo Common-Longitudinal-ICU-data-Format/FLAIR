@@ -50,6 +50,6 @@ def test_render_strobe_pngs(tmp_path):
         "by_label": {"1": {"n": "<10"}, "0": {"n": 80}},
         "metadata": {"task": "toy"},
     }
-    paths = render_strobe_pngs(table1, tmp_path / "cohort.parquet")
-    assert [p.name for p in paths] == ["cohort.strobe.png", "cohort.strobe_attrition.png"]
+    paths = render_strobe_pngs(table1, tmp_path)
+    assert [p.name for p in paths] == ["strobe.png", "strobe_attrition.png"]
     assert all(p.stat().st_size > 0 for p in paths)

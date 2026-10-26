@@ -328,7 +328,7 @@ def _ci_label(name: str, value, ci) -> str:
 
 # --------------------------------------------------------------------- STROBE
 #
-# Written by `flair load-task` next to cohort.table1.json, drawn only from that
+# Written by `flair load-task` next to table1.json (non-PHI folder), drawn only from that
 # dict: its `attrition` steps plus by_split / by_label (suppressed cells print as
 # "<10" and count as 0 for geometry).
 
@@ -336,13 +336,13 @@ _RETAINED, _EXCLUDED = "#2a78d6", "#eb6834"      # one validated adjacent pair
 _INK, _INK_2, _SURFACE = "#0b0b0b", "#52514e", "#fcfcfb"
 
 
-def render_strobe_pngs(table1: dict, stem: Path) -> list[Path]:
-    """Write <stem>.strobe.png (flow diagram) + <stem>.strobe_attrition.png."""
+def render_strobe_pngs(table1: dict, out_dir: Path) -> list[Path]:
+    """Write out_dir/strobe.png (flow diagram) + out_dir/strobe_attrition.png."""
     plt = _import_plt()
     written = []
-    for suffix, fig in ((".strobe.png", _strobe_flow_fig(table1, plt)),
-                        (".strobe_attrition.png", _strobe_attrition_fig(table1, plt))):
-        path = stem.with_suffix(suffix)
+    for name, fig in (("strobe.png", _strobe_flow_fig(table1, plt)),
+                      ("strobe_attrition.png", _strobe_attrition_fig(table1, plt))):
+        path = Path(out_dir) / name
         fig.savefig(path, dpi=150, bbox_inches="tight", facecolor=_SURFACE)
         plt.close(fig)
         written.append(path)
