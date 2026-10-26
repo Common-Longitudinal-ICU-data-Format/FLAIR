@@ -71,7 +71,7 @@ import polars as pl
 
 from flair_benchmark.cohort.clif import load_hospital_diagnosis, load_hospitalization
 from flair_benchmark.cohort.stitch import JOIN_ID, _cache_dir, source_fingerprint
-from flair_benchmark.constants import task_script_sha256
+from flair_benchmark.constants import dependency_versions, task_script_sha256
 from flair_benchmark.report._stats import MIN_CELL_COUNT, suppress, suppress_dict
 
 CONTINUOUS_VARS = ["age_at_admission", "sofa_max", "charlson_score", "elix_score"]
@@ -118,6 +118,7 @@ def generate_table1(cfg: dict, cohort: pl.DataFrame, task_module) -> dict:
         "task": meta["name"],
         "task_script_sha256": task_script_sha256(task_module),
         "flair_version": __version__,
+        **dependency_versions(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "min_cell_count": MIN_CELL_COUNT,
         "cohort_sha256": cohort_sha256(cohort, meta["label_column"]),

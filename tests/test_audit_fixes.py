@@ -186,3 +186,24 @@ def test_validate_taxonomy_rejects_bad_policy_values():
     wrong_name = {**good, "name": "icu_readmission"}
     with pytest.raises(ValueError, match="module filename"):
         _validate_taxonomy(name, wrong_name)
+
+
+def test_task_digest_covers_data_cutoff(monkeypatch):
+    """Moving DATA_CUTOFF re-cuts every non-MIMIC cohort, so it must move the digest."""
+    from datetime import date
+
+    from flair_benchmark import constants
+    from flair_benchmark.tasks import get_task
+
+    task = get_task("icu_readmission")
+    before = constants.task_script_sha256(task)
+    monkeypatch.setattr(constants, "DATA_CUTOFF", date(2030, 12, 31))
+    assert constants.task_script_sha256(task) != before
+
+
+def test_dependency_versions_recorded():
+    from flair_benchmark.constants import dependency_versions
+
+    v = dependency_versions()
+    assert set(v) == {"clifpy_version", "polars_version"}
+    assert all(isinstance(x, str) and x for x in v.values())

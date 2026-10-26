@@ -73,6 +73,12 @@ Want the optional local plots when building reports?
 pip install "flair-benchmark[viz]"
 ```
 
+Submitting to the leaderboard? Install the pinned `clifpy` / `polars` versions so every site runs the same library code (both versions are recorded in every Table 1 and report audit):
+
+``` bash
+pip install "flair-benchmark[benchmark,viz]"
+```
+
 You need:
 
 - Python 3.10+

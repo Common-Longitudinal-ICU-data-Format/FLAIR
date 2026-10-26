@@ -36,7 +36,8 @@ __version__ = "0.0.1"
 # ETL'd at most sites, so querying it yields partial, non-comparable cohorts.
 # Bump this one line when a new year is fully loaded. Skipped for site == "mimic",
 # whose admission dates are de-identified/shifted (a real-date cap would empty
-# the cohort).
+# the cohort). Folded into task_script_sha256 (shared code, like SPLIT_VERSION):
+# moving it re-cuts every non-MIMIC cohort, so it must move every digest.
 DATA_CUTOFF = date(2025, 12, 31)
 
 # Scoring units a task's META may declare in `report_mode`. Each task picks one
@@ -85,7 +86,7 @@ _AUDIT_KEYS = (
 
 
 def task_script_sha256(task_module: ModuleType) -> str:
-    """SHA-256 of the task source, its resolved clinical policy, and SPLIT_VERSION.
+    """SHA-256 of the task source, its resolved clinical policy, SPLIT_VERSION and DATA_CUTOFF.
 
     Stamped into every report JSON so the central aggregator can prove two sites
     ran the same task — the label logic (the task .py source), the policy it was
@@ -93,9 +94,9 @@ def task_script_sha256(task_module: ModuleType) -> str:
     and the train/test deal the numbers were produced against. A change to any of
     the three changes the digest.
 
-    SPLIT_VERSION is in here because it is the one input that lives in SHARED code
-    (cohort/stitch.py), invisible to a hash over the task file alone — see the
-    constant.
+    SPLIT_VERSION and DATA_CUTOFF are in here because they live in SHARED code
+    (cohort/stitch.py, this module), invisible to a hash over the task file alone —
+    see the constants.
     """
     src = Path(task_module.__file__).read_bytes()
     meta = getattr(task_module, "META", {}) or {}
@@ -103,4 +104,25 @@ def task_script_sha256(task_module: ModuleType) -> str:
         {k: meta.get(k) for k in _AUDIT_KEYS}, sort_keys=True
     ).encode()
     split = f"split_version={SPLIT_VERSION}".encode()
-    return hashlib.sha256(src + b"\x00" + policy + b"\x00" + split).hexdigest()
+    cutoff = f"data_cutoff={DATA_CUTOFF.isoformat()}".encode()
+    return hashlib.sha256(src + b"\x00" + policy + b"\x00" + split
+                          + b"\x00" + cutoff).hexdigest()
+
+
+def dependency_versions() -> dict:
+    """Installed clifpy / polars versions, stamped into every audit block.
+
+    Both change results (clifpy: loaders, SOFA, comorbidity; polars: sort, cast,
+    hash), so two sites' numbers are only comparable on the same versions — the
+    `[benchmark]` extra pins them for leaderboard runs. Read from package metadata
+    so clifpy is never imported here; None when a package is not installed.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    out = {}
+    for pkg in ("clifpy", "polars"):
+        try:
+            out[f"{pkg}_version"] = version(pkg)
+        except PackageNotFoundError:
+            out[f"{pkg}_version"] = None
+    return out

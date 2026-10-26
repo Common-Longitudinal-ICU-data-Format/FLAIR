@@ -86,7 +86,7 @@ def build_report(preds_path: str, task_module, out_dir: str,
     (episode -> episodic; continuous -> continuous).
     """
     from flair_benchmark import __version__
-    from flair_benchmark.constants import task_script_sha256
+    from flair_benchmark.constants import dependency_versions, task_script_sha256
 
     preds = pl.read_parquet(preds_path)
     meta = task_module.META
@@ -127,6 +127,7 @@ def build_report(preds_path: str, task_module, out_dir: str,
         "task": meta["name"],
         "task_script_sha256": task_script_sha256(task_module),
         "flair_version": __version__,
+        **dependency_versions(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "report_mode": mode,
         "split": split,
