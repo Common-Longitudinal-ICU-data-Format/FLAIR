@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import polars as pl
+import pytest
 
 from flair_benchmark.cohort import strobe
 
@@ -32,3 +33,23 @@ def test_record_steps_and_suppression():
 
     strobe.reset()
     assert strobe.steps() == []
+
+
+def test_render_strobe_pngs(tmp_path):
+    pytest.importorskip("matplotlib")
+    from flair_benchmark.report._viz import render_strobe_pngs
+
+    table1 = {
+        "attrition": [
+            {"step": "all", "n_rows": 100, "n_hospitalizations": 100, "n_patients": 80},
+            {"step": "stitched", "n_rows": 100, "n_encounters": 90, "n_patients": 80},
+            {"step": "kept", "n_rows": 85, "n_encounters": 85, "n_patients": 76,
+             "n_excluded_encounters": "<10", "n_excluded_patients": "<10"},
+        ],
+        "by_split": {"train": {"n": 60}, "test": {"n": 25}},
+        "by_label": {"1": {"n": "<10"}, "0": {"n": 80}},
+        "metadata": {"task": "toy"},
+    }
+    paths = render_strobe_pngs(table1, tmp_path / "cohort.parquet")
+    assert [p.name for p in paths] == ["cohort.strobe.png", "cohort.strobe_attrition.png"]
+    assert all(p.stat().st_size > 0 for p in paths)

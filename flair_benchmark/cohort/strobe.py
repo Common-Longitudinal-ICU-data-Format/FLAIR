@@ -1,8 +1,8 @@
 """STROBE cohort flow — the count left after every inclusion/exclusion step.
 
-Written next to the cohort parquet at `flair load-task` time as
-`<cohort>.strobe.json`, alongside Table 1. Like Table 1 it is publishable: every
-count passes through `suppress()`.
+Published as `attrition` in `cohort.table1.json` at `flair load-task` time, so
+each Table 1 carries its own flow record. Like the rest of Table 1 it is
+publishable: every count passes through `suppress()`.
 
 The filters themselves stay where they are (cohort/clif.py, cohort/encounter.py,
 each task's build()); after each one the frame is piped through `record`, which
@@ -14,28 +14,20 @@ Each step carries n_rows plus whichever of n_hospitalizations / n_encounters /
 n_patients the frame has a key for, and n_excluded_* versus the previous step on
 the same key.
 
-Output JSON shape:
-  {
-    "steps": [ {"step": str, "n_rows": int, "n_encounters": int, ...,
-                "n_excluded_encounters": int, ...}, ... ],
-    "final": { "n_encounters", "n_rows",
-               "by_split": {"train": n, "test": n},          # encounter grain
-               "by_label": {"1": n, "0": n} },               # binary, ever-positive
-    "metadata": { task, task_script_sha256, flair_version, generated_at, min_cell_count }
-  }
+Output (`steps()`, stored as table1["attrition"]):
+  [ {"step": str, "n_rows": int, "n_encounters": int, ...,
+     "n_excluded_encounters": int, ...}, ... ]
+The final split / label counts are Table 1's own by_split / by_label.
 
-Depends on: report/_stats.py (suppression), constants.py.
+Depends on: report/_stats.py (suppression).
 Used by: cohort/clif.py, cohort/encounter.py, tasks/*, cli.py `load-task`.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import polars as pl
 
-from flair_benchmark.constants import task_script_sha256
-from flair_benchmark.report._stats import MIN_CELL_COUNT, suppress
+from flair_benchmark.report._stats import suppress
 
 # ponytail: module-global, one build() per process (the CLI); pass a list through
 # build() if cohorts are ever built concurrently.
@@ -90,34 +82,3 @@ def steps() -> list[dict]:
         prev = s
     return out
 
-
-def build_strobe(cohort: pl.DataFrame, task_module) -> dict:
-    """The full STROBE dict: recorded steps, final split/label counts, metadata."""
-    from flair_benchmark import __version__
-
-    meta = task_module.META
-    label = meta["label_column"]
-    enc = cohort.group_by("hospitalization_join_id").agg(
-        pl.col("split").first(),
-        *([pl.col(label).max()] if meta["task_type"] == "binary" else []),
-    )
-    final = {
-        "n_encounters": _pub(enc.height),
-        "n_rows": _pub(cohort.height),
-        "by_split": {s: _pub(enc.filter(pl.col("split") == s).height)
-                     for s in ("train", "test")},
-    }
-    if meta["task_type"] == "binary":
-        final["by_label"] = {str(v): _pub(enc.filter(pl.col(label) == v).height)
-                             for v in (1, 0)}
-    return {
-        "steps": steps(),
-        "final": final,
-        "metadata": {
-            "task": meta["name"],
-            "task_script_sha256": task_script_sha256(task_module),
-            "flair_version": __version__,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "min_cell_count": MIN_CELL_COUNT,
-        },
-    }

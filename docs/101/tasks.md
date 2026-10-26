@@ -37,8 +37,8 @@ flair load-task icu_daily_mortality \
 
 This runs the task's `build()` and writes:
 - `cohort.parquet` — the cohort (one row per `prediction_id`)
-- `cohort.table1.json` — cohort characteristics (auto-generated alongside)
-- `cohort.strobe.json` — STROBE flow: counts after each inclusion/exclusion step (cells < 10 suppressed)
+- `cohort.table1.json` — cohort characteristics (auto-generated alongside); its `attrition` key is the STROBE flow, counts after each inclusion/exclusion step (cells < 10 suppressed)
+- `cohort.strobe.png`, `cohort.strobe_attrition.png` — flow diagram + attrition chart drawn from Table 1's `attrition`
 
 ### The train/test split
 

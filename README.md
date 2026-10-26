@@ -129,8 +129,8 @@ flair load-task icu_daily_mortality \
 You get two files:
 
 - `cohort.parquet` — one row per prediction point
-- `cohort.table1.json` — aggregate cohort characteristics
-- `cohort.strobe.json` — STROBE flow diagram counts, one entry per inclusion/exclusion step
+- `cohort.table1.json` — aggregate cohort characteristics, plus `attrition`: STROBE counts after each inclusion/exclusion step
+- `cohort.strobe.png` / `cohort.strobe_attrition.png` — the STROBE flow diagram and per-step attrition chart (needs `[viz]`; `--no-viz` to skip)
 
 **5. Train your model, your way**
 
@@ -205,7 +205,7 @@ Optional performance settings for the vendored CLIF→MEDS ETL (`flair_benchmark
 |---------|--------------|
 | `flair init-config [--out DIR] [--force]` | Write the `clif_config.json` and `feature_config.yaml` templates. |
 | `flair list-tasks` | List the benchmark tasks. |
-| `flair load-task TASK --clif-config PATH --out cohort.parquet [--train-end DATE --test-start DATE]` | Build a task cohort plus `cohort.table1.json` and `cohort.strobe.json`. |
+| `flair load-task TASK --clif-config PATH --out cohort.parquet [--train-end DATE --test-start DATE]` | Build a task cohort plus `cohort.table1.json` (with STROBE `attrition`) and the STROBE PNGs. |
 | `flair fe-meds --feature-config PATH --task cohort.parquet --out meds.parquet` | Extract a medication event table, cut per encounter at its latest `feature_cutoff_dttm`. |
 | `flair build-report PREDS --task TASK --out DIR [--cohort cohort.parquet] [--mode episodic\|continuous] [--viz/--no-viz]` | Score predictions into the aggregate JSON report bundle. |
 

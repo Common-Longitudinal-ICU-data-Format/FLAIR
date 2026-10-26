@@ -3,7 +3,7 @@
 Commands:
   flair init-config  [--out DIR] [--force]
   flair load-task    <task_name>  --clif-config ... [--train-end ...] [--test-start ...] --out cohort.parquet
-                     (also writes cohort.table1.json + cohort.strobe.json)
+                     (also writes cohort.table1.json, with the STROBE `attrition` steps)
   flair build-report <preds.pq>   --task <task_name>  --out ./report/
   flair fe-meds      --feature-config feature_config.yaml --task cohort.parquet --out meds.parquet
   flair list-tasks
@@ -80,8 +80,12 @@ def load_task(
                                             help="YYYY-MM-DD (omit for a 75/25 split: random for mimic, temporal otherwise)"),
     test_start: Optional[str] = typer.Option(None, "--test-start",
                                              help="YYYY-MM-DD (omit for a 75/25 split: random for mimic, temporal otherwise)"),
+    viz: bool = typer.Option(
+        True, "--viz/--no-viz",
+        help="Render the STROBE flow + attrition PNGs next to the JSON (default "
+             "on). Requires `pip install flair-benchmark[viz]`."),
 ) -> None:
-    """Run a task's build() and write the cohort parquet + Table 1 + STROBE JSONs."""
+    """Run a task's build() and write the cohort parquet + Table 1 JSON (with attrition)."""
     import json
 
     from flair_benchmark.cohort import strobe
@@ -102,14 +106,20 @@ def load_task(
     # Table 1 (cohort characteristics, overall + by positive/negative label) is
     # generated alongside every cohort, written next to the parquet for the website.
     table1 = generate_table1(read_clif_config(clif_config), df, task_module)
+    # STROBE attrition: counts after every inclusion/exclusion step build() recorded.
+    table1["attrition"] = strobe.steps()
     t1_path = out_path.with_suffix(".table1.json")
     t1_path.write_text(json.dumps(table1, indent=2, default=str))
     typer.echo(f"Wrote Table 1 → {t1_path}")
-
-    # STROBE flow: counts after every inclusion/exclusion step recorded by build().
-    strobe_path = out_path.with_suffix(".strobe.json")
-    strobe_path.write_text(json.dumps(strobe.build_strobe(df, task_module), indent=2))
-    typer.echo(f"Wrote STROBE flow → {strobe_path}")
+    if viz:
+        try:
+            from flair_benchmark.report._viz import render_strobe_pngs
+            for png in render_strobe_pngs(table1, out_path):
+                typer.echo(f"Wrote STROBE plot → {png}")
+        except ImportError:
+            # matplotlib is the optional [viz] extra; the JSON is already written.
+            typer.echo("  skip STROBE plots: matplotlib not installed "
+                       "(pip install 'flair-benchmark[viz]', or pass --no-viz)")
 
 
 @app.command("build-report")

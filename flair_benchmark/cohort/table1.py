@@ -50,6 +50,8 @@ Output JSON shape:
     "by_grain":  { "encounter": {n_total, continuous, categorical, by_split, by_label},
                    "row":       {... same shape at prediction-row grain ...} },
     "metadata":  { ... audit fields stamped by generate_table1 ... }
+    "attrition": [ {step, n_rows, n_encounters, ...}, ... ]   # STROBE flow, added
+                   # by cli.py load-task from cohort/strobe.py; suppressed
   }
 
 Depends on: cohort/clif.py, cohort/stitch.py, constants.py, report/_stats.py
