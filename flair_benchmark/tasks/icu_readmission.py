@@ -44,6 +44,7 @@ from flair_benchmark.cohort.clif import base_icu_cohort, read_clif_config
 from flair_benchmark.cohort.encounter import as_encounter_keyed, encounter_attributes
 from flair_benchmark.cohort.events import compute_readmission_timing
 from flair_benchmark.cohort.stitch import assign_split
+from flair_benchmark.cohort.strobe import record
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 MIN_ICU_STAY_HOURS = 24
@@ -115,7 +116,7 @@ def build(clif_config: str, train_end: str | None,
     # stay). encounter_attributes supplies patient-level death + final discharge.
     cohort = encounter_attributes(cfg, cohort).join(
         timing, on="hospitalization_join_id", how="inner"
-    )
+    ).pipe(record, "first ICU stay defined")
 
     # Exclusion 2: death during the first ICU stay.
     cohort = cohort.filter(
@@ -124,19 +125,21 @@ def build(clif_config: str, train_end: str | None,
             & (pl.col("death_dttm") >= pl.col("first_icu_start_time"))
             & (pl.col("death_dttm") <= pl.col("first_icu_end_time"))
         )
-    )
+    ).pipe(record, "no death during the first ICU stay")
 
     # Exclusion 3: direct ICU discharge (no opportunity to readmit).
-    cohort = cohort.filter(~pl.col("is_direct_icu_discharge"))
+    cohort = cohort.filter(~pl.col("is_direct_icu_discharge")).pipe(
+        record, "not discharged directly from the ICU")
 
     # Exclusion 4: short first ICU stay.
     cohort = cohort.filter(
         (pl.col("first_icu_end_time") - pl.col("first_icu_start_time"))
         >= pl.duration(hours=MIN_ICU_STAY_HOURS)
-    )
+    ).pipe(record, f"first ICU stay >= {MIN_ICU_STAY_HOURS}h")
 
     # Exclusion 5: intermediate ER visit.
-    cohort = cohort.filter(~pl.col("has_intermediate_er"))
+    cohort = cohort.filter(~pl.col("has_intermediate_er")).pipe(
+        record, "no intermediate ER visit")
 
     df = cohort.with_columns([
         pl.col("second_icu_start_time").is_not_null().cast(pl.Int32)
@@ -146,5 +149,5 @@ def build(clif_config: str, train_end: str | None,
 
     df = assign_split(df, cfg["site"], train_end, test_start,
                       admission_col="prediction_dttm")
-    df = df.filter(pl.col("split").is_not_null())
+    df = df.filter(pl.col("split").is_not_null()).pipe(record, "assigned to train/test split")
     return finalize_cohort(df, OUTPUT_COLS, META)

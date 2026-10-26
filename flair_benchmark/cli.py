@@ -3,6 +3,7 @@
 Commands:
   flair init-config  [--out DIR] [--force]
   flair load-task    <task_name>  --clif-config ... [--train-end ...] [--test-start ...] --out cohort.parquet
+                     (also writes cohort.table1.json + cohort.strobe.json)
   flair build-report <preds.pq>   --task <task_name>  --out ./report/
   flair fe-meds      --feature-config feature_config.yaml --task cohort.parquet --out meds.parquet
   flair list-tasks
@@ -80,14 +81,16 @@ def load_task(
     test_start: Optional[str] = typer.Option(None, "--test-start",
                                              help="YYYY-MM-DD (omit for a 75/25 split: random for mimic, temporal otherwise)"),
 ) -> None:
-    """Run a task's build() function and write the cohort parquet + Table 1 JSON."""
+    """Run a task's build() and write the cohort parquet + Table 1 + STROBE JSONs."""
     import json
 
+    from flair_benchmark.cohort import strobe
     from flair_benchmark.cohort.clif import read_clif_config
     from flair_benchmark.cohort.table1 import generate_table1
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
+    strobe.reset()
     df = task_module.build(clif_config=clif_config,
                            train_end=train_end,
                            test_start=test_start)
@@ -102,6 +105,11 @@ def load_task(
     t1_path = out_path.with_suffix(".table1.json")
     t1_path.write_text(json.dumps(table1, indent=2, default=str))
     typer.echo(f"Wrote Table 1 → {t1_path}")
+
+    # STROBE flow: counts after every inclusion/exclusion step recorded by build().
+    strobe_path = out_path.with_suffix(".strobe.json")
+    strobe_path.write_text(json.dumps(strobe.build_strobe(df, task_module), indent=2))
+    typer.echo(f"Wrote STROBE flow → {strobe_path}")
 
 
 @app.command("build-report")

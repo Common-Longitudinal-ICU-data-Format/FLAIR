@@ -253,7 +253,10 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         every hospitalization belonging to a cohort encounter — which is a
         SUPERSET of the cohort's own hospitalization_ids.
     """
+    from flair_benchmark.cohort.strobe import record
+
     adt = load_adt(cfg)
+    record(adt, "hospitalizations with ADT records")
     icu_hosp_ids = (
         adt.filter(pl.col("location_category").str.to_lowercase() == "icu")
         .select("hospitalization_id")
@@ -266,7 +269,7 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         hospitalization_ids=icu_hosp_ids,
         columns=["hospitalization_id", "patient_id", "admission_dttm",
                  "discharge_dttm", "age_at_admission", "discharge_category"],
-    )
+    ).pipe(record, ">= 1 ICU ADT record")
 
     patient_ids = hosp.select("patient_id").unique()["patient_id"].to_list()
     patient = load_patient(
@@ -278,13 +281,17 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
 
     cohort = (
         hosp.join(patient, on="patient_id", how="inner")
+        .pipe(record, "linked to a patient record")
         .filter(pl.col("admission_dttm").is_not_null()
                 & pl.col("discharge_dttm").is_not_null())
+        .pipe(record, "valid admission_dttm and discharge_dttm")
         .filter(pl.col("age_at_admission") >= min_age)
+        .pipe(record, f"age_at_admission >= {min_age}")
         .filter(
             ((pl.col("discharge_dttm") - pl.col("admission_dttm")).dt.total_seconds() / 86400.0)
             > min_los_days
         )
+        .pipe(record, f"length of stay > {min_los_days:g} days")
         .select([
             "hospitalization_id", "patient_id", "admission_dttm", "discharge_dttm",
             "age_at_admission", "sex_category", "race_category", "ethnicity_category",
@@ -300,7 +307,7 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         members_of_joins,
     )
     idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
-    cohort = attach_join_id(cohort, idx)
+    cohort = attach_join_id(cohort, idx).pipe(record, "stitched into encounters")
 
     # Keep ADT at ENCOUNTER grain, not cohort grain. Trimming it to the cohort's
     # own hospitalization_ids would drop sibling admissions that belong to the

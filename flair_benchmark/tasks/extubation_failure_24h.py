@@ -103,6 +103,7 @@ from flair_benchmark.cohort.stitch import (
     load_or_build_encounter_index,
     members_of_joins,
 )
+from flair_benchmark.cohort.strobe import record
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 HORIZON_HOURS = 24
@@ -199,16 +200,21 @@ def build(clif_config: str, train_end: str | None,
     # "hospitalization_id" slot until the final join to encounter_attributes.
     resp = as_encounter_keyed(resp, idx)
     episodes = detect_imv_episodes(resp)
+    record(episodes, ">= 1 confirmed IMV episode", encounter_keyed=True)
 
     first_ext = (
         episodes
         .filter(~pl.col("is_pre_existing_trach"))
         .filter(pl.col("episode_index") == 1)
+        .pipe(record, "first IMV episode, no pre-existing tracheostomy",
+              encounter_keyed=True)
         .filter(pl.col("episode_end_dttm").is_not_null())
+        .pipe(record, "first IMV episode closed (non-null end)", encounter_keyed=True)
         .filter(
             (pl.col("episode_end_dttm") - pl.col("episode_start_dttm"))
             >= pl.duration(hours=MIN_IMV_HOURS)
         )
+        .pipe(record, f"first IMV episode >= {MIN_IMV_HOURS}h", encounter_keyed=True)
         .select([
             "hospitalization_id",
             pl.col("episode_start_dttm").alias("first_intubation_dttm"),
@@ -216,7 +222,8 @@ def build(clif_config: str, train_end: str | None,
         ])
     )
 
-    first_ext = _drop_trach_closed(first_ext, resp)
+    first_ext = _drop_trach_closed(first_ext, resp).pipe(
+        record, "not closed by tracheostomy", encounter_keyed=True)
 
     # The decision timestamp, PREDICTION_LEAD_MINUTES before the tube comes out.
     # MIN_IMV_HOURS (6h) guarantees it still falls inside the ventilation episode.
@@ -240,6 +247,7 @@ def build(clif_config: str, train_end: str | None,
         .rename({"hospitalization_id": "hospitalization_join_id"})
         .join(encounter_attributes(cfg, cohort),
               on="hospitalization_join_id", how="inner")
+        .pipe(record, "linked to encounter attributes")
     )
 
     # The label window is anchored at the EXTUBATION, not at prediction_dttm.
@@ -279,11 +287,11 @@ def build(clif_config: str, train_end: str | None,
             & (pl.col("_obs_end") >= pl.col("extubation_dttm")
                + pl.duration(hours=HORIZON_HOURS))
         )
-    )
+    ).pipe(record, "no palliative extubation or ambiguous censoring within 24h")
 
     df = assign_split(df, cfg["site"], train_end, test_start,
                       admission_col="prediction_dttm")
-    df = df.filter(pl.col("split").is_not_null())
+    df = df.filter(pl.col("split").is_not_null()).pipe(record, "assigned to train/test split")
 
     # Feature cutoff = prediction_dttm, i.e. PREDICTION_LEAD_MINUTES before the
     # extubation. The lead IS the leakage guard: episode_end_dttm is the first
