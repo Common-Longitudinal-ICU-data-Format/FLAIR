@@ -351,3 +351,13 @@ def test_two_block_cohort_carries_both_arms():
     })
     out = assign_split(cohort, "mimic", None, None)
     assert set(out["split"].to_list()) == {"train", "test"}
+
+
+def test_split_requires_encounter_key():
+    """The split is always per stitched encounter; there is no patient/per-row fallback."""
+    cohort = pl.DataFrame({
+        "patient_id": [f"P{i}" for i in range(10)],
+        "admission_dttm": [T0 + timedelta(days=i) for i in range(10)],
+    })
+    with pytest.raises(ValueError, match="hospitalization_join_id"):
+        assign_split(cohort, "mimic", None, None)
