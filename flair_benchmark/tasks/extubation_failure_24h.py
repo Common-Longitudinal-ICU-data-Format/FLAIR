@@ -246,7 +246,7 @@ def build(clif_config: str) -> pl.DataFrame:
         .rename({"hospitalization_id": "hospitalization_join_id"})
         .join(encounter_attributes(cfg, cohort),
               on="hospitalization_join_id", how="inner")
-        .pipe(record, "linked to encounter attributes")
+        .pipe(record, "linked to hospitalization_join_id attributes")
     )
 
     # The label window is anchored at the EXTUBATION, not at prediction_dttm.

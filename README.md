@@ -41,9 +41,30 @@ FLAIR takes the other route: **send the code to the data.**
 
 In short: FLAIR fixes **what** is predicted, **when** it is predicted, and **how** results are reported. Everything about the model is yours.
 
+## Roles
+
+Two roles run a FLAIR benchmark. In a federated project they never need the same access; in a collaborative project the model developer also works on the site's data, on the steward's snapshot.
+
+**Data steward (at each site)** — owns the CLIF data and runs FLAIR on it.
+
+- Writes `clif_config.json` for the site and runs `flair load-task`.
+- On the **first** run (no `--snapshot`) FLAIR creates the site snapshot `<site>_flair_v<version>/`: frozen encounter IDs plus reference hashes. **Every later run passes `--snapshot`** so each model is tested on the same cohort; FLAIR re-checks the cohort hashes against it.
+- **Stores the snapshot folder** (as PHI, with backups) for as long as models are being tested on that FLAIR version.
+- Runs the model developer's reviewed code against `cohort.parquet`, then `flair build-report`.
+- Uploads only `<site>_flair_non_phi_for_upload/` and the report JSONs. Never the cohort, the snapshot or any patient-level rows.
+
+**Model developer** — writes the model. Usually never touches site data.
+
+- Builds and tests on public **MIMIC-CLIF** with the same commands.
+- Writes code against the cohort contract ([The Cohort File](#the-cohort-file)): read `cohort.parquet`, train on `split == "train"`, and write `preds.parquet` with `y_prob` for every row, using only data up to `feature_cutoff_dttm` ([The Prediction Time Rule](#the-prediction-time-rule)).
+- Hands that code to the data steward for review and a site run. Gets back aggregate reports only.
+- Testing a new model needs no new cohort: the steward reruns with the same `--snapshot`, so every model is scored on identical data.
+- **Collaborative projects:** when the developer is authorized to train on the site's CLIF data (working inside the site's environment, alongside the steward), they use the steward's snapshot too. Pass `--snapshot` to `flair load-task` and `flair fe-meds`, so the cohort and features they train on are exactly the ones the benchmark is scored on, and the hash audit confirms it. They never create a new snapshot (a run without `--snapshot`); that stays with the steward. The snapshot stays inside the site like any PHI.
+
 ## Contents
 
 - [Install](#install)
+- [Roles](#roles)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [CLI Reference](#cli-reference)
@@ -104,8 +125,7 @@ This writes two templates into the current directory: `clif_config.json` and `fe
     "site": "sitename",
     "data_directory": "/path/to/clif/data",
     "filetype": "parquet",
-    "timezone": "US/Central",
-    "cache_directory": "./output/_flair_cache"
+    "timezone": "US/Central"
 }
 ```
 
@@ -124,6 +144,18 @@ flair load-task icu_daily_mortality \
   --clif-config clif_config.json \
   --out output
 ```
+
+The first run also creates the site **snapshot** `output/<site>_flair_v<version>/` (frozen encounter IDs + reference hashes). Every later run, for any task or any new model, passes it back:
+
+``` bash
+flair load-task icu_daily_mortality \
+  --clif-config clif_config.json \
+  --out output \
+  --snapshot output/<site>_flair_v<version>
+```
+
+> [!IMPORTANT]
+> **Data stewards must store the snapshot folder** `<site>_flair_v<version>/` and pass it with `--snapshot` on every later run. It keeps the benchmark aligned: every model is tested on the same encounters, rows, labels and split, and each run's cohort hashes are checked against the snapshot's reference. Without it, the next run creates new IDs and results stop being comparable. A mismatch is never blocked locally; it is flagged at the leaderboard. The snapshot holds patient-level IDs, so store it as PHI and never upload it. How it works: [docs/101/snapshot.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101/snapshot.md).
 
 `--out` is a root folder (relative to where you run `flair`). It gets two site-prefixed folders:
 
@@ -171,9 +203,8 @@ Used by `flair load-task` (`--clif-config`) and referenced by `feature_config.ya
 | `data_directory` | yes | — | Folder holding your CLIF tables. FLAIR only reads from it. |
 | `filetype` | yes | — | File format of the CLIF tables, e.g. `parquet`. |
 | `timezone` | yes | — | Your site's IANA timezone, e.g. `US/Eastern`. There is no default: a wrong zone shifts every timestamp, including the 07:00 daily prediction time. |
-| `cache_directory` | no | `./output/_flair_cache` | Where FLAIR caches the encounter index and cohort scores. Relative paths resolve against the directory you run `flair` from. |
 
-FLAIR never writes into `data_directory`.
+FLAIR never writes into `data_directory`. The snapshot folder is not a config key: pass it with `--snapshot` (see [Roles](#roles)).
 
 ### `feature_config.yaml`
 
@@ -204,8 +235,8 @@ Optional performance settings for the vendored CLIF→MEDS ETL (`flair_benchmark
 |---------|--------------|
 | `flair init-config [--out DIR] [--force]` | Write the `clif_config.json` and `feature_config.yaml` templates. |
 | `flair list-tasks` | List the benchmark tasks. |
-| `flair load-task TASK --clif-config PATH --out DIR` | Build a task cohort into `DIR/<site>_flair_phi/TASK/`, and `table1.json` (STROBE `attrition`, cohort hashes) + STROBE PNGs into `DIR/<site>_flair_non_phi_for_upload/TASK/`. |
-| `flair fe-meds --feature-config PATH --task cohort.parquet --out meds.parquet` | Extract a medication event table, cut per encounter at its latest `feature_cutoff_dttm`. |
+| `flair load-task TASK --clif-config PATH --out DIR [--snapshot SNAP]` | Build a task cohort into `DIR/<site>_flair_phi/TASK/`, and `table1.json` (STROBE `attrition`, cohort hashes, snapshot audit) + STROBE PNGs into `DIR/<site>_flair_non_phi_for_upload/TASK/`. Without `--snapshot` it regenerates everything into a new snapshot `DIR/<site>_flair_v<version>/`; with it, it rebuilds on the snapshot's frozen IDs and checks the four cohort hashes. |
+| `flair fe-meds --feature-config PATH --task cohort.parquet --out meds.parquet [--snapshot SNAP]` | Extract a medication event table, cut per encounter at its latest `feature_cutoff_dttm`. |
 | `flair build-report PREDS --task TASK --out DIR [--cohort cohort.parquet] [--mode episodic\|continuous]` | Score predictions into the aggregate JSON report bundle. |
 
 Run `flair COMMAND --help` for every option.
@@ -396,7 +427,7 @@ FLAIR's own safeguards:
 - small-cell suppression for Table 1 counts
 - fairness subgroups omitted below a minimum size
 - metric bins suppressed or omitted when counts are too small
-- task script hashes in report metadata, for auditability
+- task script and cohort hashes in report metadata, audited against the site snapshot
 
 Network isolation, PHI runtime controls, and site approval belong to your deployment and governance process. FLAIR keeps its job narrow: build the same benchmark everywhere and report it the same way.
 
@@ -441,6 +472,7 @@ This README is the manual. The 101 docs go deeper:
 | End-to-end overview      | [docs/101.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101.md)                   |
 | CLIF data layer          | [docs/101/clif.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101/clif.md)         |
 | Tasks and task authoring | [docs/101/tasks.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101/tasks.md)       |
+| Snapshots (same cohort for every model) | [docs/101/snapshot.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101/snapshot.md) |
 | Feature engineering      | [docs/101/features.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101/features.md) |
 | Reports and report modes | [docs/101/reports.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101/reports.md)   |
 | Every key in the report bundle | [docs/eval_modes/episodic.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/eval_modes/episodic.md) · [docs/eval_modes/continuous.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/eval_modes/continuous.md) |

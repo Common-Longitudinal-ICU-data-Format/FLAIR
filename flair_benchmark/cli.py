@@ -2,11 +2,16 @@
 
 Commands:
   flair init-config  [--out DIR] [--force]
-  flair load-task    <task_name>  --clif-config ... --out DIR   (always a 75/25 encounter split)
+  flair load-task    <task_name>  --clif-config ... --out DIR [--snapshot SNAP]
+                     (always a 75/25 encounter split)
                      writes DIR/<site>_flair_phi/<task>/cohort.parquet           (stays at site)
                         and DIR/<site>_flair_non_phi_for_upload/<task>/table1.json (+ STROBE PNGs)
+                     no --snapshot: regenerates everything into DIR/<site>_flair_v<version>/
+                     --snapshot:    rebuilds on that snapshot's frozen IDs and audits the
+                                    4 hashes against it (docs/101/snapshot.md)
   flair build-report <preds.pq>   --task <task_name>  --out ./report/
   flair fe-meds      --feature-config feature_config.yaml --task cohort.parquet --out meds.parquet
+                     [--snapshot SNAP]   (same frozen IDs as the cohort)
   flair list-tasks
 
 The predictions parquet for `build-report` MUST contain (strict schema, enforced
@@ -79,13 +84,27 @@ def load_task(
     out: str = typer.Option(..., "--out",
                             help="Output root; gets <site>_flair_phi/<task>/ and "
                                  "<site>_flair_non_phi_for_upload/<task>/"),
+    snapshot: Optional[str] = typer.Option(
+        None, "--snapshot",
+        help="Snapshot folder from an earlier run (<site>_flair_v<version>/). Reuses "
+             "its frozen encounter IDs and audits the cohort hashes against it. "
+             "Omit to regenerate everything into <out>/<site>_flair_v<version>/."),
 ) -> None:
     """Run a task's build(); write the cohort (PHI folder) + Table 1 and STROBE plots (non-PHI folder)."""
     import json
-    import re
+    import shutil
 
+    import polars as pl
+
+    from flair_benchmark import __version__
+    from flair_benchmark.cohort import snapshot as snap_hashes
     from flair_benchmark.cohort import strobe
-    from flair_benchmark.cohort.clif import read_clif_config
+    from flair_benchmark.cohort.clif import read_clif_config, site_slug
+    from flair_benchmark.cohort.stitch import (
+        encounter_index_sha256,
+        snapshot_name,
+        use_snapshot,
+    )
     from flair_benchmark.cohort.table1 import generate_table1
     from flair_benchmark.report._viz import render_strobe_pngs
     from flair_benchmark.tasks import get_task
@@ -94,9 +113,32 @@ def load_task(
     cfg = read_clif_config(clif_config)
     # Same folder convention as flair_baseline: site-prefixed, split by sensitivity.
     # Only the non-PHI folder is meant to leave the site.
-    site = re.sub(r"[^a-z0-9]+", "_", cfg["site"].strip().lower()).strip("_")
+    site = site_slug(cfg["site"])
     phi = Path(out) / f"{site}_flair_phi" / task
     nonphi = Path(out) / f"{site}_flair_non_phi_for_upload" / task
+
+    if snapshot:
+        # Reuse the stored IDs; the run must never re-stitch (frozen=True).
+        snap = Path(snapshot)
+        index = snap / "encounter_index.parquet"
+        if not index.exists():
+            raise typer.BadParameter(
+                f"{snap} is not a snapshot (no encounter_index.parquet). Pass the "
+                f"<site>_flair_v<version>/ folder an earlier load-task created, or "
+                f"omit --snapshot to regenerate.", param_hint="--snapshot")
+        use_snapshot(snap, frozen=True)
+        stored = snap_hashes.read_hashes(snap).get("encounter_index_sha256")
+        if stored and stored != encounter_index_sha256(pl.read_parquet(index)):
+            typer.echo(f"WARNING: {index} no longer matches its recorded "
+                       f"encounter_index_sha256 — the frozen IDs were altered.", err=True)
+        typer.echo(f"Using snapshot {snap} (frozen encounter IDs)")
+    else:
+        # Full regenerate: a stale snapshot's IDs would not match the new build.
+        snap = Path(out) / snapshot_name(cfg["site"])
+        if snap.exists():
+            typer.echo(f"Replacing existing snapshot {snap} (pass --snapshot to reuse it)")
+            shutil.rmtree(snap)
+        use_snapshot(snap)
     phi.mkdir(parents=True, exist_ok=True)
     nonphi.mkdir(parents=True, exist_ok=True)
 
@@ -111,11 +153,35 @@ def load_task(
     table1 = generate_table1(cfg, df, task_module)
     # STROBE attrition: counts after every inclusion/exclusion step build() recorded.
     table1["attrition"] = strobe.steps()
+
+    # Snapshot audit: the first build on a snapshot becomes its reference; every
+    # later build is compared to it. Reported, never blocking — the leaderboard flags.
+    md = table1["metadata"]
+    reference = snap_hashes.read_hashes(snap).get("tasks", {}).get(task)
+    match = snap_hashes.audit(reference, md)
+    if reference is None:
+        snap_hashes.write_task_hashes(snap, site=site, flair_version=__version__,
+                                      index_sha256=md.get("encounter_index_sha256"),
+                                      task=task, metadata=md)
+        reference = snap_hashes.read_hashes(snap)["tasks"][task]
+        typer.echo(f"Recorded reference hashes → {snap / 'hashes.json'}")
+    else:
+        for k, ok in match.items():
+            typer.echo(f"  {'match   ' if ok else 'MISMATCH'}  {k}")
+    md["snapshot"] = {
+        "name": snap.name,
+        "encounter_index_sha256": snap_hashes.read_hashes(snap).get("encounter_index_sha256"),
+        "reference": {k: reference.get(k) for k in snap_hashes.HASH_KEYS},
+        "match": match,
+    }
+
     t1_path = nonphi / "table1.json"
     t1_path.write_text(json.dumps(table1, indent=2, default=str))
     typer.echo(f"Wrote Table 1 → {t1_path}")
     for png in render_strobe_pngs(table1, nonphi):
         typer.echo(f"Wrote STROBE plot → {png}")
+    if not snapshot:
+        typer.echo(f"Snapshot → {snap}  (keep it; reuse with --snapshot {snap})")
 
 
 @app.command("build-report")
@@ -146,13 +212,22 @@ def build_report_cmd(
         typer.echo(f"  {kind:24s} → {path}")
 
 
-def _run_fe(extractor, feature_config: str, task: str, out: str) -> None:
+def _run_fe(extractor, feature_config: str, task: str, out: str,
+            snapshot: Optional[str]) -> None:
     """Body for fe-meds: load config + task, extract, write."""
     import polars as pl
 
+    from flair_benchmark.cohort.stitch import snapshot_name, use_snapshot
     from flair_benchmark.features._config import load_feature_config
 
     feature_cfg, clif_cfg = load_feature_config(feature_config)
+    # Same frozen IDs as the cohort, so sibling hospitalizations expand identically.
+    snap = Path(snapshot) if snapshot else Path("output") / snapshot_name(clif_cfg["site"])
+    if not (snap / "encounter_index.parquet").exists():
+        raise typer.BadParameter(
+            f"no encounter_index.parquet in {snap}; pass the snapshot the cohort was "
+            f"built on (flair load-task prints it).", param_hint="--snapshot")
+    use_snapshot(snap, frozen=True)
     task_df = pl.read_parquet(task)
     df = extractor(task_df, feature_cfg, clif_cfg)
     out_path = Path(out)
@@ -167,10 +242,14 @@ def fe_meds_cmd(
                                        help="Path to feature_config.yaml"),
     task: str = typer.Option(..., "--task", help="Task cohort parquet (from load-task)"),
     out: str = typer.Option(..., "--out", help="Output ELF parquet path"),
+    snapshot: Optional[str] = typer.Option(
+        None, "--snapshot",
+        help="Snapshot folder the cohort was built on (default "
+             "output/<site>_flair_v<version>/); supplies the frozen encounter IDs."),
 ) -> None:
     """Lightweight med event stream (raw dose + raw unit) → MEDS/ELF long."""
     from flair_benchmark.features import get_meds_stream
-    _run_fe(get_meds_stream, feature_config, task, out)
+    _run_fe(get_meds_stream, feature_config, task, out, snapshot)
 
 
 @app.command("list-tasks")

@@ -361,6 +361,13 @@ def _unit(step: dict) -> str:
     return "encounters" if "n_encounters" in step else "hospitalizations"
 
 
+# Plot wording only: the attrition keys stay n_encounters / n_hospitalizations,
+# but a stitched encounter is labelled by its column name so the figure matches
+# the cohort file a reader will open.
+JOIN_LABEL = "hospitalization_join_id"
+_UNIT_LABEL = {"encounters": JOIN_LABEL, "hospitalizations": "hospitalizations"}
+
+
 def _strobe_box(ax, x, y, w, h, text, edge, *, muted=False, bold_first=False):
     from matplotlib.patches import FancyBboxPatch
     ax.add_patch(FancyBboxPatch(
@@ -410,7 +417,7 @@ def _strobe_flow_fig(table1: dict, plt):
     for i, s in enumerate(steps):
         y = 1.0 + box_h / 2 + i * pitch
         unit = _unit(s)
-        detail = f"n = {_fmt(s.get(f'n_{unit}'))} {unit}"
+        detail = f"n = {_fmt(s.get(f'n_{unit}'))} {_UNIT_LABEL[unit]}"
         extra = []
         if "n_patients" in s:
             extra.append(f"{_fmt(s['n_patients'])} patients")
@@ -427,12 +434,12 @@ def _strobe_flow_fig(table1: dict, plt):
         mid = top + gap / 2
         excluded = s.get(f"n_excluded_{unit}")
         if excluded is None:                    # unit switched at this step
-            ax.text(main_x + 0.15, mid, "hospitalizations merged into encounters",
+            ax.text(main_x + 0.15, mid, f"hospitalizations merged into {JOIN_LABEL}",
                     fontsize=7.5, color=_INK_2, style="italic", va="center")
             continue
         muted = excluded == 0
         pts = s.get("n_excluded_patients")
-        text = f"Excluded: {_fmt(excluded)} {unit}"
+        text = f"Excluded: {_fmt(excluded)} {_UNIT_LABEL[unit]}"
         if pts is not None:
             text += f"\n{_fmt(pts)} patients"
         ax.plot([main_x, side_x - side_w / 2], [mid, mid], color=_INK_2, lw=0.8,
@@ -445,13 +452,13 @@ def _strobe_flow_fig(table1: dict, plt):
     if table1.get("by_label"):
         ax.text(main_x, y_last + box_h / 2 + 0.18,
                 f"label 1: {_fmt(n_of('by_label', '1'))}   ·   label 0: "
-                f"{_fmt(n_of('by_label', '0'))}  (encounters)",
+                f"{_fmt(n_of('by_label', '0'))}  ({JOIN_LABEL})",
                 ha="center", va="center", fontsize=8, color=_INK_2)
     y_split = y_last + box_h / 2 + 1.0
     for x, name in ((main_x - 1.3, "train"), (main_x + 1.3, "test")):
         _arrow(ax, (main_x, y_last + box_h / 2 + 0.32), (x, y_split - 0.3))
         _strobe_box(ax, x, y_split, 2.2, 0.6,
-                    f"{name}\n{_fmt(n_of('by_split', name))} encounters",
+                    f"{name}\n{_fmt(n_of('by_split', name))} {JOIN_LABEL}",
                     _RETAINED, bold_first=True)
     return fig
 
@@ -479,7 +486,7 @@ def _strobe_attrition_fig(table1: dict, plt):
     switch = next((i for i, s in enumerate(steps) if "n_encounters" in s), None)
     if switch:
         ax.axhline(switch - 0.5, color=_INK_2, ls="--", lw=0.8)
-        ax.text(span * 1.3, switch - 0.58, "hospitalizations ↑   encounters ↓",
+        ax.text(span * 1.3, switch - 0.58, f"hospitalizations ↑   {JOIN_LABEL} ↓",
                 ha="right", va="bottom", fontsize=7.5, color=_INK_2)
     ax.set_yticks(ys, [s["step"] for s in steps], fontsize=8, color=_INK)
     ax.invert_yaxis()

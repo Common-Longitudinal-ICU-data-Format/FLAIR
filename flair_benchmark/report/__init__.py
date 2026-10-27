@@ -126,6 +126,9 @@ def build_report(preds_path: str, task_module, out_dir: str,
     audit = {
         "task": meta["name"],
         "task_script_sha256": task_script_sha256(task_module),
+        # The cohort the predictions were scored against, so the leaderboard can tie
+        # this report to the site's snapshot reference hashes. Null without --cohort.
+        **_cohort_hashes(cohort_path, meta),
         "flair_version": __version__,
         **dependency_versions(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -218,6 +221,19 @@ def _ensure_y_pred(preds: pl.DataFrame, meta: dict) -> pl.DataFrame:
             (pl.col("y_prob") >= 0.5).cast(pl.Int8).alias("y_pred")
         )
     return preds
+
+
+def _cohort_hashes(cohort_path: str | None, meta: dict) -> dict:
+    """cohort_sha256 / test_cohort_sha256 of the --cohort parquet (None without one)."""
+    if cohort_path is None:
+        return {"cohort_sha256": None, "test_cohort_sha256": None}
+    from flair_benchmark.cohort.table1 import cohort_sha256
+
+    cohort = pl.read_parquet(cohort_path)
+    label = meta["label_column"]
+    return {"cohort_sha256": cohort_sha256(cohort, label),
+            "test_cohort_sha256": cohort_sha256(
+                cohort.filter(pl.col("split") == "test"), label)}
 
 
 def _attach_cohort_context(preds: pl.DataFrame, cohort_path: str | None,

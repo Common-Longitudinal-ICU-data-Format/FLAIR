@@ -28,6 +28,7 @@ Used by: cohort/stitch.py, cohort/encounter.py, cohort/table1.py, every task,
 from __future__ import annotations
 
 import json
+import re
 from typing import Optional
 
 import polars as pl
@@ -59,13 +60,17 @@ def in_benchmark_window(members: pl.DataFrame) -> list:
     )
 
 
+def site_slug(site: str) -> str:
+    """Filesystem-safe site name: lowercase, runs of non-alphanumerics -> '_'."""
+    return re.sub(r"[^a-z0-9]+", "_", site.strip().lower()).strip("_")
+
+
 def read_clif_config(path: str) -> dict:
     """Parse a clif_config.json file.
 
     Required keys: site, data_directory, filetype, timezone.
-    Optional keys:
-      cache_directory             where the encounter index parquet is cached
-                                  (default ./output/_flair_cache)
+    The snapshot folder (frozen encounter IDs + reference hashes) is not a config
+    key: `flair load-task --snapshot PATH` passes it (docs/101/snapshot.md).
     """
     with open(path) as f:
         cfg = json.load(f)
@@ -87,6 +92,11 @@ def read_clif_config(path: str) -> dict:
             f"longer configurable: stitching is fixed at "
             f"{STITCH_TIME_INTERVAL_HOURS}h (constants.STITCH_TIME_INTERVAL_HOURS). "
             f"Delete the key.")
+    if "cache_directory" in cfg:
+        raise ValueError(
+            f"clif config {path!r} sets 'cache_directory', which was removed: the "
+            f"encounter IDs now live in a snapshot folder passed with "
+            f"`flair load-task --snapshot PATH`. Delete the key.")
     if not cfg.get("timezone"):
         # No default: a silently assumed zone shifts every timestamp at any site
         # that isn't in it, and the 07:00 daily prediction time with them.
@@ -99,8 +109,6 @@ def read_clif_config(path: str) -> dict:
         "filetype": cfg["filetype"],
         "timezone": cfg["timezone"],
     }
-    if cfg.get("cache_directory"):
-        out["cache_directory"] = cfg["cache_directory"]
     return out
 
 
@@ -333,7 +341,7 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         ])
     )
 
-    # Stitch encounters once (cached) and tag both frames with the block key.
+    # Stitch encounters once (frozen in the snapshot) and tag both frames with the block key.
     from flair_benchmark.cohort.stitch import (
         JOIN_ID,
         attach_join_id,
@@ -341,7 +349,7 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         members_of_joins,
     )
     idx = load_or_build_encounter_index(cfg)
-    cohort = attach_join_id(cohort, idx).pipe(record, "stitched into encounters")
+    cohort = attach_join_id(cohort, idx).pipe(record, "stitched into hospitalization_join_id")
 
     # Benchmark window, before any task logic or the split: drop the WHOLE encounter
     # if any member hospitalization (ICU or not) has a leg outside it.

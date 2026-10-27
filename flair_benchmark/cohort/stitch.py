@@ -19,8 +19,10 @@ to, and it keeps the two arms separated in calendar time — the property an
 external-validity read of the test set depends on. See `assign_split` for why the
 grain is the encounter and not the patient.
 
-The index is built ONCE per config (gap fixed at constants.STITCH_TIME_INTERVAL_HOURS) and cached to parquet, so the
-same stitched mapping is reused by every task, feature and metadata run.
+The index is built ONCE (gap fixed at constants.STITCH_TIME_INTERVAL_HOURS) and
+frozen in the site's SNAPSHOT folder (`snapshot_dir`), so the same stitched
+mapping is reused by every task, feature and metadata run — and by every later
+run that passes `--snapshot` (see docs/101/snapshot.md).
 
 Depends on: cohort/clif.py (loaders), clifpy.
 Used by: every task, features/_scope.py, cohort/table1.py, cohort/encounter.py.
@@ -34,8 +36,8 @@ from typing import Optional
 
 import polars as pl
 
-from flair_benchmark.cohort.clif import load_adt, load_hospitalization
-from flair_benchmark.constants import STITCH_TIME_INTERVAL_HOURS
+from flair_benchmark.cohort.clif import load_adt, load_hospitalization, site_slug
+from flair_benchmark.constants import STITCH_TIME_INTERVAL_HOURS, __version__
 
 JOIN_ID = "hospitalization_join_id"
 
@@ -45,7 +47,7 @@ JOIN_ID = "hospitalization_join_id"
 #
 # Public API:
 #   build_encounter_index(cfg)                        -> always rebuilds
-#   load_or_build_encounter_index(cfg)                -> cached
+#   load_or_build_encounter_index(cfg)                -> read from / saved to the snapshot
 #   attach_join_id(df, idx)                           -> left-join + self-fallback
 #   members_of_joins(idx, join_ids)                   -> join_id -> all member hosp_ids
 #
@@ -54,50 +56,52 @@ JOIN_ID = "hospitalization_join_id"
 # ===========================================================================
 
 
-def _cache_dir(cfg: dict) -> Path:
-    """Where the encounter index parquet lives.
+def snapshot_name(site: str) -> str:
+    """Snapshot folder name: one per site per FLAIR version, e.g. mimic_flair_v0.0.1."""
+    return f"{site_slug(site)}_flair_v{__version__}"
 
-    Precedence:
-      1. cfg["cache_directory"] — set this to the folder where you write task
-         parquet so the index sits alongside your outputs.
-      2. ./output/_flair_cache (default, relative to the working directory).
-         FLAIR never writes into the CLIF data directory, which may be shared
-         or read-only.
+
+# ponytail: module-global, one CLI run per process (same as cohort/strobe.py); the
+# CLI sets it so it reaches the index loader inside every task build(clif_config)
+# without threading a path through every signature.
+_SNAPSHOT: Optional[Path] = None
+_FROZEN = False
+
+
+def use_snapshot(path: Optional[str | Path], *, frozen: bool = False) -> None:
+    """Point this process at a snapshot folder (None resets to the default).
+
+    frozen=True is a `--snapshot` run: the encounter index must already be in the
+    folder, so the run reuses the stored IDs and never silently re-stitches.
     """
-    explicit = cfg.get("cache_directory")
-    base = Path(explicit) if explicit else Path("output") / "_flair_cache"
-    return base
+    global _SNAPSHOT, _FROZEN
+    _SNAPSHOT = Path(path) if path is not None else None
+    _FROZEN = frozen and path is not None
+    _INDEX_MEMO.clear()
 
 
-def source_fingerprint(cfg: dict) -> str:
-    """Short digest of the CLIF source files an index/score cache was built from.
+def snapshot_dir(cfg: dict) -> Path:
+    """The snapshot folder: the one set by `use_snapshot`, else output/<snapshot_name>.
 
-    Covers path, size and mtime of every file directly under `data_directory`.
-    A cache keyed on `path.exists()` alone is stale the moment a site re-ETLs its
-    data or repoints `data_directory`, and nothing about the stale result looks
-    wrong — the split just silently belongs to yesterday's cohort. Folding this
-    into the filename means a changed source builds a new cache instead of
-    quietly reusing the old one.
-
-    Directory listing only (never file contents), so it stays O(number of files)
-    on a multi-GB data directory.
+    FLAIR never writes into the CLIF data directory, which may be shared or read-only.
     """
-    root = Path(cfg["data_directory"])
-    parts = [str(root)]
-    try:
-        for p in sorted(root.iterdir()):
-            if p.is_file():
-                st = p.stat()
-                parts.append(f"{p.name}:{st.st_size}:{st.st_mtime_ns}")
-    except OSError:
-        # Unreadable directory: fall back to the path alone rather than failing.
-        pass
-    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
+    return _SNAPSHOT if _SNAPSHOT is not None else Path("output") / snapshot_name(cfg["site"])
 
 
-def _cache_path(cfg: dict) -> Path:
-    return (_cache_dir(cfg)
-            / f"encounter_index_{STITCH_TIME_INTERVAL_HOURS}h_{source_fingerprint(cfg)}.parquet")
+def _index_path(cfg: dict) -> Path:
+    return snapshot_dir(cfg) / "encounter_index.parquet"
+
+
+def encounter_index_sha256(idx: pl.DataFrame) -> str:
+    """Content digest of the frozen IDs — same rows, same hash, on any machine.
+
+    Rows sorted by hospitalization_id, every value cast to its string form, so the
+    digest ignores row order, dtype and when/where the parquet was written.
+    """
+    cols = ["hospitalization_id", JOIN_ID, "patient_id"]
+    df = (idx.select(cols).with_columns(pl.all().cast(pl.Utf8))
+          .sort(["hospitalization_id", JOIN_ID]))
+    return hashlib.sha256(df.write_csv().encode()).hexdigest()
 
 
 def build_encounter_index(cfg: dict) -> pl.DataFrame:
@@ -148,34 +152,35 @@ def build_encounter_index(cfg: dict) -> pl.DataFrame:
     return idx.join(pat, on="hospitalization_id", how="left")
 
 
-# Process-level memo for the cached index. One task build calls
+# Process-level memo for the snapshot index. One task build calls
 # load_or_build_encounter_index several times (base cohort, encounter attributes,
 # per-table attach) and the parquet can be large, so we read it once per
 # (path, mtime) rather than once per call.
 _INDEX_MEMO: dict[tuple[str, int], pl.DataFrame] = {}
 
 
-def load_or_build_encounter_index(cfg: dict,
-                                  cache_dir: Optional[str] = None) -> pl.DataFrame:
-    """Read the cached encounter index, building (and saving) it on first use.
+def load_or_build_encounter_index(cfg: dict) -> pl.DataFrame:
+    """Read the snapshot's encounter index, building (and saving) it on first use.
 
-    This is the "run before all tasks, saved" step: the first cohort build writes
-    the parquet, every later run reads it. The filename carries a fingerprint of
-    the source files (`source_fingerprint`), so re-ETL'd data rebuilds rather
-    than silently reusing the previous stitching.
+    The first cohort build of a snapshot writes the parquet; every later call and
+    every `--snapshot` run reads it, so the IDs stay frozen even if the CLIF files
+    are copied, touched or re-ETL'd. In a frozen (`--snapshot`) run a missing index
+    is an error rather than a fresh stitch.
     """
-    if cache_dir is not None:
-        cfg = {**cfg, "cache_directory": cache_dir}
-    path = _cache_path(cfg)
+    path = _index_path(cfg)
     if path.exists():
         key = (str(path), path.stat().st_mtime_ns)
-        cached = _INDEX_MEMO.get(key)
-        if cached is None:
-            cached = pl.read_parquet(path)
+        idx = _INDEX_MEMO.get(key)
+        if idx is None:
+            idx = pl.read_parquet(path)
             _INDEX_MEMO.clear()          # one live index per process is plenty
-            _INDEX_MEMO[key] = cached
-        return cached
+            _INDEX_MEMO[key] = idx
+        return idx
 
+    if _FROZEN:
+        raise FileNotFoundError(
+            f"snapshot {path.parent} has no encounter_index.parquet; pass the folder a "
+            f"previous `flair load-task` created, or omit --snapshot to regenerate.")
     idx = build_encounter_index(cfg)
     path.parent.mkdir(parents=True, exist_ok=True)
     idx.write_parquet(path)

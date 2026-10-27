@@ -1,7 +1,7 @@
 """Config templates shipped as package data, and the clif config contract.
 
 `flair init-config` scaffolds from flair_benchmark/templates/; the scaffolded clif
-config must parse; timezone is required; the cache never lands in the data dir.
+config must parse; timezone is required; the snapshot never lands in the data dir.
 All synthetic — no CLIF data is read.
 """
 
@@ -15,7 +15,8 @@ from typer.testing import CliRunner
 
 from flair_benchmark.cli import app
 from flair_benchmark.cohort.clif import read_clif_config
-from flair_benchmark.cohort.stitch import _cache_dir
+from flair_benchmark.cohort.stitch import snapshot_dir, use_snapshot
+from flair_benchmark import __version__
 from flair_benchmark.constants import TEMPLATE_FILES
 
 runner = CliRunner()
@@ -74,7 +75,19 @@ def test_read_clif_config_requires_timezone(tmp_path):
         read_clif_config(str(path))
 
 
-def test_cache_dir_never_inside_data_directory():
-    cfg = {"data_directory": "/data/clif"}
-    assert _cache_dir(cfg) == Path("output") / "_flair_cache"
-    assert _cache_dir({**cfg, "cache_directory": "/tmp/c"}) == Path("/tmp/c")
+def test_snapshot_dir_never_inside_data_directory(tmp_path):
+    cfg = {"site": "My Site", "data_directory": "/data/clif"}
+    assert snapshot_dir(cfg) == Path("output") / f"my_site_flair_v{__version__}"
+    try:
+        use_snapshot(tmp_path / "snap")
+        assert snapshot_dir(cfg) == tmp_path / "snap"
+    finally:
+        use_snapshot(None)
+
+
+def test_read_clif_config_rejects_cache_directory(tmp_path):
+    path = tmp_path / "clif_config.json"
+    path.write_text(json.dumps({"site": "s", "data_directory": "/x", "filetype": "parquet",
+                                "timezone": "US/Eastern", "cache_directory": "./output"}))
+    with pytest.raises(ValueError, match="cache_directory"):
+        read_clif_config(str(path))

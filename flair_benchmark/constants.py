@@ -91,12 +91,13 @@ def task_script_sha256(task_module: ModuleType) -> str:
     `__version__` bumps and comments included, changes every digest. The train/test split is fixed (always per stitched
     encounter, cohort/stitch.py:assign_split), so it carries no version here.
     """
-    src = Path(task_module.__file__).read_bytes()
+    # Line endings normalised: a Windows checkout (git autocrlf) is the same code.
+    src = Path(task_module.__file__).read_bytes().replace(b"\r\n", b"\n")
     meta = getattr(task_module, "META", {}) or {}
     policy = json.dumps(
         {k: meta.get(k) for k in _AUDIT_KEYS}, sort_keys=True
     ).encode()
-    shared = Path(__file__).read_bytes()
+    shared = Path(__file__).read_bytes().replace(b"\r\n", b"\n")
     return hashlib.sha256(src + b"\x00" + policy + b"\x00" + shared).hexdigest()
 
 
