@@ -67,30 +67,24 @@ In short: FLAIR fixes **what** is predicted, **when** it is predicted, and **how
 pip install flair-benchmark
 ```
 
-Want the optional local plots when building reports?
-
-``` bash
-pip install "flair-benchmark[viz]"
-```
-
 Submitting to the leaderboard? Install the pinned `clifpy` / `polars` versions so every site runs the same library code (both versions are recorded in every Table 1 and report audit):
 
 ``` bash
-pip install "flair-benchmark[benchmark,viz]"
+pip install "flair-benchmark[benchmark]"
 ```
 
 You need:
 
 - Python 3.10+
 - ICU data in CLIF format
-- `clifpy`, `polars`, `pandas`, `numpy`, `scikit-learn`, `threadpoolctl`, `typer`, `pyyaml` (installed for you)
+- `clifpy`, `polars`, `pandas`, `numpy`, `scikit-learn`, `threadpoolctl`, `typer`, `pyyaml`, `matplotlib` (installed for you)
 
 Developing on FLAIR itself:
 
 ``` bash
 git clone https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR.git
 cd FLAIR
-pip install -e ".[dev,viz]"
+pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -137,7 +131,7 @@ flair load-task icu_daily_mortality \
 - `output/<site>_flair_phi/icu_daily_mortality/cohort.parquet` — one row per prediction point. **PHI: stays at the site.**
 - `output/<site>_flair_non_phi_for_upload/icu_daily_mortality/` — safe to share:
   - `table1.json` — aggregate cohort characteristics; `attrition` (STROBE counts after each inclusion/exclusion step); and `metadata.cohort_sha256` / `train_cohort_sha256` / `test_cohort_sha256` (SHA-256 over `hospitalization_join_id, prediction_dttm, feature_cutoff_dttm, label, split`, sorted by join id + prediction time)
-  - `strobe.png` / `strobe_attrition.png` — the STROBE flow diagram and per-step attrition chart (needs `[viz]`; `--no-viz` to skip)
+  - `strobe.png` / `strobe_attrition.png` — the STROBE flow diagram and per-step attrition chart
 
 **5. Train your model, your way**
 
@@ -214,7 +208,7 @@ Optional performance settings for the vendored CLIF→MEDS ETL (`flair_benchmark
 | `flair list-tasks` | List the benchmark tasks. |
 | `flair load-task TASK --clif-config PATH --out DIR` | Build a task cohort into `DIR/<site>_flair_phi/TASK/`, and `table1.json` (STROBE `attrition`, cohort hashes) + STROBE PNGs into `DIR/<site>_flair_non_phi_for_upload/TASK/`. |
 | `flair fe-meds --feature-config PATH --task cohort.parquet --out meds.parquet` | Extract a medication event table, cut per encounter at its latest `feature_cutoff_dttm`. |
-| `flair build-report PREDS --task TASK --out DIR [--cohort cohort.parquet] [--mode episodic\|continuous] [--viz/--no-viz]` | Score predictions into the aggregate JSON report bundle. |
+| `flair build-report PREDS --task TASK --out DIR [--cohort cohort.parquet] [--mode episodic\|continuous]` | Score predictions into the aggregate JSON report bundle. |
 
 Run `flair COMMAND --help` for every option.
 
@@ -354,8 +348,7 @@ flair build-report preds.parquet \
   --task extubation_failure_24h \
   --cohort cohort.parquet \
   --mode episodic \
-  --out ./report/ \
-  --no-viz
+  --out ./report/
 ```
 
 Every run writes **exactly two JSON files**. Without `--mode`, the mode is inferred from the task's `temporal_pattern`: `continuous` tasks get `continuous`, everything else gets `episodic` (episode tasks print a warning — pass `--mode episodic` to silence it).
@@ -385,7 +378,7 @@ Net benefit is reported per threshold inside `hospitalization_level.json` alongs
 
 ### Plots
 
-With `[viz]` installed, `build-report` also writes local PNGs from the same JSON data (on by default; `--no-viz` skips them). Those PNGs are for site review only. **The JSON bundle is the artifact you share.**
+`build-report` also writes local PNGs from the same JSON data into `viz/`. Those PNGs are for site review only. **The JSON bundle is the artifact you share.**
 
 More detail: [docs/101/reports.md](https://github.com/Common-Longitudinal-ICU-data-Format/FLAIR/blob/main/docs/101/reports.md).
 

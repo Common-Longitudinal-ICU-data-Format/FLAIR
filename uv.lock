@@ -869,6 +869,8 @@ name = "flair-benchmark"
 source = { editable = "." }
 dependencies = [
     { name = "clifpy" },
+    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "matplotlib", version = "3.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -891,16 +893,12 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
-viz = [
-    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "matplotlib", version = "3.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "clifpy", specifier = ">=2.1.0" },
     { name = "clifpy", marker = "extra == 'benchmark'", specifier = "==2.1.0" },
-    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.7.0" },
+    { name = "matplotlib", specifier = ">=3.7.0" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "polars", specifier = ">=0.20.0" },
@@ -913,7 +911,7 @@ requires-dist = [
     { name = "threadpoolctl", specifier = ">=3.0.0" },
     { name = "typer", specifier = ">=0.12.0" },
 ]
-provides-extras = ["benchmark", "dev", "viz"]
+provides-extras = ["benchmark", "dev"]
 
 [[package]]
 name = "fonttools"

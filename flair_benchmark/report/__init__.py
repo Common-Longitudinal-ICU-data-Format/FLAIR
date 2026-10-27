@@ -18,8 +18,8 @@ TWO JSON FILES PER MODE. Always.
                              policy, and fairness at the clinical threshold.
                              See report/hospitalization_level.py.
 
-Only JSON is exported to the FLAIR website (cross-site aggregation). Optional
---viz renders local site-validation PNGs from the same dicts (report/_viz.py) —
+Only JSON is exported to the FLAIR website (cross-site aggregation). Local
+site-validation PNGs are rendered from the same dicts into viz/ (report/_viz.py) —
 never exported.
 """
 
@@ -71,7 +71,7 @@ _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
 
 def build_report(preds_path: str, task_module, out_dir: str,
                  cohort_path: str | None = None,
-                 viz: bool = True, site: str | None = None,
+                 site: str | None = None,
                  mode: str | None = None) -> dict[str, Path]:
     """Read preds parquet, look up META, write the report JSON bundle.
 
@@ -170,18 +170,9 @@ def build_report(preds_path: str, task_module, out_dir: str,
         paths[kind] = out / f"{kind}.json"
         paths[kind].write_text(json.dumps(payload, indent=2, default=str))
 
-    if viz:
-        try:
-            from flair_benchmark.report._viz import render_pngs
-            for png in render_pngs(payloads, out / "viz", mode):
-                paths[png.stem + "_png"] = png
-        except ImportError:
-            # viz is default-on but matplotlib is an optional extra; the JSON
-            # bundle (the exported artifact) is already written, so skip PNGs.
-            warnings.warn(
-                "matplotlib not installed; skipping --viz PNGs "
-                "(pip install 'flair-benchmark[viz]', or pass --no-viz).",
-                stacklevel=2)
+    from flair_benchmark.report._viz import render_pngs
+    for png in render_pngs(payloads, out / "viz", mode):
+        paths[png.stem + "_png"] = png
     return paths
 
 

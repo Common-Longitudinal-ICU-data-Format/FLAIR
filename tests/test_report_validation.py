@@ -86,8 +86,7 @@ def test_prediction_id_is_one_per_stay():
 def test_prediction_id_is_required(tmp_path):
     path = write(tmp_path, make_synth(n_stays=50).drop("prediction_id"))
     with pytest.raises(ValueError, match="prediction_id"):
-        build_report(path, fake_task(), str(tmp_path / "r"), mode="episodic",
-                     viz=False)
+        build_report(path, fake_task(), str(tmp_path / "r"), mode="episodic")
 
 
 def test_hospitalization_join_id_is_required(tmp_path):
@@ -95,8 +94,7 @@ def test_hospitalization_join_id_is_required(tmp_path):
     hospitalization_id is audit-only and cannot stand in for it."""
     path = write(tmp_path, make_synth(n_stays=50).drop("hospitalization_join_id"))
     with pytest.raises(ValueError, match="hospitalization_join_id"):
-        build_report(path, fake_task(), str(tmp_path / "r"), mode="episodic",
-                     viz=False)
+        build_report(path, fake_task(), str(tmp_path / "r"), mode="episodic")
 
 
 @pytest.mark.parametrize("bad,message", [
@@ -110,7 +108,7 @@ def test_y_prob_must_be_a_probability(tmp_path, bad, message):
     df = df.with_columns(pl.Series("y_prob", probs))
     with pytest.raises(ValueError, match=message):
         build_report(write(tmp_path, df), fake_task(), str(tmp_path / "r"),
-                     mode="episodic", viz=False)
+                     mode="episodic")
 
 
 def test_null_y_prob_is_rejected(tmp_path):
@@ -120,7 +118,7 @@ def test_null_y_prob_is_rejected(tmp_path):
     df = df.with_columns(pl.Series("y_prob", probs, dtype=pl.Float64))
     with pytest.raises(ValueError, match="null"):
         build_report(write(tmp_path, df), fake_task(), str(tmp_path / "r"),
-                     mode="episodic", viz=False)
+                     mode="episodic")
 
 
 # --------------------------------------------------------------- split handling
@@ -132,7 +130,7 @@ def test_only_test_rows_are_ever_scored(tmp_path):
         pl.when(pl.int_range(pl.len()) < 200).then(pl.lit("train"))
         .otherwise(pl.lit("test")).alias("split"))
     paths = build_report(write(tmp_path, df), fake_task(), str(tmp_path / "r"),
-                         mode="episodic", viz=False)
+                         mode="episodic")
     md = json.loads(paths["overall"].read_text())["metadata"]
     assert md["split"] == "test"
     assert md["n_stays"] == 200
@@ -142,7 +140,7 @@ def test_a_preds_file_with_no_test_rows_is_rejected(tmp_path):
     df = make_synth(n_stays=100).with_columns(pl.lit("train").alias("split"))
     with pytest.raises(ValueError, match="test"):
         build_report(write(tmp_path, df), fake_task(), str(tmp_path / "r"),
-                     mode="episodic", viz=False)
+                     mode="episodic")
 
 
 def test_one_encounter_in_both_splits_is_rejected(tmp_path):
@@ -151,7 +149,7 @@ def test_one_encounter_in_both_splits_is_rejected(tmp_path):
     bad = pl.concat([df, df.head(1).with_columns(pl.lit("train").alias("split"))])
     with pytest.raises(ValueError, match="multiple splits"):
         build_report(write(tmp_path, bad), fake_task(), str(tmp_path / "r"),
-                     mode="episodic", viz=False)
+                     mode="episodic")
 
 
 # ------------------------------------------------------------------ mode guards
@@ -161,14 +159,14 @@ def test_episodic_mode_rejects_multi_row_per_stay(tmp_path):
     df = make_synth(n_stays=100)
     with pytest.raises(ValueError, match="one row per stay"):
         build_report(write(tmp_path, pl.concat([df, df])), fake_task(),
-                     str(tmp_path / "r"), mode="episodic", viz=False)
+                     str(tmp_path / "r"), mode="episodic")
 
 
 def test_continuous_mode_is_inferred_from_meta(tmp_path):
     path = write(tmp_path, make_synth())
     task = fake_task(temporal_pattern="continuous",
                      prediction_unit="one-per-window", landmark_horizon=2)
-    paths = build_report(path, task, str(tmp_path / "r"), viz=False)
+    paths = build_report(path, task, str(tmp_path / "r"))
     payload = json.loads(paths["landmark"].read_text())
     assert payload["metadata"]["report_mode"] == "continuous"
     assert len(payload["by_landmark"]) == 2
@@ -179,15 +177,14 @@ def test_continuous_mode_requires_a_landmark_horizon(tmp_path):
     task = fake_task(temporal_pattern="continuous",
                      prediction_unit="one-per-window")
     with pytest.raises(ValueError, match="landmark_horizon"):
-        build_report(path, task, str(tmp_path / "r"), viz=False)
+        build_report(path, task, str(tmp_path / "r"))
 
 
 def test_the_retired_peak_and_landmark_modes_name_their_replacement(tmp_path):
     path = write(tmp_path, make_synth(n_stays=50))
     for mode in ("peak", "landmark"):
         with pytest.raises(ValueError, match="continuous"):
-            build_report(path, fake_task(), str(tmp_path / "r"), mode=mode,
-                         viz=False)
+            build_report(path, fake_task(), str(tmp_path / "r"), mode=mode)
 
 
 # ------------------------------------------------------------------ cohort join
@@ -200,7 +197,7 @@ def test_demographics_are_joined_from_the_cohort_when_absent_from_preds(tmp_path
                         "ethnicity_category"])
     paths = build_report(write(tmp_path, stripped), fake_task(),
                          str(tmp_path / "r"), cohort_path=cohort,
-                         mode="episodic", viz=False)
+                         mode="episodic")
     fair = json.loads(paths["hospitalization_level"].read_text())["fairness"]
     assert "sex_category" in fair["subgroups"]
 
@@ -209,7 +206,7 @@ def test_fairness_is_absent_rather_than_fatal_without_demographics(tmp_path):
     stripped = make_synth().drop(["age_at_admission", "sex_category",
                                   "race_category", "ethnicity_category"])
     paths = build_report(write(tmp_path, stripped), fake_task(),
-                         str(tmp_path / "r"), mode="episodic", viz=False)
+                         str(tmp_path / "r"), mode="episodic")
     assert json.loads(
         paths["hospitalization_level"].read_text())["fairness"] is None
 
@@ -227,7 +224,7 @@ def test_exported_json_contains_no_infinity_or_nan(tmp_path):
         raise ValueError(f"non-finite JSON constant: {const}")
 
     paths = build_report(write(tmp_path, make_synth()), fake_task(),
-                         str(tmp_path / "r"), mode="episodic", viz=False)
+                         str(tmp_path / "r"), mode="episodic")
     for name, path in paths.items():
         if name.endswith("_png"):
             continue

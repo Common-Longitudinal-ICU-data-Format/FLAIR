@@ -43,15 +43,13 @@ dependencies = [
     "typer>=0.12.0",
     "pyyaml>=6.0",
     "clifpy>=2.1.0",
+    "matplotlib>=3.7.0",
 ]
 
 [project.scripts]
 flair = "flair_benchmark.cli:main"
 
 [project.optional-dependencies]
-viz = [
-    "matplotlib>=3.7.0",
-]
 # Exact versions for leaderboard runs: every site on the same clifpy/polars code.
 # Bump together with a release; the versions are recorded in every Table 1 / report audit.
 benchmark = [

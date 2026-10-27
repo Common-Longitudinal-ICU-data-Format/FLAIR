@@ -79,10 +79,6 @@ def load_task(
     out: str = typer.Option(..., "--out",
                             help="Output root; gets <site>_flair_phi/<task>/ and "
                                  "<site>_flair_non_phi_for_upload/<task>/"),
-    viz: bool = typer.Option(
-        True, "--viz/--no-viz",
-        help="Render the STROBE flow + attrition PNGs next to the JSON (default "
-             "on). Requires `pip install flair-benchmark[viz]`."),
 ) -> None:
     """Run a task's build(); write the cohort (PHI folder) + Table 1 and STROBE plots (non-PHI folder)."""
     import json
@@ -91,6 +87,7 @@ def load_task(
     from flair_benchmark.cohort import strobe
     from flair_benchmark.cohort.clif import read_clif_config
     from flair_benchmark.cohort.table1 import generate_table1
+    from flair_benchmark.report._viz import render_strobe_pngs
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
@@ -117,15 +114,8 @@ def load_task(
     t1_path = nonphi / "table1.json"
     t1_path.write_text(json.dumps(table1, indent=2, default=str))
     typer.echo(f"Wrote Table 1 → {t1_path}")
-    if viz:
-        try:
-            from flair_benchmark.report._viz import render_strobe_pngs
-            for png in render_strobe_pngs(table1, nonphi):
-                typer.echo(f"Wrote STROBE plot → {png}")
-        except ImportError:
-            # matplotlib is the optional [viz] extra; the JSON is already written.
-            typer.echo("  skip STROBE plots: matplotlib not installed "
-                       "(pip install 'flair-benchmark[viz]', or pass --no-viz)")
+    for png in render_strobe_pngs(table1, nonphi):
+        typer.echo(f"Wrote STROBE plot → {png}")
 
 
 @app.command("build-report")
@@ -144,18 +134,14 @@ def build_report_cmd(
         None, "--cohort",
         help="Task cohort parquet (from load-task). Joins demographics for "
              "fairness when they don't flow through the preds."),
-    viz: bool = typer.Option(
-        True, "--viz/--no-viz",
-        help="Render local site-validation PNGs from the JSONs (default on; "
-             "--no-viz to skip). Requires `pip install flair-benchmark[viz]`."),
 ) -> None:
-    """Generate the report bundle (--mode episodic | continuous)."""
+    """Generate the report bundle (--mode episodic | continuous) + local PNGs."""
     from flair_benchmark.report import build_report
     from flair_benchmark.tasks import get_task
 
     task_module = get_task(task)
     paths = build_report(preds, task_module, out,
-                         mode=mode, cohort_path=cohort, viz=viz)
+                         mode=mode, cohort_path=cohort)
     for kind, path in paths.items():
         typer.echo(f"  {kind:24s} → {path}")
 

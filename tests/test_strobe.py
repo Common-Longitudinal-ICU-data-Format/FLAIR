@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import polars as pl
-import pytest
 
 from flair_benchmark.cohort import strobe
 
@@ -36,7 +35,6 @@ def test_record_steps_and_suppression():
 
 
 def test_render_strobe_pngs(tmp_path):
-    pytest.importorskip("matplotlib")
     from flair_benchmark.report._viz import render_strobe_pngs
 
     table1 = {
