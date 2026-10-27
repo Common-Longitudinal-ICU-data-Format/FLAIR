@@ -139,13 +139,11 @@ def test_direct_meds_builder_expands_sibling_hospitalizations(monkeypatch, tmp_p
 
 # ==================================================== THE FEATURE-CUTOFF BOUNDARY
 #
-# The cutoff was untested in BOTH directions: every fixture above puts events at
-# hours 9 and 11 against a horizon of 10, so nothing ever landed ON the boundary
-# and neither an inclusive nor a strict filter could be distinguished. No task
-# currently ships a cutoff earlier than its prediction_dttm (extubation_failure_24h
-# used to, before it moved prediction_dttm itself 30 min ahead of the extubation),
-# but the cohort contract still lets a task move the value rather than the
-# comparison, so both directions stay under test here.
+# The fixtures above put events at hours 9 and 11 against a horizon of 10, so
+# nothing lands ON the boundary. These tests pin both directions: an event at
+# the cutoff is included, one after it is not. No task ships a cutoff earlier
+# than its prediction_dttm, but the cohort contract lets a task move the value
+# rather than the comparison, so both directions stay under test.
 
 _STRICT = _dt(10) - timedelta(microseconds=1)
 

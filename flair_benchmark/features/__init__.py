@@ -11,7 +11,7 @@ The heavier full CLIF->MEDS path (`build_meds_tables`, `build_shared_meds`) live
 in extractors.py alongside it; import it from there directly.
 
 For WIDE time-series data (vitals, labs, assessments, respiratory support), use
-clifpy's `ClifOrchestrator.create_wide_dataset` directly — FLAIR no longer wraps
+clifpy's `ClifOrchestrator.create_wide_dataset` directly — FLAIR does not wrap
 it. Note that clifpy applies NO leakage guard: filter its result to
 `event_time <= feature_cutoff_dttm` from the cohort yourself.
 

@@ -35,8 +35,7 @@ BASE = datetime(2021, 1, 1)
 
 
 def test_every_live_task_owns_its_clinical_policy_inline():
-    """Policy is no longer centralized in _constants.py — each task's META must
-    self-contain the full clinical policy (threshold, action, direction,
+    """Each task's META self-contains the full clinical policy (threshold, action, direction,
     report_mode), value-validated by get_task."""
     from flair_benchmark.tasks import get_task, list_tasks
 
@@ -102,13 +101,10 @@ def test_at_least_one_live_task_acts_on_low_risk():
 
 
 def test_mimic_split_is_pinned_forever():
-    """C8: the MIMIC random split must never move again.
+    """The MIMIC split is fixed: encounters ordered by sha256 of the join id.
 
-    The deal is ordered by sha256 of the stay id (version-stable), replacing
-    pl.Expr.hash whose values polars documents as unstable across releases —
-    an upgrade would have silently re-dealt train/test (leakage for any model
-    trained on the old deal). This fixture freezes the expected assignment; if
-    it ever fails, the split changed and every existing MIMIC result is void.
+    This fixture freezes the exact assignment. It must never change; if it fails,
+    the split changed and every MIMIC result is void.
     """
     from flair_benchmark.cohort.stitch import assign_split
 
@@ -117,7 +113,7 @@ def test_mimic_split_is_pinned_forever():
         "hospitalization_join_id": ids,
         "admission_dttm": [BASE] * 20,
     })
-    out = assign_split(df, "mimic", None, None)
+    out = assign_split(df, "mimic")
     split = dict(zip(out["hospitalization_join_id"].to_list(),
                      out["split"].to_list()))
     assert sorted(k for k, v in split.items() if v == "test") == [

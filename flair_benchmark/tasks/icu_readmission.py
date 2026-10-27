@@ -99,8 +99,7 @@ OUTPUT_COLS = [
 ]
 
 
-def build(clif_config: str, train_end: str | None,
-          test_start: str | None) -> pl.DataFrame:
+def build(clif_config: str) -> pl.DataFrame:
     cfg = read_clif_config(clif_config)
     cohort, adt = base_icu_cohort(cfg)
 
@@ -147,7 +146,6 @@ def build(clif_config: str, train_end: str | None,
         pl.col("first_icu_end_time").alias("prediction_dttm"),
     ])
 
-    df = assign_split(df, cfg["site"], train_end, test_start,
-                      admission_col="prediction_dttm")
-    df = df.filter(pl.col("split").is_not_null()).pipe(record, "assigned to train/test split")
+    df = assign_split(df, cfg["site"], admission_col="prediction_dttm").pipe(
+        record, "assigned to 75/25 train/test split")
     return finalize_cohort(df, OUTPUT_COLS, META)

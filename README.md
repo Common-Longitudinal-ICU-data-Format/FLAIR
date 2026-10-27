@@ -212,7 +212,7 @@ Optional performance settings for the vendored CLIF→MEDS ETL (`flair_benchmark
 |---------|--------------|
 | `flair init-config [--out DIR] [--force]` | Write the `clif_config.json` and `feature_config.yaml` templates. |
 | `flair list-tasks` | List the benchmark tasks. |
-| `flair load-task TASK --clif-config PATH --out DIR [--train-end DATE --test-start DATE]` | Build a task cohort into `DIR/<site>_flair_phi/TASK/`, and `table1.json` (STROBE `attrition`, cohort hashes) + STROBE PNGs into `DIR/<site>_flair_non_phi_for_upload/TASK/`. |
+| `flair load-task TASK --clif-config PATH --out DIR` | Build a task cohort into `DIR/<site>_flair_phi/TASK/`, and `table1.json` (STROBE `attrition`, cohort hashes) + STROBE PNGs into `DIR/<site>_flair_non_phi_for_upload/TASK/`. |
 | `flair fe-meds --feature-config PATH --task cohort.parquet --out meds.parquet` | Extract a medication event table, cut per encounter at its latest `feature_cutoff_dttm`. |
 | `flair build-report PREDS --task TASK --out DIR [--cohort cohort.parquet] [--mode episodic\|continuous] [--viz/--no-viz]` | Score predictions into the aggregate JSON report bundle. |
 
@@ -284,17 +284,10 @@ More detail: [docs/101/tasks.md](https://github.com/Common-Longitudinal-ICU-data
 
 ### Train/test splits
 
-On MIMIC, leave `--train-end` and `--test-start` off and set `"site": "mimic"` in `clif_config.json` — FLAIR uses its deterministic MIMIC split.
+Every cohort is split 75% train / 25% test by stitched encounter, at every site. There are no split options; the `site` in `clif_config.json` picks only the order:
 
-On site data, pass the boundaries you want:
-
-``` bash
-flair load-task icu_daily_mortality \
-  --clif-config clif_config.json \
-  --train-end 2022-12-31 \
-  --test-start 2023-01-01 \
-  --out output
-```
+- `"site": "mimic"` — encounters ordered by the sha256 of their id. The MIMIC split is identical wherever it runs.
+- any other site — encounters ordered by their earliest time: the oldest 75% train, the newest 25% test.
 
 ## Features
 
@@ -437,7 +430,7 @@ The CLI is the public surface. Python helpers exist for advanced users, but the 
 A task is one Python module in `flair_benchmark/tasks/` with two things:
 
 - `META` — task metadata and benchmark policy
-- `build(clif_config, train_end, test_start)` — returns the cohort
+- `build(clif_config)` — returns the cohort
 
 The catalog is auto-discovered, so you don't edit a central registry. A new task should state its cohort, label, prediction time, prediction unit, and reporting policy clearly enough for both clinical review and site audit.
 

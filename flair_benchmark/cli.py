@@ -2,7 +2,7 @@
 
 Commands:
   flair init-config  [--out DIR] [--force]
-  flair load-task    <task_name>  --clif-config ... [--train-end ...] [--test-start ...] --out DIR
+  flair load-task    <task_name>  --clif-config ... --out DIR   (always a 75/25 encounter split)
                      writes DIR/<site>_flair_phi/<task>/cohort.parquet           (stays at site)
                         and DIR/<site>_flair_non_phi_for_upload/<task>/table1.json (+ STROBE PNGs)
   flair build-report <preds.pq>   --task <task_name>  --out ./report/
@@ -79,10 +79,6 @@ def load_task(
     out: str = typer.Option(..., "--out",
                             help="Output root; gets <site>_flair_phi/<task>/ and "
                                  "<site>_flair_non_phi_for_upload/<task>/"),
-    train_end: Optional[str] = typer.Option(None, "--train-end",
-                                            help="YYYY-MM-DD (omit for a 75/25 split: random for mimic, temporal otherwise)"),
-    test_start: Optional[str] = typer.Option(None, "--test-start",
-                                             help="YYYY-MM-DD (omit for a 75/25 split: random for mimic, temporal otherwise)"),
     viz: bool = typer.Option(
         True, "--viz/--no-viz",
         help="Render the STROBE flow + attrition PNGs next to the JSON (default "
@@ -108,9 +104,7 @@ def load_task(
     nonphi.mkdir(parents=True, exist_ok=True)
 
     strobe.reset()
-    df = task_module.build(clif_config=clif_config,
-                           train_end=train_end,
-                           test_start=test_start)
+    df = task_module.build(clif_config=clif_config)
     out_path = phi / "cohort.parquet"
     df.write_parquet(out_path)
     typer.echo(f"Wrote {df.height:,} rows → {out_path}")

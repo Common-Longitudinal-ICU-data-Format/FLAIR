@@ -336,15 +336,14 @@ SPLIT_OVERLAP_TOLERANCE_DAYS = 60
 def _warn_split_overlap(preds: pl.DataFrame, meta: dict) -> None:
     """Warn when the train arm reaches deep into the test period.
 
-    `_validate_split_integrity` proves no *encounter* is in both arms — a strictly
-    weaker property than the split being temporal, and one that holds perfectly on a
-    split dealt at patient grain (SPLIT_VERSION 2) whose train arm nonetheless ran
-    years past the start of test. Nothing caught that, which is why this exists.
+    `_validate_split_integrity` proves no *encounter* is in both arms; this checks
+    the separate property that the arms are separated in calendar time. A
+    temporal 75/25 encounter split overlaps by at most one stay's length.
 
-    A warning, not an error: legacy cohorts cannot be fixed at report time, and
-    refusing to score them would only make the problem invisible again. It also
-    fires on `site="mimic"`, whose deal is random over de-identified/shifted dates
-    and where an overlap is expected — preds carry no site, so read it accordingly.
+    A warning, not an error: a cohort cannot be fixed at report time, and refusing
+    to score it would hide the problem. It also fires on `site="mimic"`, whose
+    split is a sha256 order over de-identified/shifted dates where an overlap is
+    expected — preds carry no site, so read it accordingly.
     """
     if "prediction_dttm" not in preds.columns or "split" not in preds.columns:
         return
@@ -365,9 +364,9 @@ def _warn_split_overlap(preds: pl.DataFrame, meta: dict) -> None:
         f"{n_after / train.len():.1%}, are at or after {test_start}). A temporal "
         f"split should overlap by at most one stay's length "
         f"(~{SPLIT_OVERLAP_TOLERANCE_DAYS} days). Months or years of overlap means "
-        f"the deal was made at the wrong grain — regenerate the cohort on a build "
-        f"with SPLIT_VERSION >= 3. Expected and harmless for site='mimic', whose "
-        f"dates are de-identified and whose deal is random.",
+        f"the split was not the 75/25 encounter split — regenerate the cohort with "
+        f"`flair load-task`. Expected and harmless for site='mimic', whose "
+        f"dates are de-identified and whose split is a sha256 order.",
         stacklevel=2,
     )
 

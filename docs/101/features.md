@@ -14,7 +14,7 @@ modes. Pick by how much control vs. convenience you want.
 
 ## Wide time-series data (vitals, labs, assessments, respiratory support)
 
-Use clifpy directly — FLAIR no longer wraps it:
+Use clifpy directly — FLAIR does not wrap it:
 
 ```python
 from clifpy import ClifOrchestrator

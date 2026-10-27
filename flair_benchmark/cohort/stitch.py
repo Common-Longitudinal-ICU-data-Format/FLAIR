@@ -29,7 +29,6 @@ Used by: every task, features/_scope.py, cohort/table1.py, cohort/encounter.py.
 from __future__ import annotations
 
 import hashlib
-from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -233,20 +232,12 @@ def members_of_joins(idx: pl.DataFrame, join_ids: list[str]) -> list[str]:
 # Every cohort always carries BOTH 'train' and 'test', whether or not the site
 # will fit a model, so the cohort and Table 1 schemas are identical across sites.
 #
-# GRAIN: the stitched encounter (`hospitalization_join_id`). See `assign_split`
-# for why the patient is too wide a boundary for a temporal split.
-#
-# Regimes, in priority order (all at that grain):
-#   1. train_end AND test_start given -> date cutoff on the block's earliest
-#      admission_col (the production temporal split).
-#   2. site == 'mimic', no dates      -> RANDOM 75/25 over blocks. MIMIC admission
-#      dates are de-identified/shifted, so temporal order is meaningless;
-#      assignment is deterministic (hash-seeded), not date-driven.
-#   3. other site, no dates           -> TEMPORAL 75/25: blocks ordered by earliest
-#      admission_col, oldest 75% train, newest 25% test.
-#
-# Data cutoff: for non-mimic sites, rows after constants.DATA_CUTOFF are dropped
-# before splitting (the current year is not fully ETL'd). MIMIC is exempt.
+# One rule at every site: 75% of stitched encounters train, 25% test.
+#   site == 'mimic'  -> encounters ordered by sha256 of the join id (dates are
+#                       shifted); the same split wherever it runs.
+#   other site       -> encounters ordered by earliest admission_col: oldest 75%
+#                       train, newest 25% test, after dropping rows past
+#                       constants.DATA_CUTOFF (the current year is not fully ETL'd).
 # ===========================================================================
 
 
@@ -267,82 +258,42 @@ def _split_cutoff(n: int, train_ratio: float) -> int:
 def _stable_digest(group_id: str) -> str:
     """Version-stable shuffle key: sha256 of the group id string.
 
-    Deliberately NOT `pl.Expr.hash` — polars documents its hash as unstable across
-    releases, so a polars upgrade would silently re-deal the MIMIC train/test
-    split, and a model trained before the upgrade would be scored on a test set
-    containing its own training stays. sha256 of the id string is identical
-    forever, on every machine and every library version.
+    Not `pl.Expr.hash`: polars documents its hash as unstable across releases.
+    sha256 of the id string is identical on every machine and every library
+    version, so the MIMIC split is the same wherever it runs.
     """
     return hashlib.sha256(str(group_id).encode("utf-8")).hexdigest()
 
 
-def assign_split(cohort: pl.DataFrame, site: str,
-                 train_end: str | None, test_start: str | None,
-                 *, admission_col: str = "admission_dttm",
+def assign_split(cohort: pl.DataFrame, site: str, *,
+                 admission_col: str = "admission_dttm",
                  train_ratio: float = 0.75) -> pl.DataFrame:
-    """Add a 'split' column in {'train', 'test', null}; always produces train + test.
+    """Add a 'split' column: 75% of encounters 'train', 25% 'test', at every site.
 
-    THE GRAIN IS ALWAYS THE STITCHED ENCOUNTER (`hospitalization_join_id`); there is
-    no patient-grain or per-row option, and a cohort without the join id raises. An encounter is bounded —
-    days to a few weeks — so dealing at that grain leaves train and test separated
-    in calendar time, with the only overlap a single stay open across the boundary.
+    The unit is always the stitched encounter (`hospitalization_join_id`); every
+    row of an encounter lands in the same arm, and a cohort without the join id
+    raises. Only the order the encounters are cut in depends on the site:
 
-    Splitting at PATIENT grain does not have that property, and that is why it was
-    abandoned (SPLIT_VERSION 3, see the constant). A patient is unbounded in time:
-    one first seen in 2018 and readmitted in 2025 lands *entirely* in whichever arm
-    their earliest row falls, so train's calendar span always runs to the end of the
-    data no matter where the boundary sits. Measured on the MIMIC mortality cohort,
-    that smeared train 4238 days into the test period; the encounter grain brings it
-    to 49 days, which is just the tail of encounter length (p99 25 d, max 139 d).
+      site == "mimic"  sha256 of the join id (dates are de-identified/shifted, so
+                       calendar order means nothing). Identical wherever it runs.
+      any other site   earliest `admission_col` per encounter: oldest 75% train,
+                       newest 25% test. Rows after DATA_CUTOFF are dropped first.
 
-    The price is the leakage patient grain existed to prevent: ~0.4% of patients have
-    encounters on both sides of the boundary and reappear across arms, sharing
-    comorbidities and chronic-condition signal (1.0% of rows on that same cohort).
-    That is the accepted trade — a test set that is genuinely *later* than training
-    is worth more than a test set purged of returning patients.
-
-    `admission_col` orders groups for the temporal regime and drives the date
-    cutoff for production sites.
+    An encounter spans days to weeks, so the temporal arms are separated in
+    calendar time with at most one stay open across the boundary. A patient with
+    several encounters can appear in both arms; that is the accepted cost of a
+    test set that is genuinely later than training.
     """
     if JOIN_ID not in cohort.columns:
         raise ValueError("assign_split needs hospitalization_join_id: the split is always "
                          "dealt per stitched encounter (attach_join_id first).")
-    is_mimic = bool(site) and site.lower() == "mimic"
-
-    # Global data cutoff — drop rows after DATA_CUTOFF so partially-ETL'd
-    # current-year data never enters the cohort. Skipped for mimic
-    # (de-identified/shifted dates would make a real-date cap empty the cohort).
-    if not is_mimic and admission_col in cohort.columns:
-        cohort = cohort.filter(pl.col(admission_col).dt.date() <= DATA_CUTOFF)
-
-    # 1. Explicit production cutoff dates take precedence at any site.
-    if train_end is not None and test_start is not None:
-        return _date_split(cohort, train_end, test_start, admission_col)
-
-    # 2. MIMIC, no dates -> deterministic random split (dates de-identified).
-    if is_mimic:
+    if bool(site) and site.lower() == "mimic":
         return _random_split_by_group(cohort, train_ratio)
 
-    # 3. Other site, no dates -> temporal split (oldest 75% train, newest 25% test).
+    # Partially-ETL'd current-year data never enters a cohort.
+    if admission_col in cohort.columns:
+        cohort = cohort.filter(pl.col(admission_col).dt.date() <= DATA_CUTOFF)
     return _ratio_split_by_group(cohort, admission_col, train_ratio)
-
-
-def _date_split(cohort: pl.DataFrame, train_end: str, test_start: str,
-                admission_col: str) -> pl.DataFrame:
-    """Production temporal split on explicit cutoff dates (block grain)."""
-    train_end_d = date.fromisoformat(train_end)
-    test_start_d = date.fromisoformat(test_start)
-    # Decide the split once per encounter block (by its earliest admission_col),
-    # then broadcast — so a continuous encounter whose per-row prediction_dttm
-    # straddles train_end/test_start can never be torn across train and test
-    # (the same guarantee the ratio path gives).
-    block_date = pl.col(admission_col).min().over(JOIN_ID).dt.date()
-    return cohort.with_columns(
-        pl.when(block_date <= train_end_d).then(pl.lit("train"))
-        .when(block_date >= test_start_d).then(pl.lit("test"))
-        .otherwise(pl.lit(None))
-        .alias("split")
-    )
 
 
 def _random_split_by_group(cohort: pl.DataFrame, train_ratio: float) -> pl.DataFrame:
@@ -352,14 +303,8 @@ def _random_split_by_group(cohort: pl.DataFrame, train_ratio: float) -> pl.DataF
     order carries no meaning. Order is the sha256 digest of the group id (see
     `_stable_digest`), so the split is random-looking yet reproducible across
     runs, machines AND library versions; the first `train_ratio` of the
-    digest-ordered groups are 'train'.
-
-    Split-version note (SPLIT_VERSION 3): builds before 2026-07 ordered by
-    `pl.Expr.hash(seed=0)` at encounter grain (v1); 2026-07 through 2026-08 used
-    sha256 ordering at PATIENT grain (v2). This deal is sha256 ordering back at
-    encounter grain, and supersedes both — a cohort regenerated on this version
-    will not reproduce either earlier train/test assignment, so re-score any model
-    trained against one.
+    digest-ordered groups are 'train'. Never `pl.Expr.hash`, which is not stable
+    across polars versions.
     """
     groups = (
         cohort.select(pl.col(JOIN_ID).unique())

@@ -27,9 +27,9 @@ axis only rescales the odds weight inside the net-benefit formula.
 
 NEVER derive the arm from ``1-p``. ``1.0 - x`` is exact in float64 only for
 x in [0.5, 1] (Sterbenz), so a patient sitting exactly on t lands on the wrong
-side of ``(1-p) > (1-t)`` at 20 of the 99 sweep thresholds — which is how the
-decision curve and the threshold sweep used to publish two different numbers for
-the same quantity. ``to_decision_basis`` still complements the probabilities, but
+side of ``(1-p) > (1-t)`` at 20 of the 99 sweep thresholds, and the decision
+curve and threshold sweep would publish two different numbers for the same
+quantity. ``to_decision_basis`` still complements the probabilities, but
 only for display; arm membership never reads them.
 
 ``net_benefit`` below is the scalar reference implementation. The report itself

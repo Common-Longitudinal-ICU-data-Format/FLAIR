@@ -180,8 +180,7 @@ OUTPUT_COLS = [
 ]
 
 
-def build(clif_config: str, train_end: str | None,
-          test_start: str | None) -> pl.DataFrame:
+def build(clif_config: str) -> pl.DataFrame:
     cfg = read_clif_config(clif_config)
     cohort, _adt = base_icu_cohort(cfg)
     idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
@@ -289,9 +288,8 @@ def build(clif_config: str, train_end: str | None,
         )
     ).pipe(record, "no palliative extubation or ambiguous censoring within 24h")
 
-    df = assign_split(df, cfg["site"], train_end, test_start,
-                      admission_col="prediction_dttm")
-    df = df.filter(pl.col("split").is_not_null()).pipe(record, "assigned to train/test split")
+    df = assign_split(df, cfg["site"], admission_col="prediction_dttm").pipe(
+        record, "assigned to 75/25 train/test split")
 
     # Feature cutoff = prediction_dttm, i.e. PREDICTION_LEAD_MINUTES before the
     # extubation. The lead IS the leakage guard: episode_end_dttm is the first
