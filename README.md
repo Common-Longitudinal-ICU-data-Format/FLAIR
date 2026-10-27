@@ -168,7 +168,7 @@ Used by `flair load-task` (`--clif-config`) and referenced by `feature_config.ya
 
 | Key | Required | Default | Meaning |
 |-----|----------|---------|---------|
-| `site` | yes | — | Your site name. Use `mimic` for MIMIC-CLIF: it switches on the random MIMIC split and skips the real-date data cutoff, because MIMIC dates are shifted. |
+| `site` | yes | — | Your site name. Use `mimic` for MIMIC-CLIF: it switches on the random MIMIC split and skips the real-date benchmark window, because MIMIC dates are shifted. |
 | `data_directory` | yes | — | Folder holding your CLIF tables. FLAIR only reads from it. |
 | `filetype` | yes | — | File format of the CLIF tables, e.g. `parquet`. |
 | `timezone` | yes | — | Your site's IANA timezone, e.g. `US/Eastern`. There is no default: a wrong zone shifts every timestamp, including the 07:00 daily prediction time. |
@@ -189,7 +189,7 @@ Used by `flair fe-meds` (`--feature-config`).
 
 ### What is not configurable
 
-Task definitions, clinical thresholds, report settings, and the global data cutoff (cohort rows whose `prediction_dttm` falls after **2025-12-31** are dropped at every non-MIMIC site) are fixed in code on purpose. They are what makes two sites' results comparable, and the task definitions are folded into the SHA-256 that every report carries.
+Task definitions, clinical thresholds, report settings, and the global benchmark window (encounters whose every admission and discharge falls within **2017-12-31 – 2025-12-31**, fixed in `constants.py`; at every non-MIMIC site an encounter with any leg outside it is dropped whole) are fixed in code on purpose. They are what makes two sites' results comparable, and the task definitions are folded into the SHA-256 that every report carries.
 
 ### Environment variables
 

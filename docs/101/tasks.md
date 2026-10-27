@@ -37,7 +37,7 @@ flair load-task icu_daily_mortality \
 This runs the task's `build()` and writes two site-prefixed folders under `--out`
 (the same convention as flair_baseline; only the non-PHI one leaves the site):
 - `<site>_flair_phi/<task>/cohort.parquet` — the cohort (one row per `prediction_id`)
-- `<site>_flair_non_phi_for_upload/<task>/table1.json` — cohort characteristics; its `attrition` key is the STROBE flow (counts after each inclusion/exclusion step, cells < 10 suppressed), and `metadata` carries `cohort_sha256`, `train_cohort_sha256`, `test_cohort_sha256` — SHA-256 over `hospitalization_join_id, prediction_dttm, feature_cutoff_dttm, label, split`, rows sorted by `(hospitalization_join_id, prediction_dttm)`, values as strings — plus `clifpy_version` / `polars_version` and `task_script_sha256` (task source + META policy + `DATA_CUTOFF`)
+- `<site>_flair_non_phi_for_upload/<task>/table1.json` — cohort characteristics; its `attrition` key is the STROBE flow (counts after each inclusion/exclusion step, cells < 10 suppressed), and `metadata` carries `cohort_sha256`, `train_cohort_sha256`, `test_cohort_sha256` — SHA-256 over `hospitalization_join_id, prediction_dttm, feature_cutoff_dttm, label, split`, rows sorted by `(hospitalization_join_id, prediction_dttm)`, values as strings — plus `clifpy_version` / `polars_version` and `task_script_sha256` (task source + META policy + benchmark window)
 - `<site>_flair_non_phi_for_upload/<task>/strobe.png`, `strobe_attrition.png` — flow diagram + attrition chart drawn from Table 1's `attrition`
 
 ### The train/test split
@@ -51,9 +51,12 @@ across the two arms. There are no split options; the site picks only the order:
 | `mimic` | sha256 of the encounter id — MIMIC's dates are de-identified/shifted, so calendar order means nothing. Identical wherever it runs. |
 | anything else | earliest timestamp — oldest 75% train, newest 25% test |
 
-At every site except `mimic` the global `DATA_CUTOFF` (`constants.py`) is applied
-first, so partially-ETL'd current-year data never enters the cohort. It is skipped
-for `mimic`, whose shifted dates would make a real-date cap empty the cohort.
+At every site except `mimic` the global benchmark window (`BENCHMARK_WINDOW_START` /
+`BENCHMARK_WINDOW_END` in `constants.py`, 2017-12-31 – 2025-12-31) is applied first,
+in `base_icu_cohort`: a stitched encounter is kept only if every member admission and
+discharge falls inside it, so no encounter straddles either edge and partially-ETL'd
+current-year data never enters the cohort. It is skipped for `mimic`, whose shifted
+dates would make a real-date window empty the cohort.
 
 An encounter spans days to weeks, so the temporal arms are separated in calendar
 time. A patient with several encounters can appear in both arms; that is the

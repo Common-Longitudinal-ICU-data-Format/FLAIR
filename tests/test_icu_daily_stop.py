@@ -214,8 +214,8 @@ def test_no_dates_external_is_temporal_75_25():
 
 
 def test_mimic_no_dates_is_random_and_skips_cutoff():
-    # MIMIC -> random (not temporal) 75/25, and the data cutoff is NOT applied
-    # (de-identified/shifted dates), so a far-future row survives.
+    # MIMIC -> random (not temporal) 75/25, and assign_split applies no date
+    # filter (the benchmark window lives upstream), so a far-future row survives.
     df = pl.DataFrame({
         "hospitalization_join_id": [str(i) for i in range(20)] + ["future"],
         "admission_dttm": [_dt(2020, 1, 1 + i) for i in range(20)] + [_dt(2026, 5, 1)],
@@ -225,14 +225,21 @@ def test_mimic_no_dates_is_random_and_skips_cutoff():
     assert "future" in out["hospitalization_join_id"].to_list()   # cutoff skipped
 
 
-def test_data_cutoff_drops_post_2025_for_nonmimic():
-    df = pl.DataFrame({
-        "hospitalization_join_id": [str(i) for i in range(10)] + ["late"],
-        "admission_dttm": [_dt(2024, 1, 1 + i) for i in range(10)] + [_dt(2026, 6, 1)],
-    })
-    out = assign_split(df, site="external_site")
-    assert "late" not in out["hospitalization_join_id"].to_list()
-    assert out["admission_dttm"].max() <= datetime(2025, 12, 31)
+def test_benchmark_window_drops_whole_encounters():
+    # Kept only if EVERY member's admission and discharge is inside
+    # [2017-12-31, 2025-12-31]; one leg outside drops the whole encounter.
+    from flair_benchmark.cohort.clif import in_benchmark_window
+    rows = [  # (join id, admission, discharge)
+        ("inside",   _dt(2017, 12, 31), _dt(2025, 12, 31, 23)),   # both edges inclusive
+        ("early",    _dt(2017, 12, 30), _dt(2018, 1, 5)),
+        ("late",     _dt(2025, 12, 28), _dt(2026, 1, 1)),
+        ("sibling",  _dt(2024, 3, 1),   _dt(2024, 3, 9)),         # ICU leg inside ...
+        ("sibling",  _dt(2025, 12, 30), _dt(2026, 1, 2)),         # ... sibling leg outside
+        ("open",     _dt(2024, 3, 1),   None),
+    ]
+    df = pl.DataFrame(rows, schema=["hospitalization_join_id", "admission_dttm",
+                                    "discharge_dttm"], orient="row")
+    assert in_benchmark_window(df) == ["inside"]
 
 
 # --------------------------------------------------------------------------- #

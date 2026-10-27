@@ -143,7 +143,7 @@ def test_comorbidity_join_coalesces_keys():
 
 def test_read_clif_config_requires_site(tmp_path):
     """D6: a missing 'site' must fail loudly — a defaulted 'unknown' silently
-    applies the DATA_CUTOFF year filter to MIMIC's shifted dates and empties
+    applies the benchmark-window filter to MIMIC's shifted dates and empties
     the cohort."""
     from flair_benchmark.cohort.clif import read_clif_config
 
@@ -184,8 +184,8 @@ def test_validate_taxonomy_rejects_bad_policy_values():
         _validate_taxonomy(name, wrong_name)
 
 
-def test_task_digest_covers_data_cutoff(monkeypatch):
-    """Moving DATA_CUTOFF re-cuts every non-MIMIC cohort, so it must move the digest."""
+def test_task_digest_covers_benchmark_window(monkeypatch):
+    """Moving the benchmark window re-cuts every non-MIMIC cohort, so it must move the digest."""
     from datetime import date
 
     from flair_benchmark import constants
@@ -193,7 +193,7 @@ def test_task_digest_covers_data_cutoff(monkeypatch):
 
     task = get_task("icu_readmission")
     before = constants.task_script_sha256(task)
-    monkeypatch.setattr(constants, "DATA_CUTOFF", date(2030, 12, 31))
+    monkeypatch.setattr(constants, "BENCHMARK_WINDOW_END", date(2030, 12, 31))
     assert constants.task_script_sha256(task) != before
 
 

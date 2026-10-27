@@ -22,7 +22,7 @@ grain is the encounter and not the patient.
 The index is built ONCE per (config, time_interval) and cached to parquet, so the
 same stitched mapping is reused by every task, feature and metadata run.
 
-Depends on: cohort/clif.py (loaders), constants.py (DATA_CUTOFF), clifpy.
+Depends on: cohort/clif.py (loaders), clifpy.
 Used by: every task, features/_scope.py, cohort/table1.py, cohort/encounter.py.
 """
 
@@ -35,7 +35,6 @@ from typing import Optional
 import polars as pl
 
 from flair_benchmark.cohort.clif import load_adt, load_hospitalization
-from flair_benchmark.constants import DATA_CUTOFF
 
 JOIN_ID = "hospitalization_join_id"
 
@@ -236,8 +235,8 @@ def members_of_joins(idx: pl.DataFrame, join_ids: list[str]) -> list[str]:
 #   site == 'mimic'  -> encounters ordered by sha256 of the join id (dates are
 #                       shifted); the same split wherever it runs.
 #   other site       -> encounters ordered by earliest admission_col: oldest 75%
-#                       train, newest 25% test, after dropping rows past
-#                       constants.DATA_CUTOFF (the current year is not fully ETL'd).
+#                       train, newest 25% test. The benchmark window has already
+#                       dropped whole encounters upstream (cohort/clif.py).
 # ===========================================================================
 
 
@@ -277,7 +276,8 @@ def assign_split(cohort: pl.DataFrame, site: str, *,
       site == "mimic"  sha256 of the join id (dates are de-identified/shifted, so
                        calendar order means nothing). Identical wherever it runs.
       any other site   earliest `admission_col` per encounter: oldest 75% train,
-                       newest 25% test. Rows after DATA_CUTOFF are dropped first.
+                       newest 25% test. No date filter here: base_icu_cohort
+                       already kept only encounters inside the benchmark window.
 
     An encounter spans days to weeks, so the temporal arms are separated in
     calendar time with at most one stay open across the boundary. A patient with
@@ -289,10 +289,6 @@ def assign_split(cohort: pl.DataFrame, site: str, *,
                          "dealt per stitched encounter (attach_join_id first).")
     if bool(site) and site.lower() == "mimic":
         return _random_split_by_group(cohort, train_ratio)
-
-    # Partially-ETL'd current-year data never enters a cohort.
-    if admission_col in cohort.columns:
-        cohort = cohort.filter(pl.col(admission_col).dt.date() <= DATA_CUTOFF)
     return _ratio_split_by_group(cohort, admission_col, train_ratio)
 
 

@@ -97,3 +97,5 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+# Keep tmp_path artifacts inside the repo (gitignored output/), never in /tmp.
+addopts = "--basetemp=output/pytest"

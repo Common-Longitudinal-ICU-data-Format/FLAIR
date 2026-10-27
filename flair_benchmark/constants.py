@@ -6,7 +6,7 @@ to import from `__init__.py`, the task modules, and the report code without any
 circular-import risk. Keep it that way.
 
 Edit this file to bump the PyPI version (`__version__` — pyproject reads it via
-[tool.hatch.version]) or move the global data cutoff.
+[tool.hatch.version]) or move the benchmark window.
 
 Per-task clinical policy (threshold, direction, report mode, ...) does NOT live
 here. Each task owns it inline in its own META dict; tasks/__init__.py validates
@@ -31,15 +31,18 @@ __version__ = "0.0.1"
 # Shared constants
 # ---------------------------------------------------------------------------
 
-# Rows whose split-temporal date falls after this are dropped from every cohort
-# (see cohort/stitch.py:assign_split). The current calendar year is not fully
-# ETL'd at most sites, so querying it yields partial, non-comparable cohorts.
-# Bump this one line when a new year is fully loaded. Skipped for site == "mimic",
-# whose admission dates are de-identified/shifted (a real-date cap would empty
-# the cohort). Folded into task_script_sha256 — shared code, invisible to a hash
+# Benchmark window (inclusive local calendar dates). A stitched encounter enters a
+# cohort only if EVERY member hospitalization's admission_dttm and discharge_dttm
+# fall inside it — no encounter with one leg outside (see
+# cohort/clif.py:base_icu_cohort). The current calendar year is not fully ETL'd
+# at most sites, so querying it yields partial, non-comparable cohorts.
+# Bump END when a new year is fully loaded. Skipped for site == "mimic",
+# whose dates are de-identified/shifted (a real-date window would empty the
+# cohort). Folded into task_script_sha256 — shared code, invisible to a hash
 # over the task file alone: moving it re-cuts every non-MIMIC cohort, so it must
 # move every digest.
-DATA_CUTOFF = date(2025, 12, 31)
+BENCHMARK_WINDOW_START = date(2017, 12, 31)
+BENCHMARK_WINDOW_END = date(2025, 12, 31)
 
 # Scoring units a task's META may declare in `report_mode`. Each task picks one
 # inline in its META; tasks/__init__.py validates the choice against this set.
@@ -72,12 +75,12 @@ _AUDIT_KEYS = (
 
 
 def task_script_sha256(task_module: ModuleType) -> str:
-    """SHA-256 of the task source, its resolved clinical policy, and DATA_CUTOFF.
+    """SHA-256 of the task source, its resolved clinical policy, and the benchmark window.
 
     Stamped into every report JSON so the central aggregator can prove two sites
     ran the same task — the label logic (the task .py source), the policy it was
     evaluated under (threshold, direction, report mode, inline in the task's META),
-    and the data cutoff that bounds the cohort. A change to any of the three
+    and the benchmark window that bounds the cohort. A change to any of the three
     changes the digest. The train/test split is fixed (always per stitched
     encounter, cohort/stitch.py:assign_split), so it carries no version here.
     """
@@ -86,7 +89,8 @@ def task_script_sha256(task_module: ModuleType) -> str:
     policy = json.dumps(
         {k: meta.get(k) for k in _AUDIT_KEYS}, sort_keys=True
     ).encode()
-    cutoff = f"data_cutoff={DATA_CUTOFF.isoformat()}".encode()
+    cutoff = (f"benchmark_window={BENCHMARK_WINDOW_START.isoformat()}"
+              f"/{BENCHMARK_WINDOW_END.isoformat()}").encode()
     return hashlib.sha256(src + b"\x00" + policy + b"\x00" + cutoff).hexdigest()
 
 
