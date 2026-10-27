@@ -184,16 +184,21 @@ def test_validate_taxonomy_rejects_bad_policy_values():
         _validate_taxonomy(name, wrong_name)
 
 
-def test_task_digest_covers_benchmark_window(monkeypatch):
-    """Moving the benchmark window re-cuts every non-MIMIC cohort, so it must move the digest."""
-    from datetime import date
+def test_task_digest_covers_constants_file(monkeypatch, tmp_path):
+    """The whole of constants.py is hashed: changing a shared constant (here the
+    stitch gap) re-cuts every cohort, so it must move the digest."""
+    from pathlib import Path
 
     from flair_benchmark import constants
     from flair_benchmark.tasks import get_task
 
     task = get_task("icu_readmission")
     before = constants.task_script_sha256(task)
-    monkeypatch.setattr(constants, "BENCHMARK_WINDOW_END", date(2030, 12, 31))
+    edited = tmp_path / "constants.py"
+    src = Path(constants.__file__).read_text()
+    assert "STITCH_TIME_INTERVAL_HOURS = 6" in src
+    edited.write_text(src.replace("STITCH_TIME_INTERVAL_HOURS = 6", "STITCH_TIME_INTERVAL_HOURS = 12"))
+    monkeypatch.setattr(constants, "__file__", str(edited))
     assert constants.task_script_sha256(task) != before
 
 

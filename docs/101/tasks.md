@@ -37,7 +37,7 @@ flair load-task icu_daily_mortality \
 This runs the task's `build()` and writes two site-prefixed folders under `--out`
 (the same convention as flair_baseline; only the non-PHI one leaves the site):
 - `<site>_flair_phi/<task>/cohort.parquet` — the cohort (one row per `prediction_id`)
-- `<site>_flair_non_phi_for_upload/<task>/table1.json` — cohort characteristics; its `attrition` key is the STROBE flow (counts after each inclusion/exclusion step, cells < 10 suppressed), and `metadata` carries `cohort_sha256`, `train_cohort_sha256`, `test_cohort_sha256` — SHA-256 over `hospitalization_join_id, prediction_dttm, feature_cutoff_dttm, label, split`, rows sorted by `(hospitalization_join_id, prediction_dttm)`, values as strings — plus `clifpy_version` / `polars_version` and `task_script_sha256` (task source + META policy + benchmark window)
+- `<site>_flair_non_phi_for_upload/<task>/table1.json` — cohort characteristics; its `attrition` key is the STROBE flow (counts after each inclusion/exclusion step, cells < 10 suppressed), and `metadata` carries `cohort_sha256`, `train_cohort_sha256`, `test_cohort_sha256` — SHA-256 over `hospitalization_join_id, prediction_dttm, feature_cutoff_dttm, label, split`, rows sorted by `(hospitalization_join_id, prediction_dttm)`, values as strings — plus `clifpy_version` / `polars_version` and `task_script_sha256` (task source + META policy + all of `constants.py`: benchmark window, stitch gap, ...)
 - `<site>_flair_non_phi_for_upload/<task>/strobe.png`, `strobe_attrition.png` — flow diagram + attrition chart drawn from Table 1's `attrition`
 
 ### The train/test split

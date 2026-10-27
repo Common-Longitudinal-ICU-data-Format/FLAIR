@@ -39,7 +39,7 @@ These schematics mirror the constants and predicates in
 
 - **Stitched-encounter grain (all tasks).** Every task operates on
   `hospitalization_join_id`: member hospitalizations within
-  `stitch_time_interval_hours` (default 6h) are folded to one encounter, with
+  6 h (fixed, `constants.STITCH_TIME_INTERVAL_HOURS`) are folded to one encounter, with
   anchors taken as min/max over members. Read each schematic's per-hospitalization
   `H_i` as the stitched encounter.
 - **Constants** such as `HORIZON_HOURS`,

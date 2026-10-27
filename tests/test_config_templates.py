@@ -53,8 +53,17 @@ def test_init_config_skips_existing_unless_force(tmp_path):
 def test_scaffolded_clif_config_parses(tmp_path):
     runner.invoke(app, ["init-config", "--out", str(tmp_path)])
     cfg = read_clif_config(str(tmp_path / "clif_config.json"))
-    assert set(cfg) >= {"site", "data_directory", "filetype", "timezone",
-                        "stitch_time_interval_hours"}
+    assert set(cfg) >= {"site", "data_directory", "filetype", "timezone"}
+
+
+def test_read_clif_config_rejects_stitch_interval(tmp_path):
+    # The stitch gap is fixed in constants.py; a config still setting it must fail,
+    # not be silently ignored.
+    path = tmp_path / "clif_config.json"
+    path.write_text(json.dumps({"site": "s", "data_directory": "/tmp/x", "filetype": "parquet",
+                                "timezone": "US/Eastern", "stitch_time_interval_hours": 12}))
+    with pytest.raises(ValueError, match="stitch_time_interval_hours"):
+        read_clif_config(str(path))
 
 
 def test_read_clif_config_requires_timezone(tmp_path):

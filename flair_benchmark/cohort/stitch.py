@@ -19,7 +19,7 @@ to, and it keeps the two arms separated in calendar time — the property an
 external-validity read of the test set depends on. See `assign_split` for why the
 grain is the encounter and not the patient.
 
-The index is built ONCE per (config, time_interval) and cached to parquet, so the
+The index is built ONCE per config (gap fixed at constants.STITCH_TIME_INTERVAL_HOURS) and cached to parquet, so the
 same stitched mapping is reused by every task, feature and metadata run.
 
 Depends on: cohort/clif.py (loaders), clifpy.
@@ -35,6 +35,7 @@ from typing import Optional
 import polars as pl
 
 from flair_benchmark.cohort.clif import load_adt, load_hospitalization
+from flair_benchmark.constants import STITCH_TIME_INTERVAL_HOURS
 
 JOIN_ID = "hospitalization_join_id"
 
@@ -43,8 +44,8 @@ JOIN_ID = "hospitalization_join_id"
 # Part 1 — Encounter stitching
 #
 # Public API:
-#   build_encounter_index(cfg, time_interval)         -> always rebuilds
-#   load_or_build_encounter_index(cfg, time_interval) -> cached
+#   build_encounter_index(cfg)                        -> always rebuilds
+#   load_or_build_encounter_index(cfg)                -> cached
 #   attach_join_id(df, idx)                           -> left-join + self-fallback
 #   members_of_joins(idx, join_ids)                   -> join_id -> all member hosp_ids
 #
@@ -94,12 +95,12 @@ def source_fingerprint(cfg: dict) -> str:
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
 
 
-def _cache_path(cfg: dict, time_interval: int) -> Path:
+def _cache_path(cfg: dict) -> Path:
     return (_cache_dir(cfg)
-            / f"encounter_index_{time_interval}h_{source_fingerprint(cfg)}.parquet")
+            / f"encounter_index_{STITCH_TIME_INTERVAL_HOURS}h_{source_fingerprint(cfg)}.parquet")
 
 
-def build_encounter_index(cfg: dict, time_interval: int = 6) -> pl.DataFrame:
+def build_encounter_index(cfg: dict) -> pl.DataFrame:
     """Run clifpy `stitch_encounters` on the FULL hospitalization + ADT set.
 
     Stitching shifts within `patient_id`, so it must see every hospitalization for
@@ -125,7 +126,7 @@ def build_encounter_index(cfg: dict, time_interval: int = 6) -> pl.DataFrame:
     _, _, mapping = stitch_encounters(
         hospitalization=hosp.to_pandas(),
         adt=adt.to_pandas(),
-        time_interval=time_interval,
+        time_interval=STITCH_TIME_INTERVAL_HOURS,
     )
 
     idx = (
@@ -154,7 +155,7 @@ def build_encounter_index(cfg: dict, time_interval: int = 6) -> pl.DataFrame:
 _INDEX_MEMO: dict[tuple[str, int], pl.DataFrame] = {}
 
 
-def load_or_build_encounter_index(cfg: dict, time_interval: int = 6,
+def load_or_build_encounter_index(cfg: dict,
                                   cache_dir: Optional[str] = None) -> pl.DataFrame:
     """Read the cached encounter index, building (and saving) it on first use.
 
@@ -165,7 +166,7 @@ def load_or_build_encounter_index(cfg: dict, time_interval: int = 6,
     """
     if cache_dir is not None:
         cfg = {**cfg, "cache_directory": cache_dir}
-    path = _cache_path(cfg, time_interval)
+    path = _cache_path(cfg)
     if path.exists():
         key = (str(path), path.stat().st_mtime_ns)
         cached = _INDEX_MEMO.get(key)
@@ -175,7 +176,7 @@ def load_or_build_encounter_index(cfg: dict, time_interval: int = 6,
             _INDEX_MEMO[key] = cached
         return cached
 
-    idx = build_encounter_index(cfg, time_interval)
+    idx = build_encounter_index(cfg)
     path.parent.mkdir(parents=True, exist_ok=True)
     idx.write_parquet(path)
     return idx

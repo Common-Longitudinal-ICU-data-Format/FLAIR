@@ -42,7 +42,7 @@ def _patch_scope_index(monkeypatch):
     monkeypatch.setattr(
         scope_mod,
         "load_or_build_encounter_index",
-        lambda cfg, time_interval: _idx(),
+        lambda cfg: _idx(),
     )
 
 
@@ -50,7 +50,7 @@ def test_feature_scope_expands_join_id_to_all_member_hospitalizations(monkeypatc
     from flair_benchmark.features._scope import HORIZON_COL, feature_scope
 
     _patch_scope_index(monkeypatch)
-    scope = feature_scope(_task_df(), {"stitch_time_interval_hours": 6})
+    scope = feature_scope(_task_df(), {})
 
     assert scope.hospitalization_ids == ["h1", "h2"]
     assert scope.horizons.to_dicts() == [{JOIN_ID: "e1", HORIZON_COL: _dt(10)}]
@@ -86,7 +86,7 @@ def test_meds_stream_includes_sibling_hospitalization_events(monkeypatch):
     out = meds_mod.get_meds_stream(
         _task_df(),
         {"meds_stream": {"medication_admin_continuous": {"categories": ["norepinephrine"]}}},
-        {"stitch_time_interval_hours": 6},
+        {},
     )
 
     assert seen_hosp_ids == ["h1", "h2"]
@@ -127,7 +127,7 @@ def test_direct_meds_builder_expands_sibling_hospitalizations(monkeypatch, tmp_p
 
     out = fe_meds_mod.build_meds_tables(
         _task_df(),
-        {"stitch_time_interval_hours": 6},
+        {},
         str(elf_config),
         str(tmp_path / "meds"),
     )
@@ -176,7 +176,7 @@ def test_default_cutoff_keeps_the_boundary_sample(monkeypatch):
     out = meds_mod.get_meds_stream(
         _task_df(),
         {"meds_stream": {"medication_admin_continuous": {"categories": ["norepinephrine"]}}},
-        {"stitch_time_interval_hours": 6})
+        {})
     assert _dt(10) in out["time"].to_list()
 
 
@@ -192,7 +192,7 @@ def test_strict_cutoff_drops_the_boundary_sample(monkeypatch):
     out = meds_mod.get_meds_stream(
         _task_df(_STRICT),
         {"meds_stream": {"medication_admin_continuous": {"categories": ["norepinephrine"]}}},
-        {"stitch_time_interval_hours": 6})
+        {})
     assert out["time"].to_list() == [_dt(9)]
 
 
@@ -208,10 +208,10 @@ def test_feature_scope_rejects_a_stale_cohort(monkeypatch):
     _patch_scope_index(monkeypatch)
     stale = _task_df().drop("feature_cutoff_dttm")
     with pytest.raises(ValueError, match="feature_cutoff_dttm"):
-        feature_scope(stale, {"stitch_time_interval_hours": 6})
+        feature_scope(stale, {})
 
     # ...but fe_meds deliberately takes no horizon at all, so it stays legal there
-    scope = feature_scope(stale, {"stitch_time_interval_hours": 6},
+    scope = feature_scope(stale, {},
                           require_horizon=False)
     assert scope.hospitalization_ids == ["h1", "h2"]
 
@@ -231,6 +231,6 @@ def test_feature_scope_coalesces_a_null_cutoff_per_row(monkeypatch):
         "prediction_dttm": [_dt(10), _dt(12)],
         "feature_cutoff_dttm": [None, _STRICT],
     }, schema_overrides={"feature_cutoff_dttm": pl.Datetime("us")})
-    scope = feature_scope(df, {"stitch_time_interval_hours": 6})
+    scope = feature_scope(df, {})
     # max(coalesce) = max(10:00, 09:59:59.999999) = 10:00, not 09:59:59.999999
     assert scope.horizons.to_dicts() == [{JOIN_ID: "e1", HORIZON_COL: _dt(10)}]

@@ -85,7 +85,7 @@ every site.
 | key | meaning |
 |---|---|
 | `task` | task name, e.g. `icu_daily_mortality` |
-| `task_script_sha256` | hash of the task file — proves every site ran the same definition |
+| `task_script_sha256` | hash of the task file, its META policy and `constants.py` (benchmark window, stitch gap) — proves every site ran the same definition |
 | `flair_version` | FLAIR version that built the report |
 | `generated_at` | UTC timestamp of the build |
 | `report_mode` | `"continuous"` |

@@ -180,7 +180,7 @@ def encounter_attributes(cfg: dict, cohort: pl.DataFrame) -> pl.DataFrame:
     trail). Tasks anchored inside the ICU stay (T1/T2/T5) typically drop this and
     use the first-ICU owner from the timing step instead.
     """
-    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
+    idx = load_or_build_encounter_index(cfg)
     demo = collapse_demographics(cohort)
     disp = _encounter_disposition(cfg, cohort, idx)
     return demo.join(disp, on="hospitalization_join_id", how="inner")

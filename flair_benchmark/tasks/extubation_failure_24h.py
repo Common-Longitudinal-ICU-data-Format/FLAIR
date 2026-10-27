@@ -183,7 +183,7 @@ OUTPUT_COLS = [
 def build(clif_config: str) -> pl.DataFrame:
     cfg = read_clif_config(clif_config)
     cohort, _adt = base_icu_cohort(cfg)
-    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
+    idx = load_or_build_encounter_index(cfg)
 
     # Load respiratory support for every hospitalization in a cohort ENCOUNTER,
     # not just the cohort's own ids. The relabel below reasons across the whole

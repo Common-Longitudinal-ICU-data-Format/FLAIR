@@ -6,7 +6,9 @@ to import from `__init__.py`, the task modules, and the report code without any
 circular-import risk. Keep it that way.
 
 Edit this file to bump the PyPI version (`__version__` — pyproject reads it via
-[tool.hatch.version]) or move the benchmark window.
+[tool.hatch.version]), move the benchmark window, or change the stitch gap. The
+whole file is folded into `task_script_sha256`, so ANY edit here moves every
+task digest.
 
 Per-task clinical policy (threshold, direction, report mode, ...) does NOT live
 here. Each task owns it inline in its own META dict; tasks/__init__.py validates
@@ -38,11 +40,14 @@ __version__ = "0.0.1"
 # at most sites, so querying it yields partial, non-comparable cohorts.
 # Bump END when a new year is fully loaded. Skipped for site == "mimic",
 # whose dates are de-identified/shifted (a real-date window would empty the
-# cohort). Folded into task_script_sha256 — shared code, invisible to a hash
-# over the task file alone: moving it re-cuts every non-MIMIC cohort, so it must
-# move every digest.
+# cohort).
 BENCHMARK_WINDOW_START = date(2017, 12, 31)
 BENCHMARK_WINDOW_END = date(2025, 12, 31)
+
+# Gap (hours) under which back-to-back hospitalizations are stitched into one
+# encounter (cohort/stitch.py). Fixed, not a site config: a different gap builds
+# different encounters, so cohorts and splits would stop matching across sites.
+STITCH_TIME_INTERVAL_HOURS = 6
 
 # Scoring units a task's META may declare in `report_mode`. Each task picks one
 # inline in its META; tasks/__init__.py validates the choice against this set.
@@ -75,13 +80,15 @@ _AUDIT_KEYS = (
 
 
 def task_script_sha256(task_module: ModuleType) -> str:
-    """SHA-256 of the task source, its resolved clinical policy, and the benchmark window.
+    """SHA-256 of the task source, its resolved clinical policy, and this constants file.
 
     Stamped into every report JSON so the central aggregator can prove two sites
     ran the same task — the label logic (the task .py source), the policy it was
     evaluated under (threshold, direction, report mode, inline in the task's META),
-    and the benchmark window that bounds the cohort. A change to any of the three
-    changes the digest. The train/test split is fixed (always per stitched
+    and the shared constants every cohort is cut with (benchmark window, stitch
+    gap, ...). The whole of constants.py is hashed rather than a hand-picked list,
+    so a new constant can't be forgotten; the cost is that any edit to this file,
+    `__version__` bumps and comments included, changes every digest. The train/test split is fixed (always per stitched
     encounter, cohort/stitch.py:assign_split), so it carries no version here.
     """
     src = Path(task_module.__file__).read_bytes()
@@ -89,9 +96,8 @@ def task_script_sha256(task_module: ModuleType) -> str:
     policy = json.dumps(
         {k: meta.get(k) for k in _AUDIT_KEYS}, sort_keys=True
     ).encode()
-    cutoff = (f"benchmark_window={BENCHMARK_WINDOW_START.isoformat()}"
-              f"/{BENCHMARK_WINDOW_END.isoformat()}").encode()
-    return hashlib.sha256(src + b"\x00" + policy + b"\x00" + cutoff).hexdigest()
+    shared = Path(__file__).read_bytes()
+    return hashlib.sha256(src + b"\x00" + policy + b"\x00" + shared).hexdigest()
 
 
 def dependency_versions() -> dict:

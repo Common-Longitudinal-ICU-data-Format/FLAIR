@@ -32,7 +32,11 @@ from typing import Optional
 
 import polars as pl
 
-from flair_benchmark.constants import BENCHMARK_WINDOW_END, BENCHMARK_WINDOW_START
+from flair_benchmark.constants import (
+    BENCHMARK_WINDOW_END,
+    BENCHMARK_WINDOW_START,
+    STITCH_TIME_INTERVAL_HOURS,
+)
 
 
 def in_benchmark_window(members: pl.DataFrame) -> list:
@@ -60,7 +64,6 @@ def read_clif_config(path: str) -> dict:
 
     Required keys: site, data_directory, filetype, timezone.
     Optional keys:
-      stitch_time_interval_hours  gap (h) for encounter stitching (default 6)
       cache_directory             where the encounter index parquet is cached
                                   (default ./output/_flair_cache)
     """
@@ -76,6 +79,14 @@ def read_clif_config(path: str) -> dict:
             f"clif config {path!r} is missing required key 'site'. Set it to "
             f"your site name (use 'mimic' for MIMIC-IV — it controls the "
             f"benchmark-window exemption and the random-split regime).")
+    if "stitch_time_interval_hours" in cfg:
+        # Removed key: the gap is fixed so every site stitches the same encounters.
+        # Ignoring it silently would let a site believe its value was applied.
+        raise ValueError(
+            f"clif config {path!r} sets 'stitch_time_interval_hours', which is no "
+            f"longer configurable: stitching is fixed at "
+            f"{STITCH_TIME_INTERVAL_HOURS}h (constants.STITCH_TIME_INTERVAL_HOURS). "
+            f"Delete the key.")
     if not cfg.get("timezone"):
         # No default: a silently assumed zone shifts every timestamp at any site
         # that isn't in it, and the 07:00 daily prediction time with them.
@@ -87,7 +98,6 @@ def read_clif_config(path: str) -> dict:
         "data_directory": cfg["data_directory"],
         "filetype": cfg["filetype"],
         "timezone": cfg["timezone"],
-        "stitch_time_interval_hours": cfg.get("stitch_time_interval_hours", 6),
     }
     if cfg.get("cache_directory"):
         out["cache_directory"] = cfg["cache_directory"]
@@ -330,7 +340,7 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         load_or_build_encounter_index,
         members_of_joins,
     )
-    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
+    idx = load_or_build_encounter_index(cfg)
     cohort = attach_join_id(cohort, idx).pipe(record, "stitched into encounters")
 
     # Benchmark window, before any task logic or the split: drop the WHOLE encounter

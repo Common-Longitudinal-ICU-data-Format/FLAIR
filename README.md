@@ -105,7 +105,6 @@ This writes two templates into the current directory: `clif_config.json` and `fe
     "data_directory": "/path/to/clif/data",
     "filetype": "parquet",
     "timezone": "US/Central",
-    "stitch_time_interval_hours": 6,
     "cache_directory": "./output/_flair_cache"
 }
 ```
@@ -172,7 +171,6 @@ Used by `flair load-task` (`--clif-config`) and referenced by `feature_config.ya
 | `data_directory` | yes | — | Folder holding your CLIF tables. FLAIR only reads from it. |
 | `filetype` | yes | — | File format of the CLIF tables, e.g. `parquet`. |
 | `timezone` | yes | — | Your site's IANA timezone, e.g. `US/Eastern`. There is no default: a wrong zone shifts every timestamp, including the 07:00 daily prediction time. |
-| `stitch_time_interval_hours` | no | `6` | Gap, in hours, under which back-to-back hospitalizations are stitched into one encounter. |
 | `cache_directory` | no | `./output/_flair_cache` | Where FLAIR caches the encounter index and cohort scores. Relative paths resolve against the directory you run `flair` from. |
 
 FLAIR never writes into `data_directory`.

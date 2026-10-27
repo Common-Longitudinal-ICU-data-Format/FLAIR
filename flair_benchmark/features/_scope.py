@@ -61,9 +61,7 @@ def feature_scope(
     Callers filter INCLUSIVELY against it (``time <= end_time``); a task wanting a
     strict cutoff moves the value, not the comparison.
     """
-    idx = load_or_build_encounter_index(
-        clif_cfg, clif_cfg.get("stitch_time_interval_hours", 6)
-    )
+    idx = load_or_build_encounter_index(clif_cfg)
 
     df = task_df.with_columns(pl.col("hospitalization_id").cast(pl.Utf8))
     if JOIN_ID not in df.columns:
