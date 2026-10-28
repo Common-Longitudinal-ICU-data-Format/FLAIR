@@ -5,7 +5,7 @@ All frame-level (no clifpy file IO), matching tests/test_stitch.py style. Covers
   * pred_stop_expr  — the four boundary scenarios the audit flagged,
   * _encounter_timing — contiguous-ICU merge incl. across a stitch boundary,
   * _collapse_members — encounter final disposition,
-  * assign_split — date-cutoff split is block-grain (no straddle leakage).
+  * assign_split — 75/25 encounter split: block-grain, temporal, MIMIC sha256-fixed.
 """
 
 from __future__ import annotations
@@ -167,32 +167,28 @@ def test_collapse_members_takes_final_disposition():
 
 
 # --------------------------------------------------------------------------- #
-# assign_split — date-cutoff split decided once per encounter block.
+# assign_split — 75/25 split decided once per encounter block.
 # --------------------------------------------------------------------------- #
-def test_date_cutoff_split_is_block_grain_no_straddle():
-    # Encounter e1's daily rows straddle the cutoff: first row in train window,
-    # later rows past test_start. The whole block must land in ONE split.
+def test_split_is_block_grain_no_straddle():
+    # Encounter e1's daily rows run past e2's start. The whole block must land in
+    # ONE split, decided by its earliest prediction_dttm.
     cohort = pl.DataFrame(
         {
             "hospitalization_join_id": ["e1", "e1", "e1", "e2"],
             "prediction_dttm": [
-                _dt(2021, 12, 30, 7),   # <= train_end
-                _dt(2022, 1, 2, 7),     # in the gap
-                _dt(2022, 1, 5, 7),     # >= test_start
-                _dt(2022, 6, 1, 7),     # e2 clearly test
+                _dt(2021, 12, 30, 7),
+                _dt(2022, 1, 2, 7),
+                _dt(2022, 7, 5, 7),     # later than e2's start
+                _dt(2022, 6, 1, 7),
             ],
         }
     )
-    out = assign_split(
-        cohort, site="external",
-        train_end="2021-12-31", test_start="2022-01-01",
-        admission_col="prediction_dttm",
-    )
+    out = assign_split(cohort, site="external", admission_col="prediction_dttm")
     by_block = {
         jid[0]: set(grp["split"].to_list())
         for jid, grp in out.group_by("hospitalization_join_id")
     }
-    # e1 decided by its earliest prediction_dttm (2021-12-30) -> all 'train'.
+    # 2 encounters -> 1 train, 1 test; e1 starts first -> all 'train'.
     assert by_block["e1"] == {"train"}
     assert by_block["e2"] == {"test"}
     # No block appears in both splits.
@@ -208,7 +204,7 @@ def test_no_dates_external_is_temporal_75_25():
         "hospitalization_join_id": [str(i) for i in range(20)],
         "admission_dttm": [_dt(2020, 1, 1 + i) for i in range(20)],
     })
-    out = assign_split(df, site="external_site", train_end=None, test_start=None)
+    out = assign_split(df, site="external_site")
     counts = dict(out.group_by("split").len().iter_rows())
     assert counts == {"train": 15, "test": 5}
     # newest admission -> test, oldest -> train (temporal direction).
@@ -218,25 +214,32 @@ def test_no_dates_external_is_temporal_75_25():
 
 
 def test_mimic_no_dates_is_random_and_skips_cutoff():
-    # MIMIC -> random (not temporal) 75/25, and the data cutoff is NOT applied
-    # (de-identified/shifted dates), so a far-future row survives.
+    # MIMIC -> random (not temporal) 75/25, and assign_split applies no date
+    # filter (the benchmark window lives upstream), so a far-future row survives.
     df = pl.DataFrame({
         "hospitalization_join_id": [str(i) for i in range(20)] + ["future"],
         "admission_dttm": [_dt(2020, 1, 1 + i) for i in range(20)] + [_dt(2026, 5, 1)],
     })
-    out = assign_split(df, site="mimic", train_end=None, test_start=None)
+    out = assign_split(df, site="mimic")
     assert set(out["split"].unique()) == {"train", "test"}
     assert "future" in out["hospitalization_join_id"].to_list()   # cutoff skipped
 
 
-def test_data_cutoff_drops_post_2025_for_nonmimic():
-    df = pl.DataFrame({
-        "hospitalization_join_id": [str(i) for i in range(10)] + ["late"],
-        "admission_dttm": [_dt(2024, 1, 1 + i) for i in range(10)] + [_dt(2026, 6, 1)],
-    })
-    out = assign_split(df, site="external_site", train_end=None, test_start=None)
-    assert "late" not in out["hospitalization_join_id"].to_list()
-    assert out["admission_dttm"].max() <= datetime(2025, 12, 31)
+def test_benchmark_window_drops_whole_encounters():
+    # Kept only if EVERY member's admission and discharge is inside
+    # [2017-12-31, 2025-12-31]; one leg outside drops the whole encounter.
+    from flair_benchmark.cohort.clif import in_benchmark_window
+    rows = [  # (join id, admission, discharge)
+        ("inside",   _dt(2017, 12, 31), _dt(2025, 12, 31, 23)),   # both edges inclusive
+        ("early",    _dt(2017, 12, 30), _dt(2018, 1, 5)),
+        ("late",     _dt(2025, 12, 28), _dt(2026, 1, 1)),
+        ("sibling",  _dt(2024, 3, 1),   _dt(2024, 3, 9)),         # ICU leg inside ...
+        ("sibling",  _dt(2025, 12, 30), _dt(2026, 1, 2)),         # ... sibling leg outside
+        ("open",     _dt(2024, 3, 1),   None),
+    ]
+    df = pl.DataFrame(rows, schema=["hospitalization_join_id", "admission_dttm",
+                                    "discharge_dttm"], orient="row")
+    assert in_benchmark_window(df) == ["inside"]
 
 
 # --------------------------------------------------------------------------- #
@@ -374,3 +377,14 @@ def test_t3_reintubation_in_stitched_member_is_episode_two():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+def test_mimic_split_identical_regardless_of_row_order():
+    df = pl.DataFrame({
+        "hospitalization_join_id": [f"e{i}" for i in range(40)],
+        "admission_dttm": [_dt(2020, 1, 1)] * 40,
+    })
+    a = assign_split(df, site="mimic").sort("hospitalization_join_id")
+    b = assign_split(df.reverse(), site="MIMIC").sort("hospitalization_join_id")
+    assert a["split"].to_list() == b["split"].to_list()
+    assert a["split"].value_counts().sort("split")["count"].to_list() == [10, 30]

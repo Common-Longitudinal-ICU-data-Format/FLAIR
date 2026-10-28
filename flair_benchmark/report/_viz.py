@@ -324,3 +324,183 @@ def _ci_label(name: str, value, ci) -> str:
     if ci:
         return f"{name} {value:.3f} ({ci[0]:.3f}–{ci[1]:.3f})"
     return f"{name} {value:.3f}"
+
+
+# --------------------------------------------------------------------- STROBE
+#
+# Written by `flair load-task` next to table1.json (non-PHI folder), drawn only from that
+# dict: its `attrition` steps plus by_split / by_label (suppressed cells print as
+# "<10" and count as 0 for geometry).
+
+_RETAINED, _EXCLUDED = "#2a78d6", "#eb6834"      # one validated adjacent pair
+_INK, _INK_2, _SURFACE = "#0b0b0b", "#52514e", "#fcfcfb"
+
+
+def render_strobe_pngs(table1: dict, out_dir: Path) -> list[Path]:
+    """Write out_dir/strobe.png (flow diagram) + out_dir/strobe_attrition.png."""
+    plt = _import_plt()
+    written = []
+    for name, fig in (("strobe.png", _strobe_flow_fig(table1, plt)),
+                      ("strobe_attrition.png", _strobe_attrition_fig(table1, plt))):
+        path = Path(out_dir) / name
+        fig.savefig(path, dpi=150, bbox_inches="tight", facecolor=_SURFACE)
+        plt.close(fig)
+        written.append(path)
+    return written
+
+
+def _fmt(v) -> str:
+    return f"{v:,}" if isinstance(v, int) else str(v)
+
+
+def _num(v) -> int:
+    return v if isinstance(v, int) else 0
+
+
+def _unit(step: dict) -> str:
+    return "encounters" if "n_encounters" in step else "hospitalizations"
+
+
+# Plot wording only: the attrition keys stay n_encounters / n_hospitalizations,
+# but a stitched encounter is labelled by its column name so the figure matches
+# the cohort file a reader will open.
+JOIN_LABEL = "hospitalization_join_id"
+_UNIT_LABEL = {"encounters": JOIN_LABEL, "hospitalizations": "hospitalizations"}
+
+
+def _strobe_box(ax, x, y, w, h, text, edge, *, muted=False, bold_first=False):
+    from matplotlib.patches import FancyBboxPatch
+    ax.add_patch(FancyBboxPatch(
+        (x - w / 2, y - h / 2), w, h, boxstyle="round,pad=0,rounding_size=0.08",
+        fc=edge + "14", ec=edge, lw=1.2 if not muted else 0.8))
+    lines = text.split("\n")
+    color = _INK_2 if muted else _INK
+    if bold_first:
+        rest = [ln for ln in lines[1:] if ln]
+        line_h = 0.17                            # inches at 8pt, linespacing 1.4
+        top = y - line_h * len(rest) / 2         # centre title + details as a block
+        ax.text(x, top, lines[0], ha="center", va="center", fontsize=8.5,
+                fontweight="bold", color=color)
+        ax.text(x, top + line_h * (len(rest) + 1) / 2, "\n".join(rest),
+                ha="center", va="center", fontsize=8, color=color,
+                linespacing=1.4)
+    else:
+        ax.text(x, y, text, ha="center", va="center", fontsize=8, color=color,
+                linespacing=1.4)
+
+
+def _arrow(ax, xy_from, xy_to, color=_INK_2):
+    ax.annotate("", xy=xy_to, xytext=xy_from,
+                arrowprops=dict(arrowstyle="-|>", color=color, lw=1.0,
+                                shrinkA=0, shrinkB=0, mutation_scale=10))
+
+
+def _strobe_flow_fig(table1: dict, plt):
+    """Classic STROBE flow: retained boxes down the centre, exclusions right."""
+    import textwrap
+
+    steps = table1.get("attrition", [])
+    n_of = lambda strata, k: ((table1.get(strata) or {}).get(k) or {}).get("n")
+    box_h, gap, main_x, main_w, side_x, side_w = 0.95, 0.75, 3.0, 4.6, 7.9, 3.4
+    pitch = box_h + gap
+    height = 1.0 + pitch * len(steps) + 1.2
+    fig = plt.figure(figsize=(10.5, height))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 10.5)
+    ax.set_ylim(height, 0)                      # 1 unit = 1 inch, top-down
+    ax.axis("off")
+    fig.patch.set_facecolor(_SURFACE)
+    task = (table1.get("metadata") or {}).get("task", "")
+    ax.text(0.3, 0.45, f"STROBE cohort flow — {task}", fontsize=12,
+            fontweight="bold", color=_INK, va="center")
+
+    for i, s in enumerate(steps):
+        y = 1.0 + box_h / 2 + i * pitch
+        unit = _unit(s)
+        detail = f"n = {_fmt(s.get(f'n_{unit}'))} {_UNIT_LABEL[unit]}"
+        extra = []
+        if "n_patients" in s:
+            extra.append(f"{_fmt(s['n_patients'])} patients")
+        if s.get("n_rows") != s.get(f"n_{unit}"):
+            extra.append(f"{_fmt(s['n_rows'])} rows")
+        title = textwrap.shorten(s["step"], 58, placeholder="…")
+        _strobe_box(ax, main_x, y, main_w, box_h,
+                    "\n".join([title, detail, " · ".join(extra)]).rstrip(),
+                    _RETAINED, bold_first=True)
+        if i == 0:
+            continue
+        top = y - box_h / 2 - gap
+        _arrow(ax, (main_x, top), (main_x, y - box_h / 2))
+        mid = top + gap / 2
+        excluded = s.get(f"n_excluded_{unit}")
+        if excluded is None:                    # unit switched at this step
+            ax.text(main_x + 0.15, mid, f"hospitalizations merged into {JOIN_LABEL}",
+                    fontsize=7.5, color=_INK_2, style="italic", va="center")
+            continue
+        muted = excluded == 0
+        pts = s.get("n_excluded_patients")
+        text = f"Excluded: {_fmt(excluded)} {_UNIT_LABEL[unit]}"
+        if pts is not None:
+            text += f"\n{_fmt(pts)} patients"
+        ax.plot([main_x, side_x - side_w / 2], [mid, mid], color=_INK_2, lw=0.8,
+                alpha=0.5 if muted else 1)
+        _strobe_box(ax, side_x, mid, side_w, 0.55, text,
+                    _INK_2 if muted else _EXCLUDED, muted=muted)
+
+    # Final cohort -> train / test, with the label split in the parent box.
+    y_last = 1.0 + box_h / 2 + (len(steps) - 1) * pitch
+    if table1.get("by_label"):
+        ax.text(main_x, y_last + box_h / 2 + 0.18,
+                f"label 1: {_fmt(n_of('by_label', '1'))}   ·   label 0: "
+                f"{_fmt(n_of('by_label', '0'))}  ({JOIN_LABEL})",
+                ha="center", va="center", fontsize=8, color=_INK_2)
+    y_split = y_last + box_h / 2 + 1.0
+    for x, name in ((main_x - 1.3, "train"), (main_x + 1.3, "test")):
+        _arrow(ax, (main_x, y_last + box_h / 2 + 0.32), (x, y_split - 0.3))
+        _strobe_box(ax, x, y_split, 2.2, 0.6,
+                    f"{name}\n{_fmt(n_of('by_split', name))} {JOIN_LABEL}",
+                    _RETAINED, bold_first=True)
+    return fig
+
+
+def _strobe_attrition_fig(table1: dict, plt):
+    """Retained (blue) + excluded-at-this-step (orange) per step, top-down."""
+    steps = table1.get("attrition", [])
+    fig, ax = plt.subplots(figsize=(10, 0.42 * len(steps) + 1.4))
+    fig.patch.set_facecolor(_SURFACE)
+    ax.set_facecolor(_SURFACE)
+    ys = list(range(len(steps)))
+    kept = [_num(s.get(f"n_{_unit(s)}")) for s in steps]
+    lost = [_num(s.get(f"n_excluded_{_unit(s)}")) for s in steps]
+    ax.barh(ys, kept, height=0.6, color=_RETAINED, label="retained",
+            edgecolor=_SURFACE, linewidth=2)
+    ax.barh(ys, lost, left=kept, height=0.6, color=_EXCLUDED,
+            label="excluded at this step", edgecolor=_SURFACE, linewidth=2)
+    span = max((k + l for k, l in zip(kept, lost)), default=1) or 1
+    for y, s, k, l in zip(ys, steps, kept, lost):
+        label = _fmt(s.get(f"n_{_unit(s)}"))
+        if l and isinstance(s.get(f"n_excluded_{_unit(s)}"), int):
+            label += f"   (−{l:,}, −{100 * l / (k + l):.1f}%)"
+        ax.text(k + l + span * 0.01, y, label, va="center", fontsize=8,
+                color=_INK)
+    switch = next((i for i, s in enumerate(steps) if "n_encounters" in s), None)
+    if switch:
+        ax.axhline(switch - 0.5, color=_INK_2, ls="--", lw=0.8)
+        ax.text(span * 1.3, switch - 0.58, f"hospitalizations ↑   {JOIN_LABEL} ↓",
+                ha="right", va="bottom", fontsize=7.5, color=_INK_2)
+    ax.set_yticks(ys, [s["step"] for s in steps], fontsize=8, color=_INK)
+    ax.invert_yaxis()
+    ax.set_xlim(0, span * 1.3)
+    from matplotlib.ticker import FuncFormatter
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    ax.tick_params(axis="x", labelsize=8, colors=_INK_2)
+    ax.grid(axis="x", alpha=0.25)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    task = (table1.get("metadata") or {}).get("task", "")
+    ax.set_title(f"Cohort attrition by step — {task}", fontsize=11,
+                 color=_INK, loc="left", fontweight="bold")
+    ax.legend(fontsize=8, frameon=False, loc="lower right")
+    fig.tight_layout()
+    return fig

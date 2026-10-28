@@ -2,7 +2,5 @@
     "site": "sitename",
     "data_directory": "/path/to/clif/data",
     "filetype": "parquet",
-    "timezone": "US/Central",
-    "stitch_time_interval_hours": 6,
-    "cache_directory": "./output/_flair_cache"
+    "timezone": "US/Central"
 }

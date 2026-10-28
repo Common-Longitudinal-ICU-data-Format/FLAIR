@@ -97,7 +97,7 @@
     <span class="tag">Code note</span>
     All four tasks operate on <strong>stitched encounters</strong>, not raw
     hospitalizations. Member hospitalizations that are contiguous (gap
-    &le; <code>stitch_time_interval_hours</code>, default <strong>6h</strong>)
+    &le; <strong>6h</strong>, fixed in <code>constants.STITCH_TIME_INTERVAL_HOURS</code>)
     are folded to a single <code>hospitalization_join_id</code> via the
     encounter index. Anchors are taken as a min/max over the encounter's
     members (e.g. admission = min, discharge = max, <span class="mono">t_zero</span>

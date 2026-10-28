@@ -18,8 +18,8 @@ TWO JSON FILES PER MODE. Always.
                              policy, and fairness at the clinical threshold.
                              See report/hospitalization_level.py.
 
-Only JSON is exported to the FLAIR website (cross-site aggregation). Optional
---viz renders local site-validation PNGs from the same dicts (report/_viz.py) —
+Only JSON is exported to the FLAIR website (cross-site aggregation). Local
+site-validation PNGs are rendered from the same dicts into viz/ (report/_viz.py) —
 never exported.
 """
 
@@ -71,7 +71,7 @@ _CONTEXT_COLS = ["window_number", "prediction_dttm", "admission_dttm",
 
 def build_report(preds_path: str, task_module, out_dir: str,
                  cohort_path: str | None = None,
-                 viz: bool = True, site: str | None = None,
+                 site: str | None = None,
                  mode: str | None = None) -> dict[str, Path]:
     """Read preds parquet, look up META, write the report JSON bundle.
 
@@ -86,7 +86,7 @@ def build_report(preds_path: str, task_module, out_dir: str,
     (episode -> episodic; continuous -> continuous).
     """
     from flair_benchmark import __version__
-    from flair_benchmark.constants import task_script_sha256
+    from flair_benchmark.constants import dependency_versions, task_script_sha256
 
     preds = pl.read_parquet(preds_path)
     meta = task_module.META
@@ -126,7 +126,11 @@ def build_report(preds_path: str, task_module, out_dir: str,
     audit = {
         "task": meta["name"],
         "task_script_sha256": task_script_sha256(task_module),
+        # The cohort the predictions were scored against, so the leaderboard can tie
+        # this report to the site's snapshot reference hashes. Null without --cohort.
+        **_cohort_hashes(cohort_path, meta),
         "flair_version": __version__,
+        **dependency_versions(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "report_mode": mode,
         "split": split,
@@ -169,18 +173,9 @@ def build_report(preds_path: str, task_module, out_dir: str,
         paths[kind] = out / f"{kind}.json"
         paths[kind].write_text(json.dumps(payload, indent=2, default=str))
 
-    if viz:
-        try:
-            from flair_benchmark.report._viz import render_pngs
-            for png in render_pngs(payloads, out / "viz", mode):
-                paths[png.stem + "_png"] = png
-        except ImportError:
-            # viz is default-on but matplotlib is an optional extra; the JSON
-            # bundle (the exported artifact) is already written, so skip PNGs.
-            warnings.warn(
-                "matplotlib not installed; skipping --viz PNGs "
-                "(pip install 'flair-benchmark[viz]', or pass --no-viz).",
-                stacklevel=2)
+    from flair_benchmark.report._viz import render_pngs
+    for png in render_pngs(payloads, out / "viz", mode):
+        paths[png.stem + "_png"] = png
     return paths
 
 
@@ -226,6 +221,19 @@ def _ensure_y_pred(preds: pl.DataFrame, meta: dict) -> pl.DataFrame:
             (pl.col("y_prob") >= 0.5).cast(pl.Int8).alias("y_pred")
         )
     return preds
+
+
+def _cohort_hashes(cohort_path: str | None, meta: dict) -> dict:
+    """cohort_sha256 / test_cohort_sha256 of the --cohort parquet (None without one)."""
+    if cohort_path is None:
+        return {"cohort_sha256": None, "test_cohort_sha256": None}
+    from flair_benchmark.cohort.table1 import cohort_sha256
+
+    cohort = pl.read_parquet(cohort_path)
+    label = meta["label_column"]
+    return {"cohort_sha256": cohort_sha256(cohort, label),
+            "test_cohort_sha256": cohort_sha256(
+                cohort.filter(pl.col("split") == "test"), label)}
 
 
 def _attach_cohort_context(preds: pl.DataFrame, cohort_path: str | None,
@@ -335,15 +343,14 @@ SPLIT_OVERLAP_TOLERANCE_DAYS = 60
 def _warn_split_overlap(preds: pl.DataFrame, meta: dict) -> None:
     """Warn when the train arm reaches deep into the test period.
 
-    `_validate_split_integrity` proves no *encounter* is in both arms — a strictly
-    weaker property than the split being temporal, and one that holds perfectly on a
-    split dealt at patient grain (SPLIT_VERSION 2) whose train arm nonetheless ran
-    years past the start of test. Nothing caught that, which is why this exists.
+    `_validate_split_integrity` proves no *encounter* is in both arms; this checks
+    the separate property that the arms are separated in calendar time. A
+    temporal 75/25 encounter split overlaps by at most one stay's length.
 
-    A warning, not an error: legacy cohorts cannot be fixed at report time, and
-    refusing to score them would only make the problem invisible again. It also
-    fires on `site="mimic"`, whose deal is random over de-identified/shifted dates
-    and where an overlap is expected — preds carry no site, so read it accordingly.
+    A warning, not an error: a cohort cannot be fixed at report time, and refusing
+    to score it would hide the problem. It also fires on `site="mimic"`, whose
+    split is a sha256 order over de-identified/shifted dates where an overlap is
+    expected — preds carry no site, so read it accordingly.
     """
     if "prediction_dttm" not in preds.columns or "split" not in preds.columns:
         return
@@ -364,9 +371,9 @@ def _warn_split_overlap(preds: pl.DataFrame, meta: dict) -> None:
         f"{n_after / train.len():.1%}, are at or after {test_start}). A temporal "
         f"split should overlap by at most one stay's length "
         f"(~{SPLIT_OVERLAP_TOLERANCE_DAYS} days). Months or years of overlap means "
-        f"the deal was made at the wrong grain — regenerate the cohort on a build "
-        f"with SPLIT_VERSION >= 3. Expected and harmless for site='mimic', whose "
-        f"dates are de-identified and whose deal is random.",
+        f"the split was not the 75/25 encounter split — regenerate the cohort with "
+        f"`flair load-task`. Expected and harmless for site='mimic', whose "
+        f"dates are de-identified and whose split is a sha256 order.",
         stacklevel=2,
     )
 

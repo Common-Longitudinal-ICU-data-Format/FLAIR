@@ -35,8 +35,7 @@ BASE = datetime(2021, 1, 1)
 
 
 def test_every_live_task_owns_its_clinical_policy_inline():
-    """Policy is no longer centralized in _constants.py — each task's META must
-    self-contain the full clinical policy (threshold, action, direction,
+    """Each task's META self-contains the full clinical policy (threshold, action, direction,
     report_mode), value-validated by get_task."""
     from flair_benchmark.tasks import get_task, list_tasks
 
@@ -102,13 +101,10 @@ def test_at_least_one_live_task_acts_on_low_risk():
 
 
 def test_mimic_split_is_pinned_forever():
-    """C8: the MIMIC random split must never move again.
+    """The MIMIC split is fixed: encounters ordered by sha256 of the join id.
 
-    The deal is ordered by sha256 of the stay id (version-stable), replacing
-    pl.Expr.hash whose values polars documents as unstable across releases —
-    an upgrade would have silently re-dealt train/test (leakage for any model
-    trained on the old deal). This fixture freezes the expected assignment; if
-    it ever fails, the split changed and every existing MIMIC result is void.
+    This fixture freezes the exact assignment. It must never change; if it fails,
+    the split changed and every MIMIC result is void.
     """
     from flair_benchmark.cohort.stitch import assign_split
 
@@ -117,7 +113,7 @@ def test_mimic_split_is_pinned_forever():
         "hospitalization_join_id": ids,
         "admission_dttm": [BASE] * 20,
     })
-    out = assign_split(df, "mimic", None, None)
+    out = assign_split(df, "mimic")
     split = dict(zip(out["hospitalization_join_id"].to_list(),
                      out["split"].to_list()))
     assert sorted(k for k, v in split.items() if v == "test") == [
@@ -147,7 +143,7 @@ def test_comorbidity_join_coalesces_keys():
 
 def test_read_clif_config_requires_site(tmp_path):
     """D6: a missing 'site' must fail loudly — a defaulted 'unknown' silently
-    applies the DATA_CUTOFF year filter to MIMIC's shifted dates and empties
+    applies the benchmark-window filter to MIMIC's shifted dates and empties
     the cohort."""
     from flair_benchmark.cohort.clif import read_clif_config
 
@@ -186,3 +182,29 @@ def test_validate_taxonomy_rejects_bad_policy_values():
     wrong_name = {**good, "name": "icu_readmission"}
     with pytest.raises(ValueError, match="module filename"):
         _validate_taxonomy(name, wrong_name)
+
+
+def test_task_digest_covers_constants_file(monkeypatch, tmp_path):
+    """The whole of constants.py is hashed: changing a shared constant (here the
+    stitch gap) re-cuts every cohort, so it must move the digest."""
+    from pathlib import Path
+
+    from flair_benchmark import constants
+    from flair_benchmark.tasks import get_task
+
+    task = get_task("icu_readmission")
+    before = constants.task_script_sha256(task)
+    edited = tmp_path / "constants.py"
+    src = Path(constants.__file__).read_text()
+    assert "STITCH_TIME_INTERVAL_HOURS = 6" in src
+    edited.write_text(src.replace("STITCH_TIME_INTERVAL_HOURS = 6", "STITCH_TIME_INTERVAL_HOURS = 12"))
+    monkeypatch.setattr(constants, "__file__", str(edited))
+    assert constants.task_script_sha256(task) != before
+
+
+def test_dependency_versions_recorded():
+    from flair_benchmark.constants import dependency_versions
+
+    v = dependency_versions()
+    assert set(v) == {"clifpy_version", "polars_version"}
+    assert all(isinstance(x, str) and x for x in v.values())

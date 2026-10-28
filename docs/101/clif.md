@@ -62,7 +62,8 @@ A literal anchor like `"07:00"` in a task therefore means local hospital time.
 
 ## Stitched encounters
 
-Adjacent hospitalizations less than `stitch_time_interval_hours` apart (default 6) are
+Adjacent hospitalizations less than 6 hours apart (fixed: `constants.STITCH_TIME_INTERVAL_HOURS`,
+not a config key) are
 merged into a single **stitched encounter**, keyed by `hospitalization_join_id`
 (`flair_benchmark/cohort/stitch.py`). This is the **stay-level grain**: a stitched encounter is
 one entity even when it spans several raw hospitalizations, and an encounter is never

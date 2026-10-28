@@ -16,8 +16,7 @@ produces, read [eval_modes/episodic.md](../eval_modes/episodic.md) or
 flair build-report preds.parquet \
   --task icu_daily_mortality \
   --out ./report/ \
-  --cohort cohort.parquet \
-  --viz            # or --no-viz
+  --cohort cohort.parquet
 ```
 
 | flag | default | purpose |
@@ -26,7 +25,6 @@ flair build-report preds.parquet \
 | `--out` | (required) | output directory for the JSON bundle |
 | `--mode` | inferred | `episodic` \| `continuous` (see below) |
 | `--cohort` | — | task cohort parquet; joins demographics + `window_number` when they don't flow through `preds` |
-| `--viz/--no-viz` | on | render local sanity-check PNGs (needs `flair-benchmark[viz]`); never uploaded |
 
 Reports are **always** scored on the held-out `test` split. There is no override:
 the home site trains on `train`, every site is scored on `test`, so cross-site
@@ -176,9 +174,9 @@ masking one alone is theatre, because the published `n` recovers it by subtracti
 Subgroup levels with fewer than 10 stays are dropped entirely, not merely suppressed:
 even an AUROC on <10 patients can reveal individual outcomes.
 
-## `--viz`
+## Local PNGs (`report/viz/`)
 
-PNGs under `report/viz/`, for local validation only — never uploaded. Every plot
+Every run writes PNGs under `report/viz/`, for local validation only — never uploaded. Every plot
 reads the same dicts that were written to disk, so a figure can never show a number
 the JSON does not contain.
 

@@ -45,6 +45,7 @@ import polars as pl
 from flair_benchmark.cohort.clif import base_icu_cohort, load_hospitalization
 from flair_benchmark.cohort.events import compute_readmission_timing
 from flair_benchmark.cohort.stitch import attach_join_id, load_or_build_encounter_index
+from flair_benchmark.cohort.strobe import record
 
 PRED_HOUR = 7
 GRID_STEP = "24h"
@@ -179,7 +180,7 @@ def encounter_attributes(cfg: dict, cohort: pl.DataFrame) -> pl.DataFrame:
     trail). Tasks anchored inside the ICU stay (T1/T2/T5) typically drop this and
     use the first-ICU owner from the timing step instead.
     """
-    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
+    idx = load_or_build_encounter_index(cfg)
     demo = collapse_demographics(cohort)
     disp = _encounter_disposition(cfg, cohort, idx)
     return demo.join(disp, on="hospitalization_join_id", how="inner")
@@ -236,7 +237,8 @@ def build_icu_encounter_cohort(cfg: dict) -> pl.DataFrame:
     # the admitting-member id before joining timing.
     enc = encounter_attributes(cfg, cohort).drop("hospitalization_id")
     timing = _encounter_timing(adt)
-    enc = enc.join(timing, on="hospitalization_join_id", how="inner")
+    enc = enc.join(timing, on="hospitalization_join_id", how="inner").pipe(
+        record, "first ICU stay defined")
 
     enc = enc.with_columns([
         (
@@ -257,6 +259,7 @@ def build_icu_encounter_cohort(cfg: dict) -> pl.DataFrame:
         )
         .explode("prediction_dttm")
         .filter(pl.col("prediction_dttm").is_not_null())
+        .pipe(record, "first ICU stay contains >= one 07:00 grid point")
     )
 
     return grid.select(GRID_COLS)

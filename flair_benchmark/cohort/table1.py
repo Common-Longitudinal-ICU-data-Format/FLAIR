@@ -8,7 +8,7 @@ The whole job in three parts, which is why they share a file:
 
   Part 1  generate_table1()  — the public entry point; joins scores, calls the
                                builder, stamps audit metadata
-  Part 2  scores             — SOFA max + Charlson/Elixhauser, and their cache
+  Part 2  scores             — SOFA max + Charlson/Elixhauser, stored in the snapshot
   Part 3  build_table1()     — pure cohort frame -> dict, no I/O
 
 The non-obvious constraint is GRAIN. A cohort row is one *prediction*, but the
@@ -49,7 +49,10 @@ Output JSON shape:
     "by_label":  { "1": {...positive...}, "0": {...negative...} },
     "by_grain":  { "encounter": {n_total, continuous, categorical, by_split, by_label},
                    "row":       {... same shape at prediction-row grain ...} },
-    "metadata":  { ... audit fields stamped by generate_table1 ... }
+    "metadata":  { ... audit fields stamped by generate_table1, incl.
+                   cohort_sha256 / train_cohort_sha256 / test_cohort_sha256 ... }
+    "attrition": [ {step, n_rows, n_encounters, ...}, ... ]   # STROBE flow, added
+                   # by cli.py load-task from cohort/strobe.py; suppressed
   }
 
 Depends on: cohort/clif.py, cohort/stitch.py, constants.py, report/_stats.py
@@ -59,6 +62,7 @@ Used by: cli.py `load-task`.
 
 from __future__ import annotations
 
+import hashlib
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,8 +70,13 @@ from pathlib import Path
 import polars as pl
 
 from flair_benchmark.cohort.clif import load_hospital_diagnosis, load_hospitalization
-from flair_benchmark.cohort.stitch import JOIN_ID, _cache_dir, source_fingerprint
-from flair_benchmark.constants import task_script_sha256
+from flair_benchmark.cohort.stitch import (
+    JOIN_ID,
+    encounter_index_sha256,
+    load_or_build_encounter_index,
+    snapshot_dir,
+)
+from flair_benchmark.constants import dependency_versions, task_script_sha256
 from flair_benchmark.report._stats import MIN_CELL_COUNT, suppress, suppress_dict
 
 CONTINUOUS_VARS = ["age_at_admission", "sofa_max", "charlson_score", "elix_score"]
@@ -92,7 +101,7 @@ def generate_table1(cfg: dict, cohort: pl.DataFrame, task_module) -> dict:
     severity/comorbidity joined on and an audit `metadata` stamp.
 
     A cohort carries demographics but not severity or comorbidity, so those are
-    computed here (and cached per site) before the table is built. Any failure in
+    computed here (and stored in the site snapshot) before the table is built. Any failure in
     that step is swallowed — Table 1 must never break cohort generation.
     """
     from flair_benchmark import __version__
@@ -114,19 +123,52 @@ def generate_table1(cfg: dict, cohort: pl.DataFrame, task_module) -> dict:
         "task": meta["name"],
         "task_script_sha256": task_script_sha256(task_module),
         "flair_version": __version__,
+        **dependency_versions(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "min_cell_count": MIN_CELL_COUNT,
+        "encounter_index_sha256": _index_sha256(cfg),
+        "cohort_sha256": cohort_sha256(cohort, meta["label_column"]),
+        "train_cohort_sha256": cohort_sha256(
+            cohort.filter(pl.col("split") == "train"), meta["label_column"]),
+        "test_cohort_sha256": cohort_sha256(
+            cohort.filter(pl.col("split") == "test"), meta["label_column"]),
     }
     return t1
 
 
+def _index_sha256(cfg: dict) -> str | None:
+    """Digest of the snapshot's frozen IDs; None if unavailable (never breaks Table 1)."""
+    try:
+        return encounter_index_sha256(load_or_build_encounter_index(cfg))
+    except Exception as exc:  # noqa: BLE001 — table1 must not break generation
+        _warn(f"encounter_index_sha256 skipped: {exc}")
+        return None
+
+
+HASH_COLS = ["hospitalization_join_id", "prediction_dttm", "feature_cutoff_dttm",
+             "label", "split"]
+
+
+def cohort_sha256(cohort: pl.DataFrame, label_col: str) -> str:
+    """SHA-256 fingerprint of a cohort: same rows/labels/split -> same hash, at any site.
+
+    Rows sorted by (hospitalization_join_id, prediction_dttm); the task's label
+    column is renamed to "label" and every value cast to its string form (ISO
+    datetimes), so the digest is independent of row order, dtype and time unit.
+    """
+    df = (cohort.rename({label_col: "label"}).select(HASH_COLS)
+          .sort(["hospitalization_join_id", "prediction_dttm"])
+          .with_columns(pl.all().cast(pl.Utf8)))
+    return hashlib.sha256(df.write_csv().encode()).hexdigest()
+
+
 # ===========================================================================
-# Part 2 — Severity and comorbidity scores (with a per-site cache)
+# Part 2 — Severity and comorbidity scores (stored in the site snapshot)
 #
 # These are the heavy part of Table 1 (clifpy SOFA over raw files, plus
-# HospitalDiagnosis), so results are cached per site to
-# <cache_dir>/cohort_scores.parquet — the same build-once-reuse pattern as the
-# encounter index — and reused across all tasks.
+# HospitalDiagnosis), so results are saved to <snapshot>/cohort_scores.parquet —
+# the same build-once-reuse pattern as the encounter index — and reused across
+# all tasks.
 # ===========================================================================
 
 _SCORES_SCHEMA = {
@@ -143,28 +185,25 @@ _COMORBIDITY_SCHEMA = {
 }
 
 
-def _scores_cache_path(cfg: dict) -> Path:
-    # Fingerprinted like the encounter index: SOFA and the comorbidity scores are
-    # derived from the raw CLIF files, so a re-ETL must not be answered out of a
-    # cache built from the previous extract.
-    return _cache_dir(cfg) / f"cohort_scores_{source_fingerprint(cfg)}.parquet"
+def _scores_path(cfg: dict) -> Path:
+    return snapshot_dir(cfg) / "cohort_scores.parquet"
 
 
 def load_or_build_cohort_scores(cfg: dict, hosp_ids: list[str]) -> pl.DataFrame:
-    """Per-site cached severity/comorbidity scores.
+    """Per-site severity/comorbidity scores, saved in the snapshot.
 
-    Computes only the hospitalization_ids not already cached, appends them, and
+    Computes only the hospitalization_ids not already stored, appends them, and
     returns the requested subset.
     """
     hosp_ids = [str(h) for h in hosp_ids]
-    path = _scores_cache_path(cfg)
+    path = _scores_path(cfg)
     have = pl.read_parquet(path) if path.exists() else pl.DataFrame(schema=_SCORES_SCHEMA)
 
-    cached = set(have["hospitalization_id"].to_list()) if have.height else set()
-    missing = [h for h in hosp_ids if h not in cached]
+    stored = set(have["hospitalization_id"].to_list()) if have.height else set()
+    missing = [h for h in hosp_ids if h not in stored]
     if missing:
         new = _compute_scores(cfg, missing)
-        # Pin the cache to the declared schema. Without the select, any extra
+        # Pin the stored file to the declared schema. Without the select, any extra
         # column a backend happens to emit is carried by diagonal_relaxed into
         # the parquet and never leaves again.
         have = (
@@ -279,7 +318,7 @@ def compute_cci_elix(cfg: dict, hospitalization_ids: list[str]) -> pl.DataFrame:
     # how="full" + coalesce: polars' full join does NOT coalesce keys by default,
     # so elix-only rows would get a null hospitalization_id (their score dropped
     # by downstream joins) plus a stray hospitalization_id_right column leaking
-    # into the cohort_scores cache.
+    # into the stored cohort_scores.
     return cci_slim.join(elix_slim, on="hospitalization_id", how="full",
                          coalesce=True)
 
@@ -292,7 +331,7 @@ def _slim(df, score_col: str, out_name: str) -> pl.DataFrame:
     full three-column comorbidity schema makes the caller's join see
     charlson_score (or elix_score) on both sides, so polars suffixes one to
     `..._right` — and that stray column is then written permanently into the
-    cohort_scores.parquet cache.
+    the snapshot's cohort_scores.parquet.
     """
     import pandas as pd
     if isinstance(df, pd.DataFrame):

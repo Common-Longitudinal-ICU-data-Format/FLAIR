@@ -14,7 +14,7 @@ modes. Pick by how much control vs. convenience you want.
 
 ## Wide time-series data (vitals, labs, assessments, respiratory support)
 
-Use clifpy directly — FLAIR no longer wraps it:
+Use clifpy directly — FLAIR does not wrap it:
 
 ```python
 from clifpy import ClifOrchestrator
@@ -22,7 +22,7 @@ from flair_benchmark.cohort.clif import read_clif_config
 from flair_benchmark.cohort.stitch import load_or_build_encounter_index, members_of_joins
 
 cfg = read_clif_config("clif_config.json")
-idx = load_or_build_encounter_index(cfg, cfg["stitch_time_interval_hours"])
+idx = load_or_build_encounter_index(cfg)   # fixed 6 h gap
 hosp_ids = members_of_joins(idx, cohort["hospitalization_join_id"].unique().to_list())
 
 co = ClifOrchestrator(data_directory=..., filetype="parquet", timezone="US/Eastern")

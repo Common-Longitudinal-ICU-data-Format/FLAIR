@@ -2,7 +2,7 @@
 
 Each task module must expose:
     META: dict          # see docs/tasks for required keys
-    build(clif_config, train_end, test_start) -> pl.DataFrame
+    build(clif_config) -> pl.DataFrame
 
 META taxonomy fields (required, enum-validated):
     task_class       ∈ {outcome, deterioration, intervention, operational}

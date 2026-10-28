@@ -47,7 +47,7 @@ def _emit_one(patient_ids: list[str], hosp_ids: list[str]) -> pl.DataFrame:
 
 
 def test_alphanumeric_ids_are_not_dropped():
-    """The whole table used to vanish at any site with non-numeric ids."""
+    """Non-numeric ids ('P101', 'HOSP_1') are kept, not dropped."""
     out = _emit_one(["P101", "P102"], ["HOSP_1", "HOSP_2"])
     assert out.height == 2
     assert out["subject_id"].to_list() == ["P101", "P102"]
@@ -223,7 +223,7 @@ def test_trach_and_imv_on_the_same_row_emits_a_sentinel():
         "tracheostomy": [True, True],
     })
     out = detect_imv_episodes(resp)
-    assert out.height == 1                       # used to return zero rows
+    assert out.height == 1
     assert out["is_pre_existing_trach"].to_list() == [True]
     assert out["episode_index"].to_list() == [0]  # the sentinel
 
@@ -281,14 +281,10 @@ def _two_encounters_per_patient(n_patients: int = 40) -> pl.DataFrame:
 
 
 def test_split_is_decided_per_encounter():
-    """No stitched encounter is torn across train and test — the invariant that holds.
-
-    SPLIT_VERSION 2 dealt at patient grain instead. That guaranteed more (a patient
-    never spanned arms) but destroyed the calendar separation, because a patient is
-    unbounded in time: one first seen years before the boundary carries all their
-    later encounters into train with them. See assign_split.
+    """No stitched encounter is torn across train and test; a patient's separate
+    encounters may land in different arms. See assign_split.
     """
-    out = assign_split(_two_encounters_per_patient(), "mimic", None, None)
+    out = assign_split(_two_encounters_per_patient(), "mimic")
 
     per_encounter = out.group_by("hospitalization_join_id").agg(
         pl.col("split").n_unique().alias("n_splits"))
@@ -304,7 +300,7 @@ def test_a_patient_may_span_both_arms_at_encounter_grain():
     mortality cohort. If this ever needs to be zero, drop test encounters whose
     patient_id also appears in train — do NOT go back to patient-grain dealing.
     """
-    out = assign_split(_two_encounters_per_patient(), "mimic", None, None)
+    out = assign_split(_two_encounters_per_patient(), "mimic")
 
     per_patient = out.group_by("patient_id").agg(
         pl.col("split").n_unique().alias("n_splits"))
@@ -322,7 +318,7 @@ def test_temporal_regime_keeps_train_behind_test():
         "hospitalization_join_id": [f"E{i}" for i in range(40)],
         "admission_dttm": [T0 + timedelta(days=i) for i in range(40)],
     })
-    out = assign_split(cohort, "external", None, None)
+    out = assign_split(cohort, "external")
 
     train_max = out.filter(pl.col("split") == "train")["admission_dttm"].max()
     test_min = out.filter(pl.col("split") == "test")["admission_dttm"].min()
@@ -334,7 +330,7 @@ def test_split_works_without_a_patient_id_column():
         "hospitalization_join_id": [f"E{i}" for i in range(40)],
         "admission_dttm": [T0 + timedelta(days=i) for i in range(40)],
     })
-    out = assign_split(cohort, "mimic", None, None)
+    out = assign_split(cohort, "mimic")
     assert set(out["split"].to_list()) == {"train", "test"}
 
 
@@ -349,5 +345,15 @@ def test_two_block_cohort_carries_both_arms():
         "hospitalization_join_id": ["A", "B"],
         "admission_dttm": [T0, T0 + timedelta(days=1)],
     })
-    out = assign_split(cohort, "mimic", None, None)
+    out = assign_split(cohort, "mimic")
     assert set(out["split"].to_list()) == {"train", "test"}
+
+
+def test_split_requires_encounter_key():
+    """The split is always per stitched encounter; there is no patient/per-row fallback."""
+    cohort = pl.DataFrame({
+        "patient_id": [f"P{i}" for i in range(10)],
+        "admission_dttm": [T0 + timedelta(days=i) for i in range(10)],
+    })
+    with pytest.raises(ValueError, match="hospitalization_join_id"):
+        assign_split(cohort, "mimic")

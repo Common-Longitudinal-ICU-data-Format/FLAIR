@@ -51,6 +51,7 @@ import polars as pl
 from flair_benchmark.cohort.clif import read_clif_config
 from flair_benchmark.cohort.encounter import build_icu_encounter_cohort
 from flair_benchmark.cohort.stitch import assign_split
+from flair_benchmark.cohort.strobe import record
 from flair_benchmark.tasks._finalize import finalize_cohort
 
 META = {
@@ -106,8 +107,7 @@ OUTPUT_COLS = [
 ]
 
 
-def build(clif_config: str, train_end: str | None,
-          test_start: str | None) -> pl.DataFrame:
+def build(clif_config: str) -> pl.DataFrame:
     cfg = read_clif_config(clif_config)
 
     df = build_icu_encounter_cohort(cfg)
@@ -120,7 +120,6 @@ def build(clif_config: str, train_end: str | None,
             .alias(META["label_column"])
     )
 
-    df = assign_split(df, cfg["site"], train_end, test_start,
-                      admission_col="prediction_dttm")
-    df = df.filter(pl.col("split").is_not_null())
+    df = assign_split(df, cfg["site"], admission_col="prediction_dttm").pipe(
+        record, "assigned to 75/25 train/test split")
     return finalize_cohort(df, OUTPUT_COLS, META)

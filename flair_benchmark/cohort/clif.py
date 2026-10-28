@@ -20,7 +20,7 @@ Note that clifpy returns tz-aware datetimes typed to cfg["timezone"]; `pd_to_pl`
 strips the timezone so every downstream comparison is on naive local wall-clock
 time. Mixing a tz-aware timestamp into a cohort built here will raise.
 
-Depends on: clifpy, polars.
+Depends on: clifpy, polars, constants.py (benchmark window).
 Used by: cohort/stitch.py, cohort/encounter.py, cohort/table1.py, every task,
          features/_config.py.
 """
@@ -28,32 +28,75 @@ Used by: cohort/stitch.py, cohort/encounter.py, cohort/table1.py, every task,
 from __future__ import annotations
 
 import json
+import re
 from typing import Optional
 
 import polars as pl
+
+from flair_benchmark.constants import (
+    BENCHMARK_WINDOW_END,
+    BENCHMARK_WINDOW_START,
+    STITCH_TIME_INTERVAL_HOURS,
+)
+
+
+def in_benchmark_window(members: pl.DataFrame) -> list:
+    """Join ids whose every member admission_dttm / discharge_dttm lies inside
+    [BENCHMARK_WINDOW_START, BENCHMARK_WINDOW_END] (inclusive dates).
+
+    `members`: one row per hospitalization with hospitalization_join_id,
+    admission_dttm, discharge_dttm. A null date can't be proven inside, so it
+    disqualifies its encounter.
+    """
+    adm, dis = pl.col("admission_dttm"), pl.col("discharge_dttm")
+    return (
+        members.group_by("hospitalization_join_id")
+        .agg(adm.is_null().any().alias("_null_adm"), dis.is_null().any().alias("_null_dis"),
+             adm.min().dt.date().alias("_first"), dis.max().dt.date().alias("_last"))
+        .filter(~pl.col("_null_adm") & ~pl.col("_null_dis")
+                & (pl.col("_first") >= BENCHMARK_WINDOW_START)
+                & (pl.col("_last") <= BENCHMARK_WINDOW_END))
+        ["hospitalization_join_id"].to_list()
+    )
+
+
+def site_slug(site: str) -> str:
+    """Filesystem-safe site name: lowercase, runs of non-alphanumerics -> '_'."""
+    return re.sub(r"[^a-z0-9]+", "_", site.strip().lower()).strip("_")
 
 
 def read_clif_config(path: str) -> dict:
     """Parse a clif_config.json file.
 
     Required keys: site, data_directory, filetype, timezone.
-    Optional keys:
-      stitch_time_interval_hours  gap (h) for encounter stitching (default 6)
-      cache_directory             where the encounter index parquet is cached
-                                  (default ./output/_flair_cache)
+    The snapshot folder (frozen encounter IDs + reference hashes) is not a config
+    key: `flair load-task --snapshot PATH` passes it (docs/101/snapshot.md).
     """
     with open(path) as f:
         cfg = json.load(f)
     if not cfg.get("site"):
         # Fail loudly: two behaviors key on the exact site string — the
-        # DATA_CUTOFF year filter is SKIPPED only for site == "mimic"
+        # benchmark-window filter is SKIPPED only for site == "mimic"
         # (de-identified/shifted dates), and the no-dates split regime is
         # MIMIC-keyed. A defaulted "unknown" site would silently apply the real
-        # date cutoff to MIMIC's shifted dates and empty the whole cohort.
+        # date window to MIMIC's shifted dates and empty the whole cohort.
         raise ValueError(
             f"clif config {path!r} is missing required key 'site'. Set it to "
             f"your site name (use 'mimic' for MIMIC-IV — it controls the "
-            f"date-cutoff exemption and the random-split regime).")
+            f"benchmark-window exemption and the random-split regime).")
+    if "stitch_time_interval_hours" in cfg:
+        # Removed key: the gap is fixed so every site stitches the same encounters.
+        # Ignoring it silently would let a site believe its value was applied.
+        raise ValueError(
+            f"clif config {path!r} sets 'stitch_time_interval_hours', which is no "
+            f"longer configurable: stitching is fixed at "
+            f"{STITCH_TIME_INTERVAL_HOURS}h (constants.STITCH_TIME_INTERVAL_HOURS). "
+            f"Delete the key.")
+    if "cache_directory" in cfg:
+        raise ValueError(
+            f"clif config {path!r} sets 'cache_directory', which was removed: the "
+            f"encounter IDs now live in a snapshot folder passed with "
+            f"`flair load-task --snapshot PATH`. Delete the key.")
     if not cfg.get("timezone"):
         # No default: a silently assumed zone shifts every timestamp at any site
         # that isn't in it, and the 07:00 daily prediction time with them.
@@ -65,10 +108,7 @@ def read_clif_config(path: str) -> dict:
         "data_directory": cfg["data_directory"],
         "filetype": cfg["filetype"],
         "timezone": cfg["timezone"],
-        "stitch_time_interval_hours": cfg.get("stitch_time_interval_hours", 6),
     }
-    if cfg.get("cache_directory"):
-        out["cache_directory"] = cfg["cache_directory"]
     return out
 
 
@@ -240,6 +280,8 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
       2. Load hospitalization filtered to those ids.
       3. Load patient filtered to those patient_ids.
       4. Apply null-date / age / LOS filters.
+      5. Stitch, then keep only encounters wholly inside the benchmark window
+         (constants.BENCHMARK_WINDOW_*; skipped for site == "mimic").
 
     Both returned frames carry hospitalization_join_id (the stitched-encounter
     key); the row grain stays one-per-hospitalization_id.
@@ -253,7 +295,10 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         every hospitalization belonging to a cohort encounter — which is a
         SUPERSET of the cohort's own hospitalization_ids.
     """
+    from flair_benchmark.cohort.strobe import record
+
     adt = load_adt(cfg)
+    record(adt, "hospitalizations with ADT records")
     icu_hosp_ids = (
         adt.filter(pl.col("location_category").str.to_lowercase() == "icu")
         .select("hospitalization_id")
@@ -266,7 +311,7 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         hospitalization_ids=icu_hosp_ids,
         columns=["hospitalization_id", "patient_id", "admission_dttm",
                  "discharge_dttm", "age_at_admission", "discharge_category"],
-    )
+    ).pipe(record, ">= 1 ICU ADT record")
 
     patient_ids = hosp.select("patient_id").unique()["patient_id"].to_list()
     patient = load_patient(
@@ -278,13 +323,17 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
 
     cohort = (
         hosp.join(patient, on="patient_id", how="inner")
+        .pipe(record, "linked to a patient record")
         .filter(pl.col("admission_dttm").is_not_null()
                 & pl.col("discharge_dttm").is_not_null())
+        .pipe(record, "valid admission_dttm and discharge_dttm")
         .filter(pl.col("age_at_admission") >= min_age)
+        .pipe(record, f"age_at_admission >= {min_age}")
         .filter(
             ((pl.col("discharge_dttm") - pl.col("admission_dttm")).dt.total_seconds() / 86400.0)
             > min_los_days
         )
+        .pipe(record, f"length of stay > {min_los_days:g} days")
         .select([
             "hospitalization_id", "patient_id", "admission_dttm", "discharge_dttm",
             "age_at_admission", "sex_category", "race_category", "ethnicity_category",
@@ -292,15 +341,29 @@ def base_icu_cohort(cfg: dict, min_age: int = 18,
         ])
     )
 
-    # Stitch encounters once (cached) and tag both frames with the block key.
+    # Stitch encounters once (frozen in the snapshot) and tag both frames with the block key.
     from flair_benchmark.cohort.stitch import (
         JOIN_ID,
         attach_join_id,
         load_or_build_encounter_index,
         members_of_joins,
     )
-    idx = load_or_build_encounter_index(cfg, cfg.get("stitch_time_interval_hours", 6))
-    cohort = attach_join_id(cohort, idx)
+    idx = load_or_build_encounter_index(cfg)
+    cohort = attach_join_id(cohort, idx).pipe(record, "stitched into hospitalization_join_id")
+
+    # Benchmark window, before any task logic or the split: drop the WHOLE encounter
+    # if any member hospitalization (ICU or not) has a leg outside it.
+    if cfg["site"].lower() != "mimic":
+        members = load_hospitalization(
+            cfg,
+            hospitalization_ids=members_of_joins(
+                idx, cohort[JOIN_ID].cast(pl.Utf8).unique().to_list()),
+            columns=["hospitalization_id", "admission_dttm", "discharge_dttm"],
+        )
+        kept = in_benchmark_window(attach_join_id(members, idx))
+        cohort = cohort.filter(pl.col(JOIN_ID).is_in(kept)).pipe(
+            record, f"admitted and discharged within benchmark window "
+                    f"{BENCHMARK_WINDOW_START} to {BENCHMARK_WINDOW_END}")
 
     # Keep ADT at ENCOUNTER grain, not cohort grain. Trimming it to the cohort's
     # own hospitalization_ids would drop sibling admissions that belong to the

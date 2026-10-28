@@ -79,7 +79,7 @@ def run(tmp_path: Path, df: pl.DataFrame, task: str, mode: str) -> Path:
     df.write_parquet(preds)
     result = runner.invoke(app, [
         "build-report", str(preds), "--task", task,
-        "--out", str(out), "--mode", mode, "--viz",
+        "--out", str(out), "--mode", mode,
     ])
     assert result.exit_code == 0, result.output
     return out

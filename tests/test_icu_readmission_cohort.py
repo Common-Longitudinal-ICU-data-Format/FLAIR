@@ -81,7 +81,7 @@ def test_t5_drops_first_icu_stays_shorter_than_min_icu_stay_hours(monkeypatch):
     monkeypatch.setattr(t5, "compute_readmission_timing", _readmission_timing)
     monkeypatch.setattr(t5, "encounter_attributes", lambda *_: attrs)
 
-    out = t5.build("unused.json", train_end="2020-01-01", test_start="2020-01-02")
+    out = t5.build("unused.json")
     kept = set(out["hospitalization_join_id"].to_list())
 
     assert kept == {"e_long"}, (

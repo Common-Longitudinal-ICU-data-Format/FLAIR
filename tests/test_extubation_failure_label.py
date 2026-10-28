@@ -96,7 +96,7 @@ def test_t3_labels_reintubation_only_and_drops_death_only(monkeypatch):
     monkeypatch.setattr(t3, "detect_imv_episodes", lambda _: episodes)
     monkeypatch.setattr(t3, "encounter_attributes", lambda *_: attrs)
 
-    out = t3.build("unused.json", train_end="2020-01-01", test_start="2020-01-02")
+    out = t3.build("unused.json")
     labels = {
         row["hospitalization_join_id"]: row[t3.META["label_column"]]
         for row in out.to_dicts()
@@ -209,7 +209,7 @@ def test_t3_label_window_is_anchored_at_the_extubation_not_the_prediction(monkey
     monkeypatch.setattr(t3, "detect_imv_episodes", lambda _: episodes)
     monkeypatch.setattr(t3, "encounter_attributes", lambda *_: attrs)
 
-    out = t3.build("unused.json", train_end="2020-01-01", test_start="2020-01-02")
+    out = t3.build("unused.json")
     labels = {
         row["hospitalization_join_id"]: row[t3.META["label_column"]]
         for row in out.to_dicts()
@@ -292,7 +292,7 @@ def test_t3_post_discharge_death_does_not_defeat_censoring(monkeypatch):
     monkeypatch.setattr(t3, "detect_imv_episodes", lambda _: episodes)
     monkeypatch.setattr(t3, "encounter_attributes", lambda *_: attrs)
 
-    out = t3.build("unused.json", train_end="2020-01-01", test_start="2020-01-02")
+    out = t3.build("unused.json")
     kept = set(out["hospitalization_join_id"].to_list())
 
     assert "e_latedeath" not in kept, (
@@ -378,7 +378,7 @@ def test_t3_drops_imv_episodes_shorter_than_min_imv_hours(monkeypatch):
     monkeypatch.setattr(t3, "detect_imv_episodes", lambda _: episodes)
     monkeypatch.setattr(t3, "encounter_attributes", lambda *_: attrs)
 
-    out = t3.build("unused.json", train_end="2020-01-01", test_start="2020-01-02")
+    out = t3.build("unused.json")
     kept = set(out["hospitalization_join_id"].to_list())
 
     assert kept == {"e_long"}, (

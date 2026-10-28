@@ -19,24 +19,25 @@ to, and it keeps the two arms separated in calendar time — the property an
 external-validity read of the test set depends on. See `assign_split` for why the
 grain is the encounter and not the patient.
 
-The index is built ONCE per (config, time_interval) and cached to parquet, so the
-same stitched mapping is reused by every task, feature and metadata run.
+The index is built ONCE (gap fixed at constants.STITCH_TIME_INTERVAL_HOURS) and
+frozen in the site's SNAPSHOT folder (`snapshot_dir`), so the same stitched
+mapping is reused by every task, feature and metadata run — and by every later
+run that passes `--snapshot` (see docs/101/snapshot.md).
 
-Depends on: cohort/clif.py (loaders), constants.py (DATA_CUTOFF), clifpy.
+Depends on: cohort/clif.py (loaders), clifpy.
 Used by: every task, features/_scope.py, cohort/table1.py, cohort/encounter.py.
 """
 
 from __future__ import annotations
 
 import hashlib
-from datetime import date
 from pathlib import Path
 from typing import Optional
 
 import polars as pl
 
-from flair_benchmark.cohort.clif import load_adt, load_hospitalization
-from flair_benchmark.constants import DATA_CUTOFF
+from flair_benchmark.cohort.clif import load_adt, load_hospitalization, site_slug
+from flair_benchmark.constants import STITCH_TIME_INTERVAL_HOURS, __version__
 
 JOIN_ID = "hospitalization_join_id"
 
@@ -45,8 +46,8 @@ JOIN_ID = "hospitalization_join_id"
 # Part 1 — Encounter stitching
 #
 # Public API:
-#   build_encounter_index(cfg, time_interval)         -> always rebuilds
-#   load_or_build_encounter_index(cfg, time_interval) -> cached
+#   build_encounter_index(cfg)                        -> always rebuilds
+#   load_or_build_encounter_index(cfg)                -> read from / saved to the snapshot
 #   attach_join_id(df, idx)                           -> left-join + self-fallback
 #   members_of_joins(idx, join_ids)                   -> join_id -> all member hosp_ids
 #
@@ -55,53 +56,55 @@ JOIN_ID = "hospitalization_join_id"
 # ===========================================================================
 
 
-def _cache_dir(cfg: dict) -> Path:
-    """Where the encounter index parquet lives.
+def snapshot_name(site: str) -> str:
+    """Snapshot folder name: one per site per FLAIR version, e.g. mimic_flair_v0.0.1."""
+    return f"{site_slug(site)}_flair_v{__version__}"
 
-    Precedence:
-      1. cfg["cache_directory"] — set this to the folder where you write task
-         parquet so the index sits alongside your outputs.
-      2. ./output/_flair_cache (default, relative to the working directory).
-         FLAIR never writes into the CLIF data directory, which may be shared
-         or read-only.
+
+# ponytail: module-global, one CLI run per process (same as cohort/strobe.py); the
+# CLI sets it so it reaches the index loader inside every task build(clif_config)
+# without threading a path through every signature.
+_SNAPSHOT: Optional[Path] = None
+_FROZEN = False
+
+
+def use_snapshot(path: Optional[str | Path], *, frozen: bool = False) -> None:
+    """Point this process at a snapshot folder (None resets to the default).
+
+    frozen=True is a `--snapshot` run: the encounter index must already be in the
+    folder, so the run reuses the stored IDs and never silently re-stitches.
     """
-    explicit = cfg.get("cache_directory")
-    base = Path(explicit) if explicit else Path("output") / "_flair_cache"
-    return base
+    global _SNAPSHOT, _FROZEN
+    _SNAPSHOT = Path(path) if path is not None else None
+    _FROZEN = frozen and path is not None
+    _INDEX_MEMO.clear()
 
 
-def source_fingerprint(cfg: dict) -> str:
-    """Short digest of the CLIF source files an index/score cache was built from.
+def snapshot_dir(cfg: dict) -> Path:
+    """The snapshot folder: the one set by `use_snapshot`, else output/<snapshot_name>.
 
-    Covers path, size and mtime of every file directly under `data_directory`.
-    A cache keyed on `path.exists()` alone is stale the moment a site re-ETLs its
-    data or repoints `data_directory`, and nothing about the stale result looks
-    wrong — the split just silently belongs to yesterday's cohort. Folding this
-    into the filename means a changed source builds a new cache instead of
-    quietly reusing the old one.
-
-    Directory listing only (never file contents), so it stays O(number of files)
-    on a multi-GB data directory.
+    FLAIR never writes into the CLIF data directory, which may be shared or read-only.
     """
-    root = Path(cfg["data_directory"])
-    parts = [str(root)]
-    try:
-        for p in sorted(root.iterdir()):
-            if p.is_file():
-                st = p.stat()
-                parts.append(f"{p.name}:{st.st_size}:{st.st_mtime_ns}")
-    except OSError:
-        # Unreadable directory: fall back to the path alone rather than failing.
-        pass
-    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
+    return _SNAPSHOT if _SNAPSHOT is not None else Path("output") / snapshot_name(cfg["site"])
 
 
-def _cache_path(cfg: dict, time_interval: int) -> Path:
-    return (_cache_dir(cfg)
-            / f"encounter_index_{time_interval}h_{source_fingerprint(cfg)}.parquet")
+def _index_path(cfg: dict) -> Path:
+    return snapshot_dir(cfg) / "encounter_index.parquet"
 
 
-def build_encounter_index(cfg: dict, time_interval: int = 6) -> pl.DataFrame:
+def encounter_index_sha256(idx: pl.DataFrame) -> str:
+    """Content digest of the frozen IDs — same rows, same hash, on any machine.
+
+    Rows sorted by hospitalization_id, every value cast to its string form, so the
+    digest ignores row order, dtype and when/where the parquet was written.
+    """
+    cols = ["hospitalization_id", JOIN_ID, "patient_id"]
+    df = (idx.select(cols).with_columns(pl.all().cast(pl.Utf8))
+          .sort(["hospitalization_id", JOIN_ID]))
+    return hashlib.sha256(df.write_csv().encode()).hexdigest()
+
+
+def build_encounter_index(cfg: dict) -> pl.DataFrame:
     """Run clifpy `stitch_encounters` on the FULL hospitalization + ADT set.
 
     Stitching shifts within `patient_id`, so it must see every hospitalization for
@@ -127,7 +130,7 @@ def build_encounter_index(cfg: dict, time_interval: int = 6) -> pl.DataFrame:
     _, _, mapping = stitch_encounters(
         hospitalization=hosp.to_pandas(),
         adt=adt.to_pandas(),
-        time_interval=time_interval,
+        time_interval=STITCH_TIME_INTERVAL_HOURS,
     )
 
     idx = (
@@ -149,35 +152,36 @@ def build_encounter_index(cfg: dict, time_interval: int = 6) -> pl.DataFrame:
     return idx.join(pat, on="hospitalization_id", how="left")
 
 
-# Process-level memo for the cached index. One task build calls
+# Process-level memo for the snapshot index. One task build calls
 # load_or_build_encounter_index several times (base cohort, encounter attributes,
 # per-table attach) and the parquet can be large, so we read it once per
 # (path, mtime) rather than once per call.
 _INDEX_MEMO: dict[tuple[str, int], pl.DataFrame] = {}
 
 
-def load_or_build_encounter_index(cfg: dict, time_interval: int = 6,
-                                  cache_dir: Optional[str] = None) -> pl.DataFrame:
-    """Read the cached encounter index, building (and saving) it on first use.
+def load_or_build_encounter_index(cfg: dict) -> pl.DataFrame:
+    """Read the snapshot's encounter index, building (and saving) it on first use.
 
-    This is the "run before all tasks, saved" step: the first cohort build writes
-    the parquet, every later run reads it. The filename carries a fingerprint of
-    the source files (`source_fingerprint`), so re-ETL'd data rebuilds rather
-    than silently reusing the previous stitching.
+    The first cohort build of a snapshot writes the parquet; every later call and
+    every `--snapshot` run reads it, so the IDs stay frozen even if the CLIF files
+    are copied, touched or re-ETL'd. In a frozen (`--snapshot`) run a missing index
+    is an error rather than a fresh stitch.
     """
-    if cache_dir is not None:
-        cfg = {**cfg, "cache_directory": cache_dir}
-    path = _cache_path(cfg, time_interval)
+    path = _index_path(cfg)
     if path.exists():
         key = (str(path), path.stat().st_mtime_ns)
-        cached = _INDEX_MEMO.get(key)
-        if cached is None:
-            cached = pl.read_parquet(path)
+        idx = _INDEX_MEMO.get(key)
+        if idx is None:
+            idx = pl.read_parquet(path)
             _INDEX_MEMO.clear()          # one live index per process is plenty
-            _INDEX_MEMO[key] = cached
-        return cached
+            _INDEX_MEMO[key] = idx
+        return idx
 
-    idx = build_encounter_index(cfg, time_interval)
+    if _FROZEN:
+        raise FileNotFoundError(
+            f"snapshot {path.parent} has no encounter_index.parquet; pass the folder a "
+            f"previous `flair load-task` created, or omit --snapshot to regenerate.")
+    idx = build_encounter_index(cfg)
     path.parent.mkdir(parents=True, exist_ok=True)
     idx.write_parquet(path)
     return idx
@@ -233,20 +237,12 @@ def members_of_joins(idx: pl.DataFrame, join_ids: list[str]) -> list[str]:
 # Every cohort always carries BOTH 'train' and 'test', whether or not the site
 # will fit a model, so the cohort and Table 1 schemas are identical across sites.
 #
-# GRAIN: the stitched encounter (`hospitalization_join_id`). See `assign_split`
-# for why the patient is too wide a boundary for a temporal split.
-#
-# Regimes, in priority order (all at that grain):
-#   1. train_end AND test_start given -> date cutoff on the block's earliest
-#      admission_col (the production temporal split).
-#   2. site == 'mimic', no dates      -> RANDOM 75/25 over blocks. MIMIC admission
-#      dates are de-identified/shifted, so temporal order is meaningless;
-#      assignment is deterministic (hash-seeded), not date-driven.
-#   3. other site, no dates           -> TEMPORAL 75/25: blocks ordered by earliest
-#      admission_col, oldest 75% train, newest 25% test.
-#
-# Data cutoff: for non-mimic sites, rows after constants.DATA_CUTOFF are dropped
-# before splitting (the current year is not fully ETL'd). MIMIC is exempt.
+# One rule at every site: 75% of stitched encounters train, 25% test.
+#   site == 'mimic'  -> encounters ordered by sha256 of the join id (dates are
+#                       shifted); the same split wherever it runs.
+#   other site       -> encounters ordered by earliest admission_col: oldest 75%
+#                       train, newest 25% test. The benchmark window has already
+#                       dropped whole encounters upstream (cohort/clif.py).
 # ===========================================================================
 
 
@@ -267,120 +263,57 @@ def _split_cutoff(n: int, train_ratio: float) -> int:
 def _stable_digest(group_id: str) -> str:
     """Version-stable shuffle key: sha256 of the group id string.
 
-    Deliberately NOT `pl.Expr.hash` — polars documents its hash as unstable across
-    releases, so a polars upgrade would silently re-deal the MIMIC train/test
-    split, and a model trained before the upgrade would be scored on a test set
-    containing its own training stays. sha256 of the id string is identical
-    forever, on every machine and every library version.
+    Not `pl.Expr.hash`: polars documents its hash as unstable across releases.
+    sha256 of the id string is identical on every machine and every library
+    version, so the MIMIC split is the same wherever it runs.
     """
     return hashlib.sha256(str(group_id).encode("utf-8")).hexdigest()
 
 
-def assign_split(cohort: pl.DataFrame, site: str,
-                 train_end: str | None, test_start: str | None,
-                 *, admission_col: str = "admission_dttm",
-                 split_col: str = "hospitalization_join_id",
+def assign_split(cohort: pl.DataFrame, site: str, *,
+                 admission_col: str = "admission_dttm",
                  train_ratio: float = 0.75) -> pl.DataFrame:
-    """Add a 'split' column in {'train', 'test', null}; always produces train + test.
+    """Add a 'split' column: 75% of encounters 'train', 25% 'test', at every site.
 
-    THE GRAIN IS THE STITCHED ENCOUNTER (`split_col`). An encounter is bounded —
-    days to a few weeks — so dealing at that grain leaves train and test separated
-    in calendar time, with the only overlap a single stay open across the boundary.
+    The unit is always the stitched encounter (`hospitalization_join_id`); every
+    row of an encounter lands in the same arm, and a cohort without the join id
+    raises. Only the order the encounters are cut in depends on the site:
 
-    Splitting at PATIENT grain does not have that property, and that is why it was
-    abandoned (SPLIT_VERSION 3, see the constant). A patient is unbounded in time:
-    one first seen in 2018 and readmitted in 2025 lands *entirely* in whichever arm
-    their earliest row falls, so train's calendar span always runs to the end of the
-    data no matter where the boundary sits. Measured on the MIMIC mortality cohort,
-    that smeared train 4238 days into the test period; the encounter grain brings it
-    to 49 days, which is just the tail of encounter length (p99 25 d, max 139 d).
+      site == "mimic"  sha256 of the join id (dates are de-identified/shifted, so
+                       calendar order means nothing). Identical wherever it runs.
+      any other site   earliest `admission_col` per encounter: oldest 75% train,
+                       newest 25% test. No date filter here: base_icu_cohort
+                       already kept only encounters inside the benchmark window.
 
-    The price is the leakage patient grain existed to prevent: ~0.4% of patients have
-    encounters on both sides of the boundary and reappear across arms, sharing
-    comorbidities and chronic-condition signal (1.0% of rows on that same cohort).
-    That is the accepted trade — a test set that is genuinely *later* than training
-    is worth more than a test set purged of returning patients.
-
-    `admission_col` orders groups for the temporal regime and drives the date
-    cutoff for production sites.
+    An encounter spans days to weeks, so the temporal arms are separated in
+    calendar time with at most one stay open across the boundary. A patient with
+    several encounters can appear in both arms; that is the accepted cost of a
+    test set that is genuinely later than training.
     """
-    is_mimic = bool(site) and site.lower() == "mimic"
-    grain = split_col
-
-    # Global data cutoff — drop rows after DATA_CUTOFF so partially-ETL'd
-    # current-year data never enters the cohort. Skipped for mimic
-    # (de-identified/shifted dates would make a real-date cap empty the cohort).
-    if not is_mimic and admission_col in cohort.columns:
-        cohort = cohort.filter(pl.col(admission_col).dt.date() <= DATA_CUTOFF)
-
-    # 1. Explicit production cutoff dates take precedence at any site.
-    if train_end is not None and test_start is not None:
-        return _date_split(cohort, train_end, test_start, admission_col, grain)
-
-    # 2. MIMIC, no dates -> deterministic random split (dates de-identified).
-    if is_mimic:
-        return _random_split_by_group(cohort, grain, train_ratio)
-
-    # 3. Other site, no dates -> temporal split (oldest 75% train, newest 25% test).
-    return _ratio_split_by_group(cohort, grain, admission_col, train_ratio)
+    if JOIN_ID not in cohort.columns:
+        raise ValueError("assign_split needs hospitalization_join_id: the split is always "
+                         "dealt per stitched encounter (attach_join_id first).")
+    if bool(site) and site.lower() == "mimic":
+        return _random_split_by_group(cohort, train_ratio)
+    return _ratio_split_by_group(cohort, admission_col, train_ratio)
 
 
-def _date_split(cohort: pl.DataFrame, train_end: str, test_start: str,
-                admission_col: str, split_col: str) -> pl.DataFrame:
-    """Production temporal split on explicit cutoff dates (block grain)."""
-    train_end_d = date.fromisoformat(train_end)
-    test_start_d = date.fromisoformat(test_start)
-    # Decide the split once per encounter block (by its earliest admission_col),
-    # then broadcast — so a continuous encounter whose per-row prediction_dttm
-    # straddles train_end/test_start can never be torn across train and test
-    # (the same guarantee the ratio path gives). Fall back to per-row only when
-    # the block key is absent.
-    block_date = (
-        pl.col(admission_col).min().over(split_col).dt.date()
-        if split_col in cohort.columns
-        else pl.col(admission_col).dt.date()
-    )
-    return cohort.with_columns(
-        pl.when(block_date <= train_end_d).then(pl.lit("train"))
-        .when(block_date >= test_start_d).then(pl.lit("test"))
-        .otherwise(pl.lit(None))
-        .alias("split")
-    )
-
-
-def _random_split_by_group(cohort: pl.DataFrame, split_col: str,
-                           train_ratio: float) -> pl.DataFrame:
-    """Assign 'train'/'test' once per `split_col` group at RANDOM (block grain).
+def _random_split_by_group(cohort: pl.DataFrame, train_ratio: float) -> pl.DataFrame:
+    """Assign 'train'/'test' once per encounter at RANDOM (block grain).
 
     Used for MIMIC, whose admission dates are de-identified/shifted so temporal
     order carries no meaning. Order is the sha256 digest of the group id (see
     `_stable_digest`), so the split is random-looking yet reproducible across
     runs, machines AND library versions; the first `train_ratio` of the
-    digest-ordered groups are 'train'. Falls back to a per-row split only if
-    `split_col` is absent.
-
-    Split-version note (SPLIT_VERSION 3): builds before 2026-07 ordered by
-    `pl.Expr.hash(seed=0)` at encounter grain (v1); 2026-07 through 2026-08 used
-    sha256 ordering at PATIENT grain (v2). This deal is sha256 ordering back at
-    encounter grain, and supersedes both — a cohort regenerated on this version
-    will not reproduce either earlier train/test assignment, so re-score any model
-    trained against one.
+    digest-ordered groups are 'train'. Never `pl.Expr.hash`, which is not stable
+    across polars versions.
     """
-    if split_col not in cohort.columns:
-        # No block key (rare): deterministic per-row split by row order.
-        ranked = cohort.with_row_index("_row_num")
-        cutoff = _split_cutoff(ranked.height, train_ratio)
-        return ranked.with_columns(
-            pl.when(pl.col("_row_num") < cutoff).then(pl.lit("train"))
-            .otherwise(pl.lit("test")).alias("split")
-        ).drop("_row_num")
-
     groups = (
-        cohort.select(pl.col(split_col).unique())
+        cohort.select(pl.col(JOIN_ID).unique())
         .with_columns(
-            pl.col(split_col).cast(pl.Utf8)
+            pl.col(JOIN_ID).cast(pl.Utf8)
             .map_elements(_stable_digest, return_dtype=pl.Utf8).alias("_h"))
-        .sort(["_h", split_col])
+        .sort(["_h", JOIN_ID])
         .with_row_index("_gi")
     )
     cutoff = _split_cutoff(groups.height, train_ratio)
@@ -388,25 +321,22 @@ def _random_split_by_group(cohort: pl.DataFrame, split_col: str,
         pl.when(pl.col("_gi") < cutoff).then(pl.lit("train"))
         .otherwise(pl.lit("test"))
         .alias("split")
-    ).select([split_col, "split"])
-    return cohort.join(groups, on=split_col, how="left")
+    ).select([JOIN_ID, "split"])
+    return cohort.join(groups, on=JOIN_ID, how="left")
 
 
-def _ratio_split_by_group(cohort: pl.DataFrame, split_col: str, order_col: str,
+def _ratio_split_by_group(cohort: pl.DataFrame, order_col: str,
                           train_ratio: float) -> pl.DataFrame:
-    """Assign 'train'/'test' once per `split_col` group; broadcast to all its rows.
+    """Assign 'train'/'test' once per encounter; broadcast to all its rows.
 
     Groups are ordered by their earliest `order_col` (then group id) so the split
-    is deterministic; the first `train_ratio` of groups are 'train'. Falls back to
-    a per-row split only if `split_col` is absent.
+    is deterministic; the first `train_ratio` of groups are 'train'.
     """
-    if split_col not in cohort.columns:
-        return _ratio_split_per_row(cohort, order_col, train_ratio)
 
     groups = (
-        cohort.group_by(split_col)
+        cohort.group_by(JOIN_ID)
         .agg(pl.col(order_col).min().alias("_g_order"))
-        .sort(["_g_order", split_col])
+        .sort(["_g_order", JOIN_ID])
         .with_row_index("_gi")
     )
     cutoff = _split_cutoff(groups.height, train_ratio)
@@ -414,18 +344,5 @@ def _ratio_split_by_group(cohort: pl.DataFrame, split_col: str, order_col: str,
         pl.when(pl.col("_gi") < cutoff).then(pl.lit("train"))
         .otherwise(pl.lit("test"))
         .alias("split")
-    ).select([split_col, "split"])
-    return cohort.join(groups, on=split_col, how="left")
-
-
-def _ratio_split_per_row(cohort: pl.DataFrame, order_col: str,
-                         train_ratio: float) -> pl.DataFrame:
-    sorted_df = cohort.sort(order_col).with_row_index("_row_num")
-    cutoff = _split_cutoff(sorted_df.height, train_ratio)
-    return (
-        sorted_df.with_columns(
-            pl.when(pl.col("_row_num") < cutoff).then(pl.lit("train"))
-            .otherwise(pl.lit("test"))
-            .alias("split")
-        ).drop("_row_num")
-    )
+    ).select([JOIN_ID, "split"])
+    return cohort.join(groups, on=JOIN_ID, how="left")
