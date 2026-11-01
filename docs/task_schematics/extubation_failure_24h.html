@@ -36,7 +36,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     patient will require reintubation in the 24 hours after it. Death without
     reintubation in that window is excluded to avoid labeling palliative
     extubations as failures. One prediction per hospitalization, anchored at a
-    single per-encounter event: <code>prediction_dttm = t_extub − 30 min</code>,
+    single per-encounter event: <code>prediction_dttm = t_extub − 5 min</code>,
     which is also the feature cutoff, while the 24h label window is measured from
     <code>t_extub</code> itself.
     The key algorithmic ingredient is the
@@ -67,7 +67,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     verified against code: <code>HORIZON_HOURS=24</code>,
     <code>INTUB_WINDOW_MIN_DEFAULT=15</code>, <code>EXTUB_WINDOW_MIN_DEFAULT=30</code>,
     <code>TRACH_CLOSURE_TOLERANCE_MIN=1</code>, <code>MIN_IMV_HOURS=6</code>,
-    <code>PREDICTION_LEAD_MINUTES=30</code>.
+    <code>PREDICTION_LEAD_MINUTES=5</code>.
   </div>
 
   <h2>Consensus-window IMV episode detection</h2>
@@ -117,7 +117,7 @@ mermaid.initialize({ startOnLoad: true, theme: 'base', flowchart: { htmlLabels: 
     <dt>Death time</dt>
     <dd>\(t_{\text{death}}^i\) from <code>patient.death_dttm</code>; \(+\infty\) if null.</dd>
     <dt>Prediction time / feature cutoff</dt>
-    <dd>\(t_{\text{pred}}^i = t_{\text{extub}}^i - 30\text{min}\). Features obey
+    <dd>\(t_{\text{pred}}^i = t_{\text{extub}}^i - 5\text{min}\). Features obey
       \(t \le t_{\text{pred}}^i\); the label horizon below is <em>not</em> shifted with it.</dd>
     <dt>Label horizon</dt>
     <dd>\((t_{\text{extub}}^i,\, t_{\text{extub}}^i + 24\text{h}]\).</dd>
@@ -193,7 +193,7 @@ flowchart TD
   detect["detect_imv_episodes<br/>consensus state machine<br/>IMV ≥ 15min start; non-IMV ≥ 30min close;<br/>trach sentinel closes &amp; halts"]
   filter["episodes.filter(<br/>episode_index = 1 ∧ episode_end_dttm ≠ ∅<br/>∧ duration ≥ 6h ∧ ¬is_pre_existing_trach)"]
   trach["_drop_trach_closed<br/>trach row within ±1min of episode_end"]
-  pred["t_extub = first extubation<br/>= episode_end_dttm of episode₁<br/>prediction_dttm = feature_cutoff_dttm<br/>= t_extub − 30 min"]
+  pred["t_extub = first extubation<br/>= episode_end_dttm of episode₁<br/>prediction_dttm = feature_cutoff_dttm<br/>= t_extub − 5 min"]
   reint["join reintubation<br/>= episode_start_dttm of episode₂ (left join)"]
   lab["label = reintubated_in_24h"]
   decide{"reintubated,<br/>OR no death and obs_end ≥ t_extub + 24h?"}
@@ -238,7 +238,7 @@ flowchart TD
     <li>Join encounter-level \(t_{\text{death}}^i\) and \(t_{\text{disch}}^i\).</li>
     <li>Compute \(y_i = \texttt{\_reintub}\).</li>
     <li>Drop death-only palliative extubations and ambiguous censoring rows (the diamond).</li>
-    <li>Set <code>prediction_dttm = feature_cutoff_dttm =</code> \(t_{\text{extub}}^i - 30\text{min}\); carry \(t_{\text{extub}}^i\) as <code>extubation_dttm</code> so the lead is auditable from the cohort alone.</li>
+    <li>Set <code>prediction_dttm = feature_cutoff_dttm =</code> \(t_{\text{extub}}^i - 5\text{min}\); carry \(t_{\text{extub}}^i\) as <code>extubation_dttm</code> so the lead is auditable from the cohort alone.</li>
     <li>Apply the train/test split (temporal; random 75/25 for <code>site="mimic"</code>), keyed on \(t_{\text{pred}}^i\); select <code>OUTPUT_COLS</code>; persist as parquet.</li>
   </ol>
 
@@ -281,19 +281,19 @@ flowchart TD
     The decision to extubate is itself the clinical handle. Predictions at arbitrary
     timesteps before the actual extubation are not actionable because they would be
     evaluated against a different intervention (extubation at a different time).
-    Restricting to a fixed 30-minute lead on the actual extubation makes the label
+    Restricting to a fixed 5-minute lead on the actual extubation makes the label
     well-defined and the comparison across hospitalizations meaningful.
   </p>
 
-  <h4>Why the 30-minute lead</h4>
+  <h4>Why the 5-minute lead</h4>
   <p>
     A prediction stamped at <code>t_extub</code> is a description, not a decision:
     the tube is already out, and <code>episode_end_dttm</code> is the timestamp of
     the respiratory-support row that says so. Anything reading
     <code>respiratory_support</code> without a leakage guard — clifpy's
     <code>create_wide_dataset</code>, for instance — would hand a "should we
-    extubate?" model the row announcing the extubation. Cutting features 30 minutes
-    back puts that row and the peri-extubation charting around it on the far side of
+    extubate?" model the row announcing the extubation. Cutting features 5 minutes
+    back puts that row on the far side of
     the boundary, so an inclusive <code>time ≤ feature_cutoff_dttm</code> comparison
     is correct with no per-task strictness. The lead is short enough that the SBT and
     the last recorded vent settings — the strongest signal this task has — remain on
@@ -349,11 +349,11 @@ flowchart TD
   </p>
   <p>
     For the same reason the feature window ends at <code>prediction_dttm</code>
-    (<code>feature_cutoff_dttm = prediction_dttm = t_extub − 30 min</code>, inclusive:
+    (<code>feature_cutoff_dttm = prediction_dttm = t_extub − 5 min</code>, inclusive:
     features obey \(t \le\) <code>feature_cutoff_dttm</code>). The extubation
     timestamp <code>extubation_dttm</code> is the first non-IMV respiratory-support
-    row, i.e. the row announcing the extubation; the 30-minute lead keeps it and the
-    peri-extubation charting on the far side of the cutoff. A model asked
+    row, i.e. the row announcing the extubation; the 5-minute lead keeps it on the far
+    side of the cutoff. A model asked
     &ldquo;should we extubate?&rdquo; must not be shown the extubation.
   </p>
 

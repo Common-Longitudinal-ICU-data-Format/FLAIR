@@ -265,7 +265,7 @@ That timestamp is the **no-future-data line** for that row. Every cohort row car
 
 For every shipped task, `feature_cutoff_dttm` equals `prediction_dttm`. The contract allows a task to set the cutoff *earlier* if its own prediction time would leak the answer.
 
-`extubation_failure_24h` solves the leak a different way — it moves the prediction itself. The prediction is stamped **30 minutes before** the extubation, so a model asked "should we extubate?" never sees the respiratory-support row that announces the extubation happened.
+`extubation_failure_24h` solves the leak a different way — it moves the prediction itself. The prediction is stamped **5 minutes before** the extubation, so a model asked "should we extubate?" never sees the respiratory-support row that announces the extubation happened.
 
 ## Benchmark Tasks
 
@@ -293,7 +293,7 @@ More detail: [docs/101/tasks.md](https://github.com/Common-Longitudinal-ICU-data
 | `patient_id` | Patient key |
 | `prediction_dttm` | When the prediction is made |
 | `feature_cutoff_dttm` | The no-data-after timestamp (equals `prediction_dttm` for every shipped task) |
-| `extubation_dttm` | `extubation_failure_24h` only: the extubation, 30 min after `prediction_dttm` |
+| `extubation_dttm` | `extubation_failure_24h` only: the extubation, 5 min after `prediction_dttm` |
 | `<label_column>` | The task's outcome label |
 | `split` | `train` or `test` |
 | `age_at_admission` | Age, for reporting and subgroup analysis |

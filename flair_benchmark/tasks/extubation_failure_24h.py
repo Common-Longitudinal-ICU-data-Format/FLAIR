@@ -58,7 +58,7 @@ Prediction time = first_extubation_dttm - PREDICTION_LEAD_MINUTES.
 Two distinct timestamps, do not conflate them:
   extubation_dttm  the clinical event; the label window is measured from here,
                    so "failure within 24h" keeps its usual meaning.
-  prediction_dttm  when the model is asked, 30 min earlier; the feature cutoff
+  prediction_dttm  when the model is asked, 5 min earlier; the feature cutoff
                    equals it. This is the decision timestamp — the tube has not
                    been pulled yet, which is the whole point of the task.
 
@@ -86,7 +86,7 @@ Pipeline:
  10. drop ambiguous censoring (discharged alive < 24h post-extubation,
      no death, no reintubation)
  11. assign_split()
- 12. feature_cutoff_dttm = prediction_dttm (inclusive; the 30-min lead is what
+ 12. feature_cutoff_dttm = prediction_dttm (inclusive; the 5-min lead is what
      keeps the extubation itself out, so no extra strictness is needed)
 """
 
@@ -117,10 +117,10 @@ MIN_IMV_HOURS = 6
 # How far BEFORE the extubation the model is asked. A prediction stamped at the
 # extubation itself is not a decision, it is a description: the tube is already
 # out and the respiratory_support row that says so is charted at that instant.
-# 30 min is the clinical lead time — long enough that the answer can still change
-# the action, short enough that the SBT and the last vent settings (the strongest
-# signal this task has) are still on the correct side of the cutoff.
-PREDICTION_LEAD_MINUTES = 30
+# 5 min is the clinical lead time — short enough that the SBT and the last vent
+# settings (the strongest signal this task has) are on the feature side; note it
+# also lets peri-extubation charting within that 5 min through.
+PREDICTION_LEAD_MINUTES = 5
 
 META = {
     "name": "extubation_failure_24h",
@@ -142,14 +142,14 @@ META = {
     "label_column": "label_extubation_failure_24h",
     "positive_class": "reintubation_within_24h_post_extubation",
     "input_window_hours": None,
-    # Relative to prediction_dttm, which sits 30 min (0.5h) before the
+    # Relative to prediction_dttm, which sits 5 min (1/12h) before the
     # extubation: the label window still runs 0-24h from the extubation itself.
     "prediction_window": [PREDICTION_LEAD_MINUTES / 60,
                           HORIZON_HOURS + PREDICTION_LEAD_MINUTES / 60],
     "cohort_description": "Adults with a first confirmed IMV episode lasting "
                           ">= 6h and closed by extubation (not trach, not "
                           "end-of-record); one row per hospitalization anchored "
-                          "30 min before the first extubation_dttm",
+                          "5 min before the first extubation_dttm",
     "inclusion_criteria": [
         "age_at_admission >= 18",
         "at least one ICU ADT record",
@@ -172,7 +172,7 @@ META = {
 OUTPUT_COLS = [
     "hospitalization_id", "hospitalization_join_id", "prediction_dttm",
     # Carried so the lead is auditable from the cohort alone: the label window
-    # runs from this timestamp, prediction_dttm sits 30 min before it.
+    # runs from this timestamp, prediction_dttm sits 5 min before it.
     "extubation_dttm",
     "feature_cutoff_dttm",
     META["label_column"], "split",
@@ -296,11 +296,11 @@ def build(clif_config: str) -> pl.DataFrame:
     # non-IMV respiratory_support row (cohort.events.detect_imv_episodes), the row
     # that ANNOUNCES the extubation, and anyone pulling respiratory_support
     # (device_category / mode_category / fio2_set / peep_set) via clifpy's
-    # create_wide_dataset or otherwise gets no automatic guard. Cutting 30 min back
-    # puts that row — and the peri-extubation charting around it — safely on the
-    # far side, so an inclusive comparison (`time <= feature_cutoff_dttm`) is
-    # correct and no per-task strictness is needed. Stamped explicitly rather than
-    # left to the _finalize.py default because OUTPUT_COLS names the column.
+    # create_wide_dataset or otherwise gets no automatic guard. Cutting 5 min back
+    # puts that row on the far side, so an inclusive comparison
+    # (`time <= feature_cutoff_dttm`) is correct and no per-task strictness is
+    # needed. Stamped explicitly rather than left to the _finalize.py default
+    # because OUTPUT_COLS names the column.
     df = df.with_columns(
         pl.col("prediction_dttm").alias("feature_cutoff_dttm")
     )

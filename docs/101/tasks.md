@@ -107,8 +107,8 @@ column is rejected loudly by `features/_scope.py` rather than defaulted.
 
 No shipped task sets it away from `prediction_dttm`.
 `extubation_failure_24h` anchors on the first non-IMV respiratory-support row —
-the row that *announces* the extubation — and moves the **prediction** instead: `prediction_dttm = extubation_dttm − 30 min`, and the
-cutoff sits on it. The 30-min lead is the leakage guard and also makes the row a
+the row that *announces* the extubation — and moves the **prediction** instead: `prediction_dttm = extubation_dttm − 5 min`, and the
+cutoff sits on it. The 5-min lead is the leakage guard and also makes the row a
 real decision (the tube is still in when the model is asked). The label window is
 still measured from `extubation_dttm`, which the cohort carries alongside it, so
 "failure within 24h" keeps its usual meaning.

@@ -7,7 +7,7 @@ which selects the task's contract columns and appends:
                          feature for this row. Defaults to prediction_dttm.
                          A task may set it EARLIER when its own prediction
                          timestamp would leak the outcome. extubation_failure_24h
-                         avoids that by moving prediction_dttm itself 30 min
+                         avoids that by moving prediction_dttm itself 5 min
                          before extubation, so its cutoff equals prediction_dttm.
 
                          Stamped on EVERY cohort on purpose. Feature extraction

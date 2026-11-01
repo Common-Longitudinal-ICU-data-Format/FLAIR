@@ -123,7 +123,7 @@ def test_t3_labels_reintubation_only_and_drops_death_only(monkeypatch):
 
 
 def test_t3_label_window_is_anchored_at_the_extubation_not_the_prediction(monkeypatch):
-    """The 30-min prediction lead must not shorten the outcome window.
+    """The 5-min prediction lead must not shorten the outcome window.
 
     prediction_dttm sits PREDICTION_LEAD_MINUTES before extubation_dttm. If the
     24h horizon were measured from prediction_dttm instead, the label would
