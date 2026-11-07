@@ -115,7 +115,7 @@ def build(clif_config: str) -> pl.DataFrame:
     # stay). encounter_attributes supplies patient-level death + final discharge.
     cohort = encounter_attributes(cfg, cohort).join(
         timing, on="hospitalization_join_id", how="inner"
-    ).pipe(record, "first ICU stay defined")
+    ).pipe(record, "first ICU stay (ICU→OR/CT/dialysis→ICU merged)")
 
     # Exclusion 2: death during the first ICU stay.
     cohort = cohort.filter(
